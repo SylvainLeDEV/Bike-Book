@@ -17,7 +17,7 @@ private network.
 
 | Topic | Decision | Status |
 |-------|----------|--------|
-| Users | Single user, no sign-up | Decided |
+| Users | One user to start with; users and workspaces modelled from day one, no public sign-up | Decided |
 | Devices | Responsive web app, mostly PC and tablet, phone-friendly | Decided |
 | Ride source | Garmin; Komoot only for planning | Decided |
 | Stack | TypeScript: Next.js + SQLite (Drizzle ORM) + Tailwind/shadcn/ui | Decided |

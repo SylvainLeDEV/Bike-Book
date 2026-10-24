@@ -16,7 +16,7 @@ Goal: a good-looking tracker that is pleasant to use every day.
 
 | Question | Answer | Consequence |
 |----------|--------|-------------|
-| Who uses it | One person, the owner of the bikes | No sign-up and no roles. A login is still needed, because other devices share most networks |
+| Who uses it | One person, the owner of the bikes, to start with | No public sign-up. Accounts and workspaces exist from day one (D-25), so family, friends or a bike shop's mechanics can be added later without a rewrite |
 | On what | Mostly PC and tablet, sometimes a phone | Responsive web app. Layouts designed for tablet and desktop first; the phone must stay comfortable for quick entries. No native app, PWA optional |
 | From where | At home, sometimes away | Self-hosted on a private network, reached remotely through a VPN; not exposed to the Internet |
 | Ride recording | Garmin records every ride; Komoot only plans routes | Garmin is the only ride source to integrate; no Komoot integration |
@@ -44,7 +44,7 @@ Goal: a good-looking tracker that is pleasant to use every day.
 
 | Area | MVP (phase 1) | Later | Out of scope for now |
 |------|---------------|-------|----------------------|
-| Bikes | Create/edit, photos, status (active, sold…) | Sale or insurance file export | Multi-user, sharing |
+| Bikes | Create/edit, photos, status (active, sold…) | Sale or insurance file export; invitations and roles (D-25) | Public sign-up, shop features (customers, quotes) |
 | Components | Stock spec + replacements, history per bike, references, warranty | Spec sheets filled by AI (phase 3) | Moving parts between bikes (Decided: never happens) |
 | Rides | Manual entry, bike park fields | Garmin import (phase 2), maps | Social features, segments, leaderboards |
 | Maintenance | Events with line items, costs, shop or self, invoices | Statistics, cost per km | Booking a shop |

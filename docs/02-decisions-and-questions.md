@@ -8,7 +8,7 @@ belong to each deployment.
 
 | ID | Date | Decision | Rationale |
 |----|------|----------|-----------|
-| D-01 | 2026-10-24 | Single user: the owner of the bikes | Personal tool; no sign-up, no roles |
+| D-01 | 2026-10-24 | One user to start with: the owner of the bikes. No public sign-up | Personal tool. Revised by D-25: the model is multi-user-ready |
 | D-02 | 2026-10-24 | Responsive web app, used mostly on PC and tablet, sometimes on a phone. No native app | Replaces the initial "mobile first" idea |
 | D-03 | 2026-10-24 | Shipped as one Docker image, deployable on any Docker host | Self-hosting |
 | D-04 | 2026-10-24 | Garmin (watch or bike computer) is the ride source of record; Komoot is only used to plan and navigate | Only Garmin needs an integration |
@@ -32,6 +32,7 @@ belong to each deployment.
 | D-22 | 2026-10-24 | The GitHub repository is **public** | No secrets, no personal data, no installation details in the repository; configuration only through environment variables. Public image on GHCR |
 | D-23 | 2026-10-24 | Purchase and sale prices of bikes and parts are tracked, as optional fields | Total cost per bike, cost per year, cost per 1,000 km |
 | D-24 | 2026-10-24 | A suspension and tyre **setup log per bike**: current setup + dated changes (not per ride) | Phase 1.5 |
+| D-25 | 2026-10-24 | **Multi-user-ready from day one**: `users`, `workspaces` and `memberships` tables, an auth library that handles several accounts (Better Auth), data owned by a workspace, every query scoped by user and workspace. Only one user and one workspace exist at first; no sign-up, invitations or role management are built yet | Leaves the door open to family, friends or a bike shop with several mechanics, for about one extra evening of work (**Estimate**) instead of a rewrite later. A shop's own needs (customers, intake, quotes) would still be new features |
 
 ## Assumptions to confirm
 

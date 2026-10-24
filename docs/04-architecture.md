@@ -1,7 +1,7 @@
 # Architecture
 
 Status: stack and runtime model **Decided** on 2026-10-24 (D-10, D-11); the rest is
-**Proposed**. Constraints: single user (D-01), responsive web (D-02), one Docker image (D-03),
+**Proposed**. Constraints: one user to start with, multi-user-ready (D-01, D-25), responsive web (D-02), one Docker image (D-03),
 private-network deployment (D-09).
 
 This document describes the application and how to run it on **any Docker host**. It contains
@@ -31,7 +31,7 @@ you have backed up everything.
 | Layer | Choice | Why | Alternatives considered |
 |-------|--------|-----|-------------------------|
 | Framework | **Next.js** (App Router, TypeScript, `output: "standalone"`), **Decided** (D-10) | The safest long-term choice: React is the market standard, its UI ecosystem is the richest (components, animation, charts, maps, drag and drop), and a React Native app stays possible later (Apple Health needs native iOS). One process for UI and server; Server Actions handle forms. Cost: more concepts to learn (Server/Client Components, caching) | **SvelteKit**: simpler, less code, smaller ecosystem. **Nuxt** (Vue). **API + separate SPA**: two codebases, overkill here |
-| Database | **SQLite** in WAL mode (`better-sqlite3` driver) | Single user and few writes: no database server to run, upgrade or back up separately. One file, very fast | **PostgreSQL** pays off with many concurrent writers, several users or PostGIS. None of that applies; migrating later stays possible through Drizzle |
+| Database | **SQLite** in WAL mode (`better-sqlite3` driver) | Few users and few writes: no database server to run, upgrade or back up separately. One file, very fast | **PostgreSQL** pays off with many concurrent writers (a hosted service with many shops) or PostGIS. Not needed for one rider or one shop; migrating later stays possible through Drizzle |
 | ORM and migrations | **Drizzle ORM** + drizzle-kit | Schema written in TypeScript, types flow up to the UI, close to SQL, versioned migrations | Prisma (heavier), Kysely (query builder only) |
 | Validation and forms | **Zod** + React Hook Form | The same schemas validate forms and Server Actions | Valibot, Conform |
 | UI | **Tailwind CSS** + **shadcn/ui** (Radix) | Accessible components, responsive by default, easy dark mode | Skeleton, DaisyUI |
@@ -39,7 +39,7 @@ you have backed up everything.
 | Images | **sharp** | Resizing, thumbnails, EXIF orientation | — |
 | FIT parsing (phase 2) | **`@garmin/fitsdk`** | Garmin's official JavaScript FIT SDK on npm, decode only (**Verified 2026-10-24**) | fit-file-parser |
 | Scheduled jobs | In-process scheduler (e.g. croner) started from Next.js `instrumentation.ts` | Reminders (phase 1.5) and Garmin sync (phase 2) need no queue | System cron calling a protected route |
-| Authentication | One password (argon2id hash given as a secret) + session cookie | Single user, simple, no third party | Better Auth, if passkeys are wanted one day (they need HTTPS) |
+| Authentication | **Better Auth** (email + password, Drizzle adapter, SQLite) | Supports several users from day one; roles, invitations, organisations and passkeys can be switched on later without a rewrite (D-25). Plugin availability to confirm at scaffold time | Auth.js; a hand-rolled single password (simplest, but a rewrite once there are several users) |
 | Tests | **Vitest** for the wear and rule engine, **Playwright** for 2–3 key flows | Counters are the logic that must not be wrong | — |
 | Runtime image | Node.js LTS on a Debian `slim` base | `better-sqlite3` and `sharp` ship prebuilt glibc binaries | Alpine (musl): possible, more friction |
 
@@ -65,7 +65,7 @@ src/
 │   ├── domain/            # Pure functions: wear counters, rule status, ETA (unit-tested)
 │   ├── actions/           # Server Actions (forms)
 │   ├── files/             # Upload storage, sharp, content-type checks
-│   ├── auth/              # Password check, sessions
+│   ├── auth/              # Better Auth setup, current user and workspace
 │   ├── jobs/              # Scheduler: reminders (1.5), Garmin sync (2)
 │   └── integrations/      # garmin/ (phase 2)
 ├── components/            # UI components (shadcn/ui in components/ui)
@@ -91,8 +91,8 @@ baked into the image or the repository.
 |----------|----------|---------|
 | `DATA_DIR` | No (default `/data`) | Where the database and files live |
 | `TZ` | Recommended | Display timezone (e.g. `Europe/Paris`) |
-| `SESSION_SECRET` | Yes | Signs session cookies |
-| `ADMIN_PASSWORD_HASH` | Yes | argon2id hash of the login password (a CLI command generates it) |
+| `AUTH_SECRET` | Yes | Signs session cookies (the first user and workspace are created on a setup screen at first launch) |
+| `ALLOW_SIGNUP` | No (default `false`) | Self sign-up stays off; later, new users come by invitation |
 | `PUBLIC_URL` | Recommended | Origin users type, e.g. `http://bikes.lan`; used for links and the Server Actions origin check |
 | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | No | Phase 1.5 notifications (D-18) |
 | `ICS_FEED_TOKEN` | No | Secret part of the calendar feed URL (D-18) |
@@ -169,11 +169,13 @@ Backing up is the operator's job (D-12); the app makes it easy:
 
 ## Security
 
-- Built for a single user on a private network (D-09). Not hardened for direct exposure to the
+- Built for one user, or a small team, on a private network (D-09). Not hardened for direct exposure to the
   Internet; reach it through a VPN or a reverse proxy you control.
 - Still behind a login: other devices share most networks.
-- Password hashed with argon2id; session cookie `HttpOnly` and `SameSite=Lax`; rate-limited
-  login; sessions expire (e.g. after 30 days).
+- Password hashing, sessions and rate-limited login handled by the auth library; session
+  cookie `HttpOnly` and `SameSite=Lax`; sessions expire (e.g. after 30 days).
+- **Every query is scoped** by the current user and workspace in the data-access layer
+  (`src/server/db`); pages and actions never query tables directly (D-25).
 - Uploads: size limit, type checked from the file content (magic bytes), random file names,
   stored outside any static folder, served with `X-Content-Type-Options: nosniff`.
 - Container: non-root user, read-only root filesystem, `no-new-privileges`.

@@ -1,7 +1,7 @@
 # Ideas backlog
 
 Not scheduled. An idea moves to the [roadmap](05-roadmap.md) once it earns its place. Value
-and effort are rough guesses (**Estimates**): S = an evening or two, M = a few evenings.
+and effort are rough guesses (**Estimates**): S = an evening or two, M = a few evenings, L = weeks.
 
 | Idea | Value | Effort | Notes |
 |------|-------|--------|-------|
@@ -17,3 +17,5 @@ and effort are rough guesses (**Estimates**): S = an evening or two, M = a few e
 | Map of rides or a heatmap (phase 2 data) | Low | M | MapLibre + OpenStreetMap tiles; check the tile usage policy |
 | Spare parts stock and tool inventory | Low | S | |
 | Cost and turnaround comparison between shops | Low | S | |
+| Invitations and roles (owner, member, mechanic) in a workspace | Depends | M | D-25: the tables exist, only the UI is missing |
+| Bike shop mode: customers, bike intake, quotes, work orders | Depends | L | A product of its own on top of workspaces |

@@ -4,13 +4,19 @@ Target database: SQLite, with the schema written in Drizzle ORM (see
 [04-architecture.md](04-architecture.md#stack)). Types below are logical types;
 [Conventions](#conventions) gives the SQLite mapping.
 
-Status: **Proposed**. Simplifications that follow from decisions: one user (D-01), components
-never change bike (D-05), bike park fields (D-06), files stored (D-07).
+Status: **Proposed**. Simplifications that follow from decisions: one user to start with, but
+users and workspaces modelled from day one (D-25), components never change bike (D-05), bike
+park fields (D-06), files stored (D-07).
 
 ## Overview
 
 ```mermaid
 erDiagram
+    WORKSPACE ||--o{ MEMBERSHIP : "has"
+    USER ||--o{ MEMBERSHIP : "has"
+    WORKSPACE ||--o{ BIKE : "owns"
+    WORKSPACE ||--o{ SHOP : "owns"
+    USER |o--o{ MAINTENANCE_EVENT : "created"
     BIKE ||--o{ COMPONENT : "is fitted with"
     BIKE ||--o{ RIDE : "is ridden in"
     BIKE ||--o{ MAINTENANCE_EVENT : "receives"
@@ -39,6 +45,31 @@ Two ideas carry the model:
    *chain slot* of a bike (bike + component type + position). When the chain is replaced, the
    rule stays and its counter restarts.
 
+## Users and workspaces (D-25)
+
+A **workspace** owns the data: a rider's garage today, possibly a shop's workshop one day.
+**Users** belong to workspaces through **memberships**. At first launch, a setup screen creates
+the first user and their workspace; nothing else exists until multi-user features are needed.
+
+| Table | Fields | Notes |
+|-------|--------|-------|
+| `users` | `id`, `email` (unique), `name`, `created_at` | Password hashes and sessions are stored in the auth library's own tables (`account`, `session`) |
+| `workspaces` | `id`, `name`, `created_at` | "My garage" |
+| `memberships` | `user_id`, `workspace_id`, `role` (`owner` for now; `member`, `mechanic`… later), `created_at` | Primary key (`user_id`, `workspace_id`) |
+
+Scoping rules:
+
+- Tables at the top of the hierarchy carry a `workspace_id`: `bikes`, `shops`, `tasks`, and the
+  custom `rule_templates` (`workspace_id` null = built-in template shared by everyone).
+- Everything below a bike (components, rides, maintenance, rules, readings, setups,
+  attachments) inherits the workspace through `bike_id`, so no extra column is needed there.
+- Per-person data carries a `user_id`: Garmin integration (each person has their own Garmin
+  account), notification preferences, sessions.
+- `maintenance_events.created_by` records who logged the work (useful for a shop's mechanics).
+- Every server-side query goes through one data-access layer that receives the current user
+  and workspace. No page or action queries the database directly. This is what makes adding
+  real multi-user features later a matter of UI, not a rewrite.
+
 ## Core tables
 
 ### `bikes`
@@ -46,7 +77,8 @@ Two ideas carry the model:
 | Field | Type | Notes |
 |-------|------|-------|
 | `id` | integer PK | |
-| `name` | text, required, unique | "Spectral", "Gravel alu" |
+| `workspace_id` | FK `workspaces`, required | D-25 |
+| `name` | text, required, unique per workspace | "Spectral", "Gravel alu" |
 | `discipline` | enum: `road`, `gravel`, `xc`, `trail`, `enduro`, `dh`, `dirt`, `city`, `other` | |
 | `is_electric` | boolean | e-MTB, e-gravel… (an e-bike can be any discipline) |
 | `brand`, `model` | text | |
@@ -86,6 +118,7 @@ adjusted to each part's manual.
 | Field | Type | Notes |
 |-------|------|-------|
 | `id` | integer PK | |
+| `workspace_id` | FK, nullable | `null` = built-in template; otherwise a custom one (D-25) |
 | `component_type_code` | FK, nullable | `null` = bike-level template (e.g. yearly check) |
 | `title` | text | "Lower leg service" |
 | `interval_distance_m`, `interval_wear_s`, `interval_days` | integer, nullable | At least one is set; whichever comes first |
@@ -156,6 +189,7 @@ Validation: at least one of `total_time_s` and `moving_time_s` is set.
 | Field | Type |
 |-------|------|
 | `id` | integer PK |
+| `workspace_id` | FK `workspaces` |
 | `name`, `city`, `phone`, `website`, `notes` | text |
 
 ### `maintenance_events`
@@ -170,6 +204,7 @@ One visit to the shop or one session in the garage.
 | `title` | text | "Pre-season service" |
 | `performed_by` | enum: `self`, `shop` | |
 | `shop_id` | FK `shops`, nullable | |
+| `created_by` | FK `users` | Who logged it (D-25) |
 | `total_cost_cents` | integer | Entered, or the sum of the items |
 | `notes` | text | |
 
@@ -217,6 +252,7 @@ item. Rules on that slot restart if `reset_on_replacement` is set.
 | Field | Type | Notes |
 |-------|------|-------|
 | `id` | integer PK | |
+| `workspace_id` | FK `workspaces`, required | Tasks may have no bike, so they carry the workspace themselves |
 | `bike_id` | FK `bikes`, nullable | `null` = general ("buy a torque wrench") |
 | `component_type_code`, `position` | nullable | Optional slot |
 | `kind` | enum: `todo`, `part_to_order` | |
@@ -288,15 +324,16 @@ One row per change; the latest row of a bike is its current setup. Per bike, not
 
 | Table | Purpose |
 |-------|---------|
-| `sessions` | Login sessions (`id`, `created_at`, `expires_at`, `user_agent`) |
-| `app_settings` | Key/value settings (JSON values) |
-| `notifications_log` | Phase 1.5: what was sent, when and through which channel, so nothing is sent twice |
+| Auth library tables | `session`, `account`… managed by the auth library (see [04](04-architecture.md#stack)), linked to `users` |
+| `app_settings` | Key/value settings per workspace (JSON values) |
+| `user_settings` | Per-user preferences: notification channel, Telegram chat ID |
+| `notifications_log` | Phase 1.5: what was sent to whom, when and through which channel, so nothing is sent twice |
 
 ## Phase 2 additions (Garmin)
 
 | Table | Purpose |
 |-------|---------|
-| `integrations` | One row per provider: `status`, `key_expires_on`, `last_sync_at`, `sync_cursor`, `last_error`. The API key itself stays a secret in the environment, not in the database (**Proposed**) |
+| `integrations` | One row per user and provider (`user_id`, `provider`): `status`, `key_expires_on`, `last_sync_at`, `sync_cursor`, `last_error`. The API key itself stays a secret in the environment, not in the database (**Proposed**) |
 | `external_activities` | The inbox of imported activities: `provider`, `external_id` (unique per provider), `started_at`, `activity_type`, `device_name`, distance and times, `summary_json`, `fit_attachment_id`, `suggested_bike_id`, `status` (`new`, `assigned`, `ignored`), `ride_id` |
 | `bike_assignment_rules` | Rules that suggest a bike: `field` (`activity_type`, `device`, `gear_id`…), `value`, `bike_id`, `priority`, `trusted` (assign without asking) |
 
@@ -376,7 +413,10 @@ descent times of the three bike park days been entered (about 2 h each), the tot
 
 ## Conventions
 
-- **IDs**: integer primary keys (one user, no sync between devices).
+- **IDs**: integer primary keys (no sync between devices). If the app ever becomes a hosted
+  service, switching to non-guessable IDs (UUIDv7) for URLs is worth considering.
+- **Portability**: avoid SQLite-only SQL in queries, so a move to PostgreSQL stays a Drizzle
+  configuration change plus a data migration.
 - **Units**: distances in metres, durations in seconds, money in euro cents, all as integers.
   The UI converts.
 - **Time**: instants (`*_at`) stored in UTC and displayed in Europe/Paris; calendar dates

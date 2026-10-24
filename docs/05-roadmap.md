@@ -20,7 +20,7 @@ restored once, **before any real data goes in**.
 - [x] Validate proposals P-01 to P-06 (done 2026-10-24: D-10 to D-15)
 - [x] Answer Q-01 to Q-07 (done 2026-10-24: D-16 to D-22)
 - [ ] Scaffold: Next.js (App Router, standalone output) + strict TypeScript + Tailwind + shadcn/ui + Drizzle + SQLite, ESLint, Prettier, Vitest
-- [ ] Single-user login (password + session)
+- [ ] Auth with Better Auth: first-launch setup screen (first user + workspace), login, data-access layer scoped by user and workspace (D-25)
 - [ ] Dockerfile (non-root, health check) and a local compose file
 - [ ] CI: build the image and push it to GHCR on each tag
 - [ ] Deploy the image on the target host, behind its reverse proxy (installation-specific steps are kept outside this repository)
