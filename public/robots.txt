@@ -1,0 +1,3 @@
+# Private, self-hosted app: nothing to index.
+User-agent: *
+Disallow: /

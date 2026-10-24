@@ -2,8 +2,31 @@
 
 Track all your bikes in one place — rides, maintenance, parts and upcoming service.
 
-> **Status (2026-10-24): design phase.** No code yet. This repository holds the design notes
-> listed below.
+> **Status (2026-10-24): Phase 0 — foundations.** An empty app with accounts (first-launch
+> setup, sign-in), a Docker image and CI. Bikes, rides and maintenance come with Phase 1.
+
+## Quick start
+
+Requirements: Node.js 24 or later and pnpm 12 (or Docker).
+
+```bash
+pnpm install
+pnpm dev            # http://localhost:3000, data in ./data
+```
+
+The first visit opens a setup screen that creates your account and your garage. To try the app
+with fictitious data instead, run `pnpm db:seed` before the first visit.
+
+With Docker, using the production image:
+
+```bash
+cp .env.example .env   # then set AUTH_SECRET: openssl rand -base64 32
+mkdir -p data/compose
+docker compose up --build
+```
+
+Configuration is only through environment variables: see `.env.example` and
+[docs/04-architecture.md](docs/04-architecture.md#configuration).
 
 ## In one paragraph
 

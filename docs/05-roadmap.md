@@ -19,10 +19,10 @@ restored once, **before any real data goes in**.
 
 - [x] Validate proposals P-01 to P-06 (done 2026-10-24: D-10 to D-15)
 - [x] Answer Q-01 to Q-07 (done 2026-10-24: D-16 to D-22)
-- [ ] Scaffold: Next.js (App Router, standalone output) + strict TypeScript + Tailwind + shadcn/ui + Drizzle + SQLite, ESLint, Prettier, Vitest
-- [ ] Auth with Better Auth: first-launch setup screen (first user + workspace), login, data-access layer scoped by user and workspace (D-25)
-- [ ] Dockerfile (non-root, health check) and a local compose file
-- [ ] CI: build the image and push it to GHCR on each tag
+- [x] Scaffold: Next.js (App Router, standalone output) + strict TypeScript + Tailwind + shadcn/ui + Drizzle + SQLite, ESLint, Prettier, Vitest (done 2026-10-24, versions in D-29)
+- [x] Auth with Better Auth: first-launch setup screen (first user + workspace), login, data-access layer scoped by user and workspace (D-25) (done 2026-10-24, D-26 to D-28)
+- [x] Dockerfile (non-root, health check) and a local compose file (done 2026-10-24)
+- [x] CI: lint and tests on each push; build the image and push it to GHCR on each `v*` tag (written 2026-10-24, not run on GitHub yet)
 - [ ] Deploy the image on the target host, behind its reverse proxy (installation-specific steps are kept outside this repository)
 - [ ] Backups of the data directory in place, restore tested once
 - [ ] Check through the proxy: a form submit (Server Actions origin check) and a 10 MB upload

@@ -1,0 +1,10 @@
+# Generated
+pnpm-lock.yaml
+src/server/db/migrations/
+next-env.d.ts
+.next/
+coverage/
+# Local data
+data/
+# Hand-formatted prose: Prettier would realign every table
+*.md

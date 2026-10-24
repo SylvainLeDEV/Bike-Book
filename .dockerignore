@@ -1,0 +1,16 @@
+# Keep the build context small and free of local state and secrets.
+.git
+.github
+.next
+node_modules
+coverage
+data
+docs
+*.md
+.env*
+!.env.example
+Dockerfile
+docker-compose*.yml
+.dockerignore
+*.tsbuildinfo
+.DS_Store

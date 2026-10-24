@@ -1,0 +1,26 @@
+# Local example: builds the image from this repository and runs it like production.
+#
+#   cp .env.example .env    # then set AUTH_SECRET (openssl rand -base64 32)
+#   mkdir -p data/compose   # on Linux: sudo chown 1000:1000 data/compose
+#   docker compose up --build
+#
+# A real deployment pulls a pinned image instead, e.g. ghcr.io/<owner>/bike-book:0.1.0.
+services:
+  app:
+    build: .
+    image: bike-book:local
+    restart: unless-stopped
+    init: true
+    ports:
+      - "3000:3000"
+    env_file: .env # secrets, never committed
+    environment:
+      TZ: ${TZ:-Europe/Paris}
+    volumes:
+      # A LOCAL directory, never a network share (SQLite). Separate from the `pnpm dev` database.
+      - ./data/compose:/data
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true

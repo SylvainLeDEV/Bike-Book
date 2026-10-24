@@ -3,8 +3,9 @@
 Self-hosted web app to track bikes: rides, maintenance, components, and what is coming up
 (services due by hours, kilometres or date, parts to order).
 
-**Status:** design done (see `docs/`), code not started. Next step: Phase 0 — Foundations
-(`docs/05-roadmap.md`).
+**Status:** Phase 0 application scaffold done (auth, data-access layer, Docker image, CI).
+Remaining Phase 0 items are deployment-side (target host, backups, proxy checks): see
+`docs/05-roadmap.md`. Next: Phase 1 — MVP.
 
 ## Read first
 
@@ -16,6 +17,7 @@ Self-hosted web app to track bikes: rides, maintenance, components, and what is 
 | `docs/05-roadmap.md` | What to build next, and the exit criteria |
 | `docs/06-integrations.md` | Before any Garmin/Strava/Komoot/Bosch work (re-check sources: this moves fast) |
 | `docs/07-ai.md` | Phase 3 only |
+| `node_modules/next/dist/docs/` | Next.js docs for the installed version (see `AGENTS.md`): read before using a Next.js API |
 
 ## Key decisions (summary — the docs win if they differ)
 
@@ -23,9 +25,12 @@ Self-hosted web app to track bikes: rides, maintenance, components, and what is 
   via `better-sqlite3`, Drizzle ORM + drizzle-kit, Tailwind + shadcn/ui, Zod, Vitest,
   Playwright. Package manager: pnpm.
 - **Auth:** Better Auth. Multi-user-ready from day one (D-25): `users`, `workspaces`,
-  `memberships`; one user and one workspace created by a first-launch setup screen; sign-up off.
-- **Data:** all state in one directory (`DATA_DIR`, default `/data`): `bikebook.db`, `uploads/`,
-  `cache/` (regenerable). Local filesystem only, never NFS/SMB.
+  `memberships`; one user and one workspace created by a first-launch setup screen; sign-up off
+  (`ALLOW_SIGNUP`, D-27). Sign-in goes through the Better Auth client (rate-limited endpoint);
+  account creation and sign-out are Server Actions.
+- **Data:** all state in one directory (`DATA_DIR`: `./data` by default, `/data` in the image):
+  `bikebook.db`, `uploads/`, `cache/` (regenerable). Local filesystem only, never NFS/SMB.
+  Migrations run automatically when the app opens the database (D-28).
 - **Packaging:** one Docker image, non-root (uid 1000), read-only root filesystem, configured
   only through environment variables.
 - **Wear rule (D-13):** on lift-assisted rides, wear time = descent time if set, else moving
@@ -57,18 +62,48 @@ Self-hosted web app to track bikes: rides, maintenance, components, and what is 
 8. Pragmatic, no over-engineering: build only what the current roadmap phase needs, but do not
    close the doors listed in the decisions (multi-user, PostgreSQL, Garmin sync).
 
-## Target structure
+## Structure
 
 ```text
 src/
-├── app/            # App Router pages; api/uploads, api/healthz
-├── server/         # server-only: db/ (schema, migrations, seed, data access), domain/,
-│                   # actions/, files/, auth/, jobs/, integrations/
+├── app/            # App Router: (app)/ signed-in pages, (auth)/ login + setup,
+│                   # api/auth/[...all] (Better Auth), api/healthz; api/uploads in phase 1
+├── server/         # server-only
+│   ├── db/         # schema, migrations/, seed, data-access layer (index.ts = public API)
+│   ├── auth/       # Better Auth instance, sign-up policy, current user + workspace
+│   ├── actions/    # Server Actions
+│   ├── env.ts      # configuration, validated with Zod
+│   └── (domain/, files/, jobs/, integrations/ come with phases 1–2)
 ├── components/     # UI (shadcn/ui in components/ui)
-└── instrumentation.ts  # starts the in-process scheduler
+├── lib/            # client-safe helpers (auth client)
+├── test/           # Vitest setup
+└── instrumentation.ts  # opens the database (migrations) at startup; scheduler later
+scripts/            # db-migrate.ts, db-seed.ts (run with tsx)
 ```
+
+- Only `src/server/db` imports the Drizzle client, the schema, `drizzle-orm` or
+  `better-sqlite3`. ESLint enforces it (`no-restricted-imports`); tests are exempt.
+- Code under `src/server` imports `server-only`. Scripts run with `tsx --conditions=react-server`
+  and Vitest aliases `server-only` to an empty module.
 
 ## Commands
 
-Not defined yet: fill this section in when the project is scaffolded (dev, build, test, lint,
-db migrate/seed, Docker build).
+Toolchain: Node.js ≥ 24 (the image uses Node 24 LTS) and pnpm 12 (pinned in `packageManager`).
+
+| Command | What it does |
+|---------|--------------|
+| `pnpm install` | Install dependencies (build scripts are denied by default, see `pnpm-workspace.yaml`) |
+| `pnpm dev` | Dev server on http://localhost:3000, database in `./data` (works without a `.env`) |
+| `pnpm build` / `pnpm start` | Production build (`.next/standalone`) / run it |
+| `pnpm lint` | ESLint (Next.js rules + data-access import restriction) |
+| `pnpm format` / `pnpm format:check` | Prettier (Markdown files are left alone) |
+| `pnpm typecheck` | `next typegen` + `tsc --noEmit` |
+| `pnpm test` / `pnpm test:watch` | Vitest; each test file gets its own temporary database |
+| `pnpm db:generate` | Generate a migration from `src/server/db/schema.ts` (drizzle-kit) |
+| `pnpm db:migrate` | Apply migrations to `DATA_DIR` (the app also does it at startup) |
+| `pnpm db:seed` | Create the fictitious demo account (`demo@example.com`, see `src/server/db/seed.ts`); refuses to run in production |
+| `pnpm db:studio` | Drizzle Studio on the dev database |
+| `docker compose up --build` | Build and run the production image locally (needs `.env`, see `docker-compose.yml`) |
+
+Releases: push a `v*` tag; GitHub Actions runs the checks, then builds and pushes
+`ghcr.io/<owner>/bike-book:<version>` (linux/amd64).

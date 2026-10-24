@@ -43,7 +43,8 @@ you have backed up everything.
 | Tests | **Vitest** for the wear and rule engine, **Playwright** for 2–3 key flows | Counters are the logic that must not be wrong | — |
 | Runtime image | Node.js LTS on a Debian `slim` base | `better-sqlite3` and `sharp` ship prebuilt glibc binaries | Alpine (musl): possible, more friction |
 
-Versions are not fixed here on purpose: take the current stable releases when the project starts.
+Versions are not fixed here on purpose: the versions picked at scaffold time, and why, are in
+D-29 (`package.json` and `pnpm-lock.yaml` are the source of truth).
 
 ### Application structure
 
@@ -80,7 +81,10 @@ src/
   `HEALTHCHECK` on `/api/healthz`, writable data only under `/data`.
 - Built by GitHub Actions on each tag and published as a public image on GHCR
   (`ghcr.io/<owner>/bike-book:<version>`, lowercase). Deployments should pin a version.
-- Database migrations run when the container starts. Back up `/data` before upgrading.
+- Database migrations run when the container starts (the app applies them when it opens the
+  database, D-28). Back up `/data` before upgrading.
+- Image built for `linux/amd64` only for now; `linux/arm64` can be added to the release
+  workflow if needed.
 
 ### Configuration
 
@@ -89,11 +93,11 @@ baked into the image or the repository.
 
 | Variable | Required | Purpose |
 |----------|----------|---------|
-| `DATA_DIR` | No (default `/data`) | Where the database and files live |
+| `DATA_DIR` | No (default `./data`; the image sets `/data`) | Where the database and files live |
 | `TZ` | Recommended | Display timezone (e.g. `Europe/Paris`) |
-| `AUTH_SECRET` | Yes | Signs session cookies (the first user and workspace are created on a setup screen at first launch) |
-| `ALLOW_SIGNUP` | No (default `false`) | Self sign-up stays off; later, new users come by invitation |
-| `PUBLIC_URL` | Recommended | Origin users type, e.g. `http://bikes.lan`; used for links and the Server Actions origin check |
+| `AUTH_SECRET` | Yes in production (D-28) | Signs session cookies. At least 32 characters (`openssl rand -base64 32`); the `.env.example` placeholder is refused. Development uses a built-in insecure default |
+| `ALLOW_SIGNUP` | No (default `false`) | `false`: only the first-launch setup screen creates an account. `true`: anyone who reaches the app can create an account with its own workspace (D-27). Later, new users come by invitation |
+| `PUBLIC_URL` | Yes in production (D-28) | Origin users type, e.g. `http://bikes.lan`. Better Auth's base URL: origin check on sign-in, and session cookies get `Secure` only when it starts with `https://`. Open the app at exactly this origin, or sign-in is refused |
 | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | No | Phase 1.5 notifications (D-18) |
 | `ICS_FEED_TOKEN` | No | Secret part of the calendar feed URL (D-18) |
 | `GARMIN_PERSONAL_API_KEY` | No | Phase 2 sync (D-14) |
@@ -121,8 +125,8 @@ services:
 
 ### Behind a reverse proxy
 
-- **Upload size.** Server Actions cap the request body (1 MB by default in the versions known so far,
-  **Unverified** for the version that will be used). Photos and PDFs therefore go through a
+- **Upload size.** Server Actions cap the request body (1 MB by default, **Verified 2026-10-24**
+  in the Next.js 16.4 docs). Photos and PDFs therefore go through a
   Route Handler (`app/api/uploads`) that streams to disk; Server Actions stay for forms. The
   proxy must also accept bodies of about 25 MB.
 - **Origin check.** Server Actions reject requests whose `Origin` does not match the host. The
@@ -172,8 +176,10 @@ Backing up is the operator's job (D-12); the app makes it easy:
 - Built for one user, or a small team, on a private network (D-09). Not hardened for direct exposure to the
   Internet; reach it through a VPN or a reverse proxy you control.
 - Still behind a login: other devices share most networks.
-- Password hashing, sessions and rate-limited login handled by the auth library; session
-  cookie `HttpOnly` and `SameSite=Lax`; sessions expire (e.g. after 30 days).
+- Password hashing (scrypt), sessions and rate-limited login handled by the auth library;
+  session cookie `HttpOnly` and `SameSite=Lax`, sessions expire after 30 days (**Verified
+  2026-10-24** on the container). Rate limiting keys on the client IP from `X-Forwarded-For`:
+  a reverse proxy in front must overwrite that header, not append to what the client sent.
 - **Every query is scoped** by the current user and workspace in the data-access layer
   (`src/server/db`); pages and actions never query tables directly (D-25).
 - Uploads: size limit, type checked from the file content (magic bytes), random file names,
@@ -210,9 +216,12 @@ Backing up is the operator's job (D-12); the app makes it easy:
 
 ## Local development
 
-- `pnpm dev`, with the SQLite file in `./data/` (git-ignored) and a seed script that creates
-  fictitious bikes and rides.
-- `docker compose up` to test the production image with the same variables.
+- `pnpm dev`, with the SQLite file in `./data/` (git-ignored) and a seed script (`pnpm db:seed`)
+  that creates fictitious data: a demo account and workspace for now, bikes and rides from
+  phase 1.
+- `docker compose up --build` to test the production image with the same variables
+  (`docker-compose.yml` at the repository root; its database lives in `./data/compose`).
+- All commands: see the Commands section of `CLAUDE.md`.
 
 ## Sources (accessed 2026-10-24)
 
