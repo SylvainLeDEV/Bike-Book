@@ -92,6 +92,23 @@ Interaction hooks, handled by the delegated click handler:
 | `data-rq="1"` / `data-rq="-1"` | On the selected item: change the quantity to order, or received (`restockQty`); not a stock movement |
 | `data-receive` | With `data-ws-open`: open the item and focus "Marquer reçu", so the quantity is confirmed first |
 | `data-task-done="<task id>"` | Mark a one-off task done in "À prévoir" (dashboard, bike page), with undo |
+| `data-photo="<id>"` + `data-seq="<list>"` | Open the photo viewer on that photo, browsing the list registered as `SEQ[list]` (gallery, event, component) |
+| `data-ph-tag="<label>"` | Photos across all bikes filtered by that label (with `data-go="photos"`, or from a label in the viewer) |
+| `data-add-photos="bike"` / `="<event id>"` | Open "Ajouter des photos" for the bike (the element is chosen in the sheet) or for that event; `data-up-tag` proposes a label |
+| `data-tag-del` + `data-tagger` | Remove a label from a label field (viewer, upload rows) |
+| `data-edit-bike` / `="status"` | Open the bike edit sheet, focus on the name or on the status |
+| `data-serial="toggle"` / `="copy"` | Show/hide or copy the frame number |
+| `data-pr-open="<procedure id>"` | Open a procedure; with `data-go="procs"`, navigates first. `data-pr-bike` sets the bike filter |
+| `data-pr-new` (`="<bike id>"`) / `data-pr-edit` / `data-pr-dup` | Procedure editor: new (optionally for a bike), edit, duplicate |
+| `data-run="<procedure id>"` (+ `data-run-bike`) | Start, or resume, workshop mode |
+| `data-done-proc` + `data-done-rule` + `data-done-bike` | "C'est fait" on a rule that has a procedure: choice between running it and recording directly |
+| `data-add-item="p<n>"` | The add sheet prefilled from `PREFILLS[n]` (something a procedure needs that the workshop lacks) |
+
+The photo viewer and workshop mode are full-screen `.overlay` elements opened with the sheets'
+`openSheet()` (`viewer`, `runner`), so they share the inert background, the Tab trap, Escape and
+the return of focus (found again by its data attributes if a re-render replaced it). Label fields
+are comboboxes (`data-combo`); their keys are handled on `#app`, before the document handler, so
+Escape closes the suggestions before the sheet.
 
 Change events (not clicks) drive the workshop filters, search and bike filter, the product level
 (`name="lvl"`) and tool possession (`name="own"`). Every stock
