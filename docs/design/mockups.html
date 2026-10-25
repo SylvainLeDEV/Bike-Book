@@ -1,6 +1,7 @@
 <!doctype html>
 <!--
-  Bike-Book design mockups, phase 1 (plus a phase 3 preview). Status: Proposed, awaiting validation.
+  Bike-Book design mockups, phase 1 (plus a phase 3 preview and a proposed workshop/inventory
+  screen, "Atelier"). Status: Proposed, awaiting validation.
   A static reference, not application code: at step A of phase 1 the same screens are rebuilt in the
   app with the real components, then this file is deleted. All data is fictitious (D-22).
   See README.md in this folder.
@@ -553,6 +554,8 @@
         overflow-y: auto;
         overscroll-behavior: contain;
         min-height: 0;
+        /* Size container so the sticky workshop detail pane can cap its height (100cqh). */
+        container: main / size;
       }
       .main-inner {
         max-width: 1120px;
@@ -778,6 +781,7 @@
         min-height: 44px;
       }
       .link {
+        position: relative;
         border: 0;
         background: none;
         padding: 4px 0;
@@ -789,6 +793,20 @@
       .link:hover {
         text-decoration: underline;
         text-underline-offset: 3px;
+      }
+      /* Touch: grow the hit area to 44px or more without changing the layout. */
+      .touch .link::after {
+        content: "";
+        position: absolute;
+        inset: -10px -4px;
+      }
+      .touch .icon-btn {
+        width: 44px;
+        height: 44px;
+      }
+      .touch .crumb .back,
+      .touch .ws-btn {
+        height: 44px;
       }
 
       .badge {
@@ -1424,12 +1442,46 @@
         min-width: 0;
       }
       .part-name {
+        display: block;
         font-weight: 600;
         font-size: 14.5px;
       }
       .part-meta {
+        display: block;
         font-size: 13px;
         color: var(--fg-muted);
+      }
+      .part-btn {
+        width: 100%;
+        min-height: 60px;
+        border: 0;
+        background: transparent;
+        color: inherit;
+        text-align: left;
+        transition: background-color var(--dur) var(--ease);
+      }
+      .part-btn:hover {
+        background: color-mix(in oklch, var(--surface-2), var(--surface) 40%);
+      }
+      .part-btn:focus-visible {
+        outline-offset: -3px;
+      }
+      .rule-stock {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 2px 6px;
+        margin-top: 8px;
+        font-size: 13px;
+        color: var(--fg-muted);
+      }
+      .rule-stock svg.lucide {
+        width: 15px;
+        height: 15px;
+      }
+      .rule-stock .link {
+        font-size: 13px;
+        margin-left: 2px;
       }
 
       /* ---------- Timeline ---------- */
@@ -1754,7 +1806,7 @@
       }
       @container app (max-width: 699px) {
         .bike-grid[data-tab="overview"] > :not(.sec-plan),
-        .bike-grid[data-tab="components"] > :not(.sec-components),
+        .bike-grid[data-tab="components"] > :not(.sec-components, .sec-stock),
         .bike-grid[data-tab="history"] > :not(.sec-history) {
           display: none;
         }
@@ -2042,7 +2094,7 @@
         opacity: 1;
         pointer-events: auto;
       }
-      .sheet-open .sheet {
+      .sheet.is-open {
         transform: none;
         visibility: visible;
         transition:
@@ -2163,7 +2215,7 @@
             opacity 220ms var(--ease),
             visibility 0s linear 220ms;
         }
-        .sheet-open .sheet {
+        .sheet.is-open {
           opacity: 1;
           transform: translate(-50%, -50%);
           transition:
@@ -2267,6 +2319,736 @@
       }
       .empty .btn {
         margin-top: 6px;
+      }
+      .empty.compact {
+        gap: 8px;
+        padding: 22px 20px;
+      }
+      .empty-sugg {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 8px;
+      }
+      .empty-sugg .btn {
+        margin-top: 0;
+      }
+
+      /* ---------- Workshop (Atelier): inventory and restocking. Proposed ---------- */
+      .ws {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: 26px;
+      }
+      .ws[data-view="list"] > .ws-detail,
+      .ws[data-view="item"] > .ws-list,
+      .ws[data-solo] > .ws-detail {
+        display: none;
+      }
+      .ws-head {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 12px 16px;
+      }
+      .ws-sum {
+        --c-soft: var(--brand-soft);
+        --c-ink: var(--brand-ink);
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        width: 100%;
+        min-height: 48px;
+        margin-bottom: 16px;
+        padding: 7px 12px 7px 8px;
+        border: 1px solid var(--border);
+        border-radius: var(--r-card);
+        background: var(--surface);
+        box-shadow: var(--shadow-sm);
+        color: inherit;
+        text-align: left;
+        transition: border-color var(--dur) var(--ease);
+      }
+      .ws-sum:hover {
+        border-color: color-mix(in oklch, var(--border), var(--fg) 25%);
+      }
+      .ws-sum-txt {
+        flex: 1;
+        min-width: 0;
+        font-size: 14px;
+        color: var(--fg-muted);
+      }
+      .ws-sum-txt b {
+        font: 700 18px/1 var(--font-num);
+        color: var(--fg);
+      }
+      .ws-sum > svg.lucide:last-child {
+        color: var(--fg-muted);
+      }
+      .ws-tools {
+        display: grid;
+        gap: 12px;
+        margin-bottom: 16px;
+      }
+      .ws-chips {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        margin-inline: -16px;
+        padding: 2px 16px 4px;
+        scrollbar-width: none;
+      }
+      .chip-count {
+        font: 600 15px/1 var(--font-num);
+        color: var(--fg-muted);
+      }
+      .chip input:checked + span .chip-count {
+        color: inherit;
+      }
+      .ws-find {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 8px;
+      }
+      .ws-body:focus {
+        outline: none;
+      }
+      .input-wrap > svg.lucide {
+        color: var(--fg-muted);
+      }
+      .input-wrap.search > svg.lucide {
+        margin-left: 12px;
+      }
+      .input-wrap.search input {
+        padding-left: 8px;
+      }
+      .input-wrap input[type="search"]::-webkit-search-decoration {
+        -webkit-appearance: none;
+      }
+      .input-wrap.select {
+        position: relative;
+      }
+      .input-wrap select {
+        flex: 1;
+        min-width: 0;
+        height: 100%;
+        border: 0;
+        background: transparent;
+        padding: 0 38px 0 12px;
+        font-size: 16px;
+        outline: none;
+        appearance: none;
+        -webkit-appearance: none;
+        cursor: pointer;
+      }
+      .input-wrap.select > svg.lucide {
+        position: absolute;
+        right: 12px;
+        pointer-events: none;
+      }
+
+      /* Dense inventory rows: thumbnail (photo, else category icon), name, bikes, stock, one badge. */
+      .inv-card {
+        overflow: hidden;
+      }
+      .inv {
+        display: grid;
+      }
+      .inv-open {
+        --ring: var(--surface);
+        display: grid;
+        grid-template-columns: 36px minmax(0, 1fr) auto;
+        gap: 2px 12px;
+        align-items: start;
+        width: 100%;
+        min-height: 64px;
+        padding: 12px 16px;
+        border: 0;
+        background: transparent;
+        color: inherit;
+        text-align: left;
+        transition: background-color var(--dur) var(--ease);
+      }
+      .inv-open:hover {
+        background: color-mix(in oklch, var(--surface-2), var(--surface) 40%);
+      }
+      .inv-open:focus-visible {
+        outline-offset: -3px;
+      }
+      .inv-ico {
+        grid-column: 1;
+        grid-row: 1 / span 2;
+      }
+      .inv-name {
+        grid-column: 2;
+        min-width: 0;
+        font: 600 14.5px/1.35 var(--font-ui);
+      }
+      .inv-meta {
+        grid-column: 2;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        min-width: 0;
+        font-size: 13px;
+        color: var(--fg-muted);
+      }
+      .inv-meta svg.lucide {
+        width: 14px;
+        height: 14px;
+      }
+      .inv-bk {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .inv-side {
+        grid-column: 3;
+        grid-row: 1 / span 2;
+        display: grid;
+        justify-items: end;
+        gap: 4px;
+        text-align: right;
+      }
+      .inv-qty {
+        font: 600 19px/1 var(--font-num);
+      }
+      .inv-unit {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 12.5px;
+        color: var(--fg-muted);
+        white-space: nowrap;
+      }
+      .inv-unit svg.lucide {
+        width: 14px;
+        height: 14px;
+      }
+      .inv-badges {
+        grid-column: 2 / span 2;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-top: 6px;
+      }
+      .inv-act {
+        display: flex;
+        gap: 8px;
+        padding: 0 16px 12px 64px;
+        margin-top: -2px;
+      }
+      .inv-foot {
+        padding: 6px 8px;
+      }
+      .pips {
+        display: inline-flex;
+        flex: none;
+      }
+      .pip {
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        box-shadow: 0 0 0 2px var(--ring, var(--surface));
+      }
+      .pip + .pip {
+        margin-left: -5px;
+      }
+      /* Product level: 3 segments plus a text label, so it never relies on colour. */
+      .gauge {
+        display: inline-flex;
+        align-items: center;
+        gap: 3px;
+        height: 19px;
+      }
+      .gauge > span {
+        width: 9px;
+        height: 14px;
+        border-radius: 3px;
+        box-shadow: inset 0 0 0 1.5px color-mix(in oklch, var(--fg-muted), transparent 45%);
+      }
+      .gauge > span.on {
+        background: var(--brand);
+        box-shadow: none;
+      }
+      .badge.stock {
+        --b-bg: var(--surface-2);
+        --b-fg: var(--fg);
+      }
+      .group-head .count {
+        font: 600 13px/1 var(--font-num);
+        letter-spacing: 0;
+      }
+
+      /* Item detail ("fiche") */
+      .item {
+        display: grid;
+        gap: 22px;
+        align-content: start;
+      }
+      .item-head {
+        display: grid;
+        grid-template-columns: 64px minmax(0, 1fr);
+        gap: 14px;
+        align-items: start;
+      }
+      .item-photo {
+        width: 64px;
+        height: 64px;
+        display: grid;
+        place-items: center;
+        border: 1.5px dashed color-mix(in oklch, var(--fg-muted), transparent 45%);
+        border-radius: var(--r-card);
+        background: var(--surface);
+        color: var(--fg-muted);
+        transition:
+          color var(--dur) var(--ease),
+          border-color var(--dur) var(--ease);
+      }
+      .item-photo:hover {
+        color: var(--fg);
+        border-color: var(--fg-muted);
+      }
+      .item-photo svg.lucide {
+        width: 22px;
+        height: 22px;
+      }
+      .item-title {
+        font: 650 22px/1.2 var(--font-ui);
+        letter-spacing: -0.015em;
+        text-wrap: balance;
+        margin-top: 2px;
+      }
+      /* Focused by script when a detail opens, so screen readers start there; not a control. */
+      .item-title:focus {
+        outline: none;
+      }
+      .item-sub {
+        font-size: 14px;
+        color: var(--fg-muted);
+        margin-top: 4px;
+      }
+      .item-loc {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        margin-top: 8px;
+        font-size: 13.5px;
+        font-weight: 500;
+      }
+      .item-loc svg.lucide {
+        width: 16px;
+        height: 16px;
+        color: var(--fg-muted);
+      }
+      .item-actions,
+      .stock-tools {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      .stock-tools {
+        margin: 6px 0 0 -12px;
+      }
+      .item-sec > .sec-head {
+        margin-bottom: 8px;
+      }
+      .item-foot {
+        margin-top: 8px;
+      }
+      .item-note {
+        font-size: 14px;
+        line-height: 1.55;
+      }
+      .stock-top + .fs {
+        margin-top: 10px;
+      }
+      .stock-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        min-height: 24px;
+      }
+      .stepper {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin: 10px 0 8px;
+      }
+      .step-btn {
+        width: 44px;
+        height: 44px;
+        flex: none;
+        display: grid;
+        place-items: center;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        background: var(--surface);
+        color: var(--fg);
+        box-shadow: var(--shadow-sm);
+        transition:
+          background-color var(--dur) var(--ease),
+          transform var(--dur) var(--ease);
+      }
+      .step-btn:hover:not(:disabled) {
+        background: var(--surface-2);
+      }
+      .step-btn:active:not(:disabled) {
+        transform: scale(0.94);
+      }
+      .step-btn:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+        box-shadow: none;
+      }
+      .step-btn.flat {
+        border-color: transparent;
+        background: transparent;
+        box-shadow: none;
+        color: var(--fg-muted);
+      }
+      .step-val {
+        min-width: 92px;
+        text-align: center;
+        font-size: 14px;
+        color: var(--fg-muted);
+      }
+      .step-val .num {
+        display: block;
+        font: 700 34px/1 var(--font-num);
+        color: var(--fg);
+      }
+      .stock-pack {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 0 12px;
+        margin-top: 12px;
+      }
+      .stock-pack .stepper {
+        margin: 0;
+      }
+      .stock-pack-l {
+        font: 600 13.5px/1.2 var(--font-ui);
+      }
+      .empty-line {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin: 10px 0 4px;
+        font-weight: 500;
+      }
+      .restock {
+        display: grid;
+        gap: 12px;
+        margin-top: 14px;
+        padding-top: 14px;
+        border-top: 1px solid var(--border);
+      }
+      .restock-txt {
+        font-size: 14px;
+      }
+      /* Restocking steps: bar + label + check icon; the current step is bold (not colour alone). */
+      .steps {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 6px;
+      }
+      .steps li {
+        display: grid;
+        align-content: start;
+        gap: 4px;
+        font-size: 12.5px;
+        color: var(--fg-muted);
+      }
+      .steps li::before {
+        content: "";
+        height: 4px;
+        border-radius: 2px;
+        background: var(--track);
+      }
+      .steps li[data-s="done"]::before,
+      .steps li[data-s="now"]::before {
+        background: var(--brand);
+      }
+      .steps li[data-s="now"] {
+        color: var(--fg);
+      }
+      .steps b {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        font-weight: 500;
+      }
+      .steps li[data-s="now"] b {
+        font-weight: 650;
+      }
+      .steps svg.lucide {
+        width: 14px;
+        height: 14px;
+        stroke-width: 2.6;
+      }
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        height: 36px;
+        padding: 0 14px 0 4px;
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        background: var(--surface);
+        font-size: 14px;
+        font-weight: 500;
+        white-space: nowrap;
+      }
+      .pill .mini {
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        overflow: hidden;
+        flex: none;
+      }
+      .pill .pips {
+        margin-left: 8px;
+      }
+      .pl,
+      .ent,
+      .mv {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 10px 16px;
+        min-height: 60px;
+      }
+      .pl {
+        padding-right: 8px;
+      }
+      .pl-price {
+        display: grid;
+        justify-items: end;
+        gap: 2px;
+        font: 600 17px/1 var(--font-num);
+        white-space: nowrap;
+      }
+      .pl-best {
+        font: 500 12px/1.2 var(--font-ui);
+        color: var(--fg-muted);
+      }
+      .ent-cover {
+        width: 36px;
+        height: 36px;
+        border-radius: 10px;
+        overflow: hidden;
+        flex: none;
+      }
+      .mv-delta {
+        width: 40px;
+        flex: none;
+        display: grid;
+        place-items: center;
+        font: 600 18px/1 var(--font-num);
+      }
+      .mv-delta.plus {
+        color: var(--brand-ink);
+      }
+      .mv-title {
+        font-weight: 600;
+        font-size: 14px;
+      }
+      .mv-link {
+        display: block;
+        padding: 2px 0;
+        font-size: 13px;
+        text-align: left;
+      }
+      .mv-date {
+        flex: none;
+        align-self: flex-start;
+        padding-top: 2px;
+        font-size: 12.5px;
+        color: var(--fg-muted);
+        white-space: nowrap;
+      }
+      .mini-empty {
+        display: grid;
+        justify-items: start;
+        gap: 6px;
+        padding: 16px;
+      }
+
+      /* Radio cards: item type, part taken from stock. A dot marks the choice, not colour alone. */
+      .picks {
+        display: grid;
+        gap: 8px;
+      }
+      .pick {
+        position: relative;
+        display: block;
+      }
+      .pick input {
+        position: absolute;
+        opacity: 0;
+        pointer-events: none;
+      }
+      .pick > span {
+        display: grid;
+        grid-template-columns: 36px minmax(0, 1fr) 20px;
+        align-items: center;
+        column-gap: 12px;
+        min-height: 60px;
+        padding: 10px 14px;
+        border: 1px solid var(--border);
+        border-radius: var(--r-card);
+        background: var(--surface);
+        cursor: pointer;
+        transition:
+          background-color var(--dur) var(--ease),
+          border-color var(--dur) var(--ease);
+      }
+      .pick:hover > span {
+        border-color: color-mix(in oklch, var(--border), var(--fg) 25%);
+      }
+      .pick input:checked + span {
+        background: var(--brand-soft);
+        border-color: var(--brand);
+      }
+      .pick input:checked + span .part-ico {
+        background: var(--surface);
+        color: var(--brand-ink);
+      }
+      .pick input:focus-visible + span {
+        outline: 2px solid var(--brand);
+        outline-offset: 2px;
+      }
+      .pick input:disabled + span {
+        opacity: 0.55;
+        cursor: not-allowed;
+      }
+      .pick-name {
+        display: block;
+        font-weight: 600;
+        font-size: 14.5px;
+      }
+      .pick-meta {
+        display: block;
+        font-size: 13px;
+        color: var(--fg-muted);
+      }
+      .pick-dot {
+        width: 20px;
+        height: 20px;
+        display: grid;
+        place-items: center;
+        border: 2px solid var(--fg-muted);
+        border-radius: 50%;
+      }
+      .pick input:checked + span .pick-dot {
+        border-color: var(--brand);
+      }
+      .pick input:checked + span .pick-dot::after {
+        content: "";
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: var(--brand);
+      }
+      .ai-fields {
+        display: grid;
+        gap: 20px;
+      }
+      .ai-kind {
+        display: grid;
+        gap: 16px;
+      }
+      /* Top bar: the "‹ Atelier" crumb replaces the workspace button while a detail is open
+         (phone and tablet). The container queries below restore it on PC. */
+      .app:not([data-ws-view="item"]) .tb-ws,
+      .app[data-ws-view="item"] .tb-dash {
+        display: none;
+      }
+
+      @container app (min-width: 700px) {
+        .ws-chips {
+          flex-wrap: wrap;
+          margin-inline: 0;
+          padding: 0;
+          overflow: visible;
+        }
+        .inv.has-act {
+          grid-template-columns: minmax(0, 1fr) auto;
+          align-items: center;
+        }
+        .inv-act {
+          padding: 0 16px 0 0;
+          margin: 0;
+        }
+        .type-picks {
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+        .type-picks .pick > span {
+          height: 100%;
+          grid-template-columns: minmax(0, 1fr) 20px;
+          grid-template-areas: "ico dot" "main main";
+          align-items: start;
+          row-gap: 10px;
+          padding: 14px;
+        }
+        .type-picks .part-ico {
+          grid-area: ico;
+        }
+        .type-picks .pick-main {
+          grid-area: main;
+        }
+        .type-picks .pick-dot {
+          grid-area: dot;
+        }
+      }
+      /* PC: list and detail side by side; the detail stays in view while the list scrolls. */
+      @container app (min-width: 1024px) {
+        .inv-open[aria-current="true"],
+        .inv:has(> .inv-open[aria-current="true"]) {
+          --ring: var(--brand-soft);
+          background: var(--brand-soft);
+        }
+        /* Next to the detail the list is narrow again: the action goes back under the row. */
+        .ws:not([data-solo]) .inv.has-act {
+          grid-template-columns: minmax(0, 1fr);
+        }
+        .ws:not([data-solo]) .inv-act {
+          padding: 0 16px 12px 64px;
+          margin-top: -2px;
+        }
+        .ws:not([data-solo]) {
+          grid-template-columns: minmax(0, 1fr) minmax(0, 1.12fr);
+          align-items: start;
+          column-gap: 28px;
+        }
+        .ws:not([data-solo]) > .ws-list,
+        .ws:not([data-solo]) > .ws-detail {
+          display: block;
+        }
+        .ws-detail {
+          position: sticky;
+          top: 12px;
+          max-height: calc(100cqh - 24px);
+          overflow-y: auto;
+          overscroll-behavior: contain;
+          margin: -4px;
+          padding: 4px;
+          scrollbar-width: thin;
+        }
+        .topbar .tb-ws {
+          display: none;
+        }
+        .app[data-ws-view="item"] .tb-dash {
+          display: flex;
+        }
       }
 
       /* ---------- Foundation board ---------- */
@@ -2466,6 +3248,7 @@
           <div class="seg" data-control="screen" role="group" aria-labelledby="lbl-screen">
             <button type="button" data-value="dash">Accueil</button>
             <button type="button" data-value="bike">Page vélo</button>
+            <button type="button" data-value="ws">Atelier</button>
             <button type="button" data-value="quick">Saisie rapide</button>
             <button type="button" data-value="ai">IA (phase 3)</button>
             <button type="button" data-value="foundation">Fondation</button>
@@ -2525,8 +3308,8 @@
                   </button>
                 </li>
                 <li>
-                  <button type="button" class="nav-item" data-todo>
-                    <i data-lucide="list-checks"></i><span class="lbl">Tâches</span>
+                  <button type="button" class="nav-item" data-go="ws">
+                    <i data-lucide="warehouse"></i><span class="lbl">Atelier</span>
                   </button>
                 </li>
               </ul>
@@ -2564,6 +3347,13 @@
                 </button>
                 <span class="sep" aria-hidden="true">/</span>
                 <span class="here">Analyses</span>
+              </div>
+              <div class="tb-group tb-ws crumb" hidden>
+                <button type="button" class="back" data-ws-back>
+                  <i data-lucide="chevron-left"></i>Atelier
+                </button>
+                <span class="sep" aria-hidden="true">/</span>
+                <span class="here" id="tb-ws-here"></span>
               </div>
               <div class="tb-group tb-actions">
                 <button
@@ -2613,13 +3403,10 @@
                       <span class="sum-ico"><i data-lucide="clock"></i></span
                       ><strong class="num">3</strong><span class="l">bientôt</span>
                     </button>
-                    <button
-                      type="button"
-                      class="sum parts"
-                      data-toast="Filtre : pièces à commander"
-                    >
-                      <span class="sum-ico"><i data-lucide="package"></i></span
-                      ><strong class="num">2</strong><span class="l">pièces à commander</span>
+                    <button type="button" class="sum parts" data-go="ws" data-ws-tab="restock">
+                      <span class="sum-ico"><i data-lucide="shopping-cart"></i></span
+                      ><strong class="num" id="dash-parts-n">6</strong
+                      ><span class="l">à racheter</span>
                     </button>
                   </div>
                   <div class="dash">
@@ -2638,8 +3425,19 @@
                       <div class="bike-cards" id="dash-bikes"></div>
                     </section>
                     <section class="area-parts">
-                      <div class="sec-head"><h2 class="sec-title">Pièces à commander</h2></div>
-                      <ul class="card list" id="dash-parts"></ul>
+                      <div class="sec-head">
+                        <h2 class="sec-title">À racheter</h2>
+                        <button
+                          type="button"
+                          class="link"
+                          id="dash-parts-all"
+                          data-go="ws"
+                          data-ws-tab="restock"
+                        >
+                          Tout voir
+                        </button>
+                      </div>
+                      <ul class="card list inv-card" id="dash-parts"></ul>
                     </section>
                     <section class="area-activity">
                       <div class="sec-head">
@@ -2660,7 +3458,7 @@
                     <button type="button" class="btn secondary" data-todo>
                       <i data-lucide="wrench"></i>Entretien
                     </button>
-                    <button type="button" class="btn secondary" data-todo>
+                    <button type="button" class="btn secondary" data-replace>
                       <i data-lucide="replace"></i>Remplacer une pièce
                     </button>
                   </div>
@@ -2739,6 +3537,22 @@
                       </div>
                       <div class="card" id="bike-components"></div>
                     </section>
+                    <section class="sec-stock" aria-labelledby="bike-stock-title">
+                      <div class="sec-head">
+                        <h2 class="sec-title" id="bike-stock-title">En stock pour ce vélo</h2>
+                        <button
+                          type="button"
+                          class="link"
+                          id="bike-stock-all"
+                          data-go="ws"
+                          data-ws-tab="part"
+                          data-ws-bike="spectral"
+                        >
+                          Tout voir
+                        </button>
+                      </div>
+                      <ul class="card list inv-card" id="bike-stock"></ul>
+                    </section>
                     <section class="sec-history">
                       <div class="sec-head">
                         <h2 class="sec-title">Historique</h2>
@@ -2746,6 +3560,80 @@
                       </div>
                       <div class="card pad" id="bike-history"></div>
                     </section>
+                  </div>
+                </section>
+
+                <section class="screen" data-screen="ws" aria-labelledby="ws-title" hidden>
+                  <div class="ws" id="ws" data-view="list">
+                    <div class="ws-list">
+                      <div class="page-head ws-head">
+                        <div>
+                          <p class="eyebrow">Inventaire du garage</p>
+                          <h1 class="page-title" id="ws-title">Atelier</h1>
+                        </div>
+                        <button type="button" class="btn primary" id="ws-add-item" data-add-item>
+                          <i data-lucide="plus"></i>Ajouter un objet
+                        </button>
+                      </div>
+                      <button
+                        type="button"
+                        class="ws-sum"
+                        id="ws-summary"
+                        data-ws-tab="restock"
+                        hidden
+                      ></button>
+                      <div class="ws-tools">
+                        <fieldset class="fs">
+                          <legend class="sr-only">Afficher</legend>
+                          <div class="chips ws-chips" id="ws-tabs">
+                            <label class="chip"
+                              ><input type="radio" name="ws-tab" value="part" checked /><span
+                                >Pièces<span class="chip-count" id="ws-n-part"></span></span
+                            ></label>
+                            <label class="chip"
+                              ><input type="radio" name="ws-tab" value="product" /><span
+                                >Produits<span class="chip-count" id="ws-n-product"></span></span
+                            ></label>
+                            <label class="chip"
+                              ><input type="radio" name="ws-tab" value="tool" /><span
+                                >Outils<span class="chip-count" id="ws-n-tool"></span></span
+                            ></label>
+                            <label class="chip"
+                              ><input type="radio" name="ws-tab" value="restock" /><span
+                                ><i data-lucide="shopping-cart"></i>À racheter<span
+                                  class="chip-count"
+                                  id="ws-n-restock"
+                                ></span></span
+                            ></label>
+                          </div>
+                        </fieldset>
+                        <div class="ws-find" id="ws-find">
+                          <div class="input-wrap search">
+                            <i data-lucide="search"></i>
+                            <label class="sr-only" for="ws-q">Rechercher dans l'atelier</label>
+                            <input
+                              id="ws-q"
+                              type="search"
+                              autocomplete="off"
+                              placeholder="Nom, marque, référence…"
+                            />
+                          </div>
+                          <div class="input-wrap select">
+                            <label class="sr-only" for="ws-bike">Filtrer par vélo</label>
+                            <select id="ws-bike">
+                              <option value="">Tous les vélos</option>
+                              <option value="spectral">Spectral</option>
+                              <option value="lourd">Le Lourd</option>
+                              <option value="gravel">Gravel alu</option>
+                            </select>
+                            <i data-lucide="chevron-down"></i>
+                          </div>
+                        </div>
+                      </div>
+                      <p class="sr-only" role="status" id="ws-status"></p>
+                      <div class="ws-body" id="ws-body" tabindex="-1"></div>
+                    </div>
+                    <div class="ws-detail" id="ws-detail"></div>
                   </div>
                 </section>
 
@@ -3009,8 +3897,8 @@
               <button type="button" class="bn-item" data-todo>
                 <i data-lucide="activity"></i><span>Activité</span>
               </button>
-              <button type="button" class="bn-item" data-todo>
-                <i data-lucide="list-checks"></i><span>Tâches</span>
+              <button type="button" class="bn-item" data-go="ws">
+                <i data-lucide="warehouse"></i><span>Atelier</span>
               </button>
             </nav>
 
@@ -3276,6 +4164,394 @@
               </form>
             </div>
 
+            <div
+              class="sheet"
+              id="sheet-item"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="ai-title"
+              inert
+            >
+              <div class="grabber" aria-hidden="true"></div>
+              <div class="sheet-head">
+                <div>
+                  <h2 class="sheet-title" id="ai-title">Ajouter un objet</h2>
+                  <p class="hint">Choisis d'abord le type : le formulaire s'adapte.</p>
+                </div>
+                <button type="button" class="icon-btn" data-close-sheet aria-label="Fermer">
+                  <i data-lucide="x"></i>
+                </button>
+              </div>
+              <form id="ai-form" novalidate>
+                <div class="sheet-body">
+                  <fieldset class="fs" id="ai-type-fs">
+                    <legend class="legend">Type</legend>
+                    <div class="picks type-picks">
+                      <label class="pick"
+                        ><input
+                          type="radio"
+                          name="ai-type"
+                          value="part"
+                          aria-describedby="ai-type-err" /><span
+                          ><span class="part-ico"><i data-lucide="package"></i></span
+                          ><span class="pick-main"
+                            ><span class="pick-name">Pièce</span
+                            ><span class="pick-meta"
+                              >Comptée à l'unité : plaquettes, chaîne, chambre à air</span
+                            ></span
+                          ><span class="pick-dot" aria-hidden="true"></span></span
+                      ></label>
+                      <label class="pick"
+                        ><input
+                          type="radio"
+                          name="ai-type"
+                          value="product"
+                          aria-describedby="ai-type-err" /><span
+                          ><span class="part-ico"><i data-lucide="droplet"></i></span
+                          ><span class="pick-main"
+                            ><span class="pick-name">Produit</span
+                            ><span class="pick-meta"
+                              >Suivi au niveau : graisse, huile, préventif</span
+                            ></span
+                          ><span class="pick-dot" aria-hidden="true"></span></span
+                      ></label>
+                      <label class="pick"
+                        ><input
+                          type="radio"
+                          name="ai-type"
+                          value="tool"
+                          aria-describedby="ai-type-err" /><span
+                          ><span class="part-ico"><i data-lucide="wrench"></i></span
+                          ><span class="pick-main"
+                            ><span class="pick-name">Outil</span
+                            ><span class="pick-meta"
+                              >Possédé ou non : clé dynamométrique, kit de purge</span
+                            ></span
+                          ><span class="pick-dot" aria-hidden="true"></span></span
+                      ></label>
+                    </div>
+                    <p class="err" id="ai-type-err" hidden>
+                      <i data-lucide="circle-alert"></i>Choisis d'abord un type d'objet.
+                    </p>
+                  </fieldset>
+                  <div class="ai-fields" id="ai-fields" hidden>
+                    <div class="field" id="ai-name-field">
+                      <label for="ai-name">Nom</label>
+                      <div class="input-wrap">
+                        <input id="ai-name" autocomplete="off" aria-describedby="ai-name-err" />
+                      </div>
+                      <p class="err" id="ai-name-err" hidden>
+                        <i data-lucide="circle-alert"></i>Donne un nom à l'objet.
+                      </p>
+                    </div>
+                    <div class="grid2">
+                      <div class="field">
+                        <label for="ai-brand">Marque</label>
+                        <div class="input-wrap">
+                          <input id="ai-brand" autocomplete="off" placeholder="Ex. SRAM" />
+                        </div>
+                      </div>
+                      <div class="field">
+                        <label for="ai-ref">Référence</label>
+                        <div class="input-wrap">
+                          <input id="ai-ref" autocomplete="off" placeholder="Facultatif" />
+                        </div>
+                      </div>
+                    </div>
+                    <div class="field">
+                      <label for="ai-cat">Catégorie</label>
+                      <div class="input-wrap select">
+                        <select id="ai-cat">
+                          <option value="brakes">Freins</option>
+                          <option value="drivetrain">Transmission</option>
+                          <option value="suspension">Suspension</option>
+                          <option value="wheels">Roues et pneus</option>
+                          <option value="frame">Cadre</option>
+                          <option value="care">Entretien courant</option>
+                          <option value="other">Général</option>
+                        </select>
+                        <i data-lucide="chevron-down"></i>
+                      </div>
+                    </div>
+                    <fieldset class="fs">
+                      <legend class="legend">
+                        Vélos <span class="hint">· plusieurs possibles, ou aucun</span>
+                      </legend>
+                      <div class="chips" id="ai-bikes"></div>
+                    </fieldset>
+                    <div class="ai-kind" data-kind="part">
+                      <div class="grid2">
+                        <div class="field">
+                          <label for="ai-qty">En stock</label>
+                          <div class="input-wrap">
+                            <input
+                              id="ai-qty"
+                              inputmode="numeric"
+                              pattern="[0-9]*"
+                              autocomplete="off"
+                              value="1"
+                            />
+                          </div>
+                        </div>
+                        <div class="field">
+                          <label for="ai-alert">Alerte à partir de</label>
+                          <div class="input-wrap">
+                            <input
+                              id="ai-alert"
+                              inputmode="numeric"
+                              pattern="[0-9]*"
+                              autocomplete="off"
+                              placeholder="Aucune"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                      <fieldset class="fs">
+                        <legend class="legend">Unité</legend>
+                        <div class="chips">
+                          <label class="chip"
+                            ><input type="radio" name="ai-unit" value="piece" checked /><span
+                              >Pièce</span
+                            ></label
+                          >
+                          <label class="chip"
+                            ><input type="radio" name="ai-unit" value="pair" /><span
+                              >Paire</span
+                            ></label
+                          >
+                          <label class="chip"
+                            ><input type="radio" name="ai-unit" value="set" /><span
+                              >Lot</span
+                            ></label
+                          >
+                        </div>
+                      </fieldset>
+                    </div>
+                    <div class="ai-kind" data-kind="product" hidden>
+                      <fieldset class="fs">
+                        <legend class="legend">Niveau du contenant entamé</legend>
+                        <div class="chips">
+                          <label class="chip"
+                            ><input type="radio" name="ai-level" value="full" checked /><span
+                              >Plein</span
+                            ></label
+                          >
+                          <label class="chip"
+                            ><input type="radio" name="ai-level" value="started" /><span
+                              >Entamé</span
+                            ></label
+                          >
+                          <label class="chip"
+                            ><input type="radio" name="ai-level" value="low" /><span
+                              >Presque vide</span
+                            ></label
+                          >
+                        </div>
+                      </fieldset>
+                      <div class="field">
+                        <label for="ai-cont">Contenants en stock</label>
+                        <div class="input-wrap">
+                          <input
+                            id="ai-cont"
+                            inputmode="numeric"
+                            pattern="[0-9]*"
+                            autocomplete="off"
+                            value="1"
+                          />
+                        </div>
+                        <p class="hint">Flacons, tubes ou bidons, celui entamé compris.</p>
+                      </div>
+                    </div>
+                    <div class="ai-kind" data-kind="tool" hidden>
+                      <fieldset class="fs">
+                        <legend class="legend">Possession</legend>
+                        <div class="chips">
+                          <label class="chip"
+                            ><input type="radio" name="ai-own" value="yes" checked /><span
+                              ><i data-lucide="check"></i>Je l'ai</span
+                            ></label
+                          >
+                          <label class="chip"
+                            ><input type="radio" name="ai-own" value="no" /><span
+                              >À acheter</span
+                            ></label
+                          >
+                        </div>
+                      </fieldset>
+                    </div>
+                    <details class="more">
+                      <summary>
+                        <i data-lucide="chevron-right"></i>Plus de détails<span class="hint"
+                          >rangement, photo, lien d'achat, notes</span
+                        >
+                      </summary>
+                      <div class="more-body">
+                        <div class="field">
+                          <label for="ai-loc">Rangement</label>
+                          <div class="input-wrap">
+                            <input
+                              id="ai-loc"
+                              autocomplete="off"
+                              placeholder="Ex. Établi, tiroir 2"
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <button
+                            type="button"
+                            class="btn secondary"
+                            data-toast="Ajout d'une photo : appareil photo ou photothèque"
+                          >
+                            <i data-lucide="camera"></i>Ajouter une photo
+                          </button>
+                        </div>
+                        <fieldset class="fs">
+                          <legend class="legend">
+                            Lien d'achat
+                            <span class="hint">· affiché, jamais consulté par l'app</span>
+                          </legend>
+                          <div class="grid2">
+                            <div class="field">
+                              <label for="ai-shop">Boutique</label>
+                              <div class="input-wrap">
+                                <input
+                                  id="ai-shop"
+                                  autocomplete="off"
+                                  placeholder="Ex. Cycles du Lac"
+                                />
+                              </div>
+                            </div>
+                            <div class="field">
+                              <label for="ai-price">Prix</label>
+                              <div class="input-wrap">
+                                <input
+                                  id="ai-price"
+                                  inputmode="decimal"
+                                  autocomplete="off"
+                                  placeholder="0,00"
+                                /><span class="suffix">€</span>
+                              </div>
+                            </div>
+                          </div>
+                          <div class="field">
+                            <label for="ai-url">Adresse de la page</label>
+                            <div class="input-wrap">
+                              <input
+                                id="ai-url"
+                                type="url"
+                                inputmode="url"
+                                autocomplete="off"
+                                placeholder="https://…"
+                              />
+                            </div>
+                          </div>
+                        </fieldset>
+                        <div class="field">
+                          <label for="ai-notes">Notes</label>
+                          <div class="input-wrap area">
+                            <textarea
+                              id="ai-notes"
+                              rows="2"
+                              placeholder="Compatibilité, couple de serrage, astuces…"
+                            ></textarea>
+                          </div>
+                        </div>
+                      </div>
+                    </details>
+                  </div>
+                </div>
+                <div class="sheet-foot">
+                  <button type="submit" class="btn primary lg block">
+                    <i data-lucide="check"></i>Ajouter à l'atelier
+                  </button>
+                </div>
+              </form>
+            </div>
+
+            <div
+              class="sheet"
+              id="sheet-replace"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="rp-title"
+              inert
+            >
+              <div class="grabber" aria-hidden="true"></div>
+              <div class="sheet-head">
+                <div>
+                  <h2 class="sheet-title" id="rp-title">Remplacer une pièce</h2>
+                  <p class="hint">Spectral · esquisse centrée sur le choix dans l'atelier</p>
+                </div>
+                <button type="button" class="icon-btn" data-close-sheet aria-label="Fermer">
+                  <i data-lucide="x"></i>
+                </button>
+              </div>
+              <form id="rp-form" novalidate>
+                <div class="sheet-body">
+                  <fieldset class="fs">
+                    <legend class="legend">Pièce retirée</legend>
+                    <div class="chips scroll" id="rp-slots"></div>
+                    <p class="hint" id="rp-fitted"></p>
+                  </fieldset>
+                  <fieldset class="fs">
+                    <legend class="legend">Raison</legend>
+                    <div class="chips scroll" id="rp-reasons"></div>
+                  </fieldset>
+                  <fieldset class="fs">
+                    <legend class="legend">
+                      Pièce montée <span class="hint">· d'abord ce qui est dans l'atelier</span>
+                    </legend>
+                    <div class="picks" id="rp-picks"></div>
+                  </fieldset>
+                  <div class="liftbox" id="rp-effect"></div>
+                  <details class="more" id="rp-more">
+                    <summary>
+                      <i data-lucide="chevron-right"></i>Détails de la pièce montée<span
+                        class="hint"
+                        id="rp-more-hint"
+                        >préremplis depuis l'atelier</span
+                      >
+                    </summary>
+                    <div class="more-body">
+                      <div class="grid2">
+                        <div class="field">
+                          <label for="rp-brand">Marque</label>
+                          <div class="input-wrap">
+                            <input id="rp-brand" autocomplete="off" />
+                          </div>
+                        </div>
+                        <div class="field">
+                          <label for="rp-price">Prix payé</label>
+                          <div class="input-wrap">
+                            <input
+                              id="rp-price"
+                              inputmode="decimal"
+                              autocomplete="off"
+                              placeholder="0,00"
+                            /><span class="suffix">€</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div class="field" id="rp-model-field">
+                        <label for="rp-model">Modèle</label>
+                        <div class="input-wrap">
+                          <input id="rp-model" autocomplete="off" aria-describedby="rp-model-err" />
+                        </div>
+                        <p class="err" id="rp-model-err" hidden>
+                          <i data-lucide="circle-alert"></i>Indique le modèle de la pièce montée.
+                        </p>
+                      </div>
+                    </div>
+                  </details>
+                </div>
+                <div class="sheet-foot">
+                  <button type="submit" class="btn primary lg block">
+                    <i data-lucide="check"></i>Enregistrer le remplacement
+                  </button>
+                </div>
+              </form>
+            </div>
+
             <div class="toast" id="toast" role="status" aria-live="polite" hidden>
               <i data-lucide="circle-check"></i><span class="toast-msg"></span
               ><button type="button" class="toast-undo" hidden>Annuler</button>
@@ -3284,8 +4560,14 @@
         </div>
       </div>
       <p class="stage-note" id="stage-note">
-        Données fictives. « Vélos » ouvre directement la page d'un vélo ; Activité, Tâches et
-        Réglages ne sont pas maquettés.
+        <span data-note="default"
+          >Données fictives. « Vélos » ouvre directement la page d'un vélo ; Activité et Réglages ne
+          sont pas maquettés.</span
+        ><span data-note="ws" hidden
+          >Données fictives. Touche un objet pour ouvrir sa fiche ; sur PC, elle s'affiche à côté de
+          la liste. « Remplacer une pièce », sur la page vélo, montre le choix dans le stock.
+          <button type="button" class="link" id="ws-empty-toggle">Voir l'atelier vide</button></span
+        >
       </p>
 
       <section class="foundation" id="foundation" hidden aria-label="Fondation du design">
@@ -3419,9 +4701,17 @@
               <span class="badge soon"><i data-lucide="clock"></i>Bientôt</span>
               <span class="badge late"><i data-lucide="octagon-alert"></i>En retard</span>
               <span class="badge"><i data-lucide="pause"></i>En pause</span>
-              <span class="badge brand">Commandée</span>
               <span class="badge outline"><i data-lucide="trending-up"></i>Estimation</span>
             </div>
+            <div class="row-wrap">
+              <span class="badge outline"><i data-lucide="shopping-cart"></i>À commander</span>
+              <span class="badge brand"><i data-lucide="truck"></i>En commande</span>
+              <span class="badge stock"><i data-lucide="package-minus"></i>Stock bas</span>
+            </div>
+            <p class="hint">
+              Atelier : les états de rachat utilisent l'accent et les neutres, jamais le vert,
+              l'ambre ou le rouge réservés à l'usure. Chacun a son icône et son libellé.
+            </p>
             <div style="display: grid; gap: 14px">
               <div data-status="ok">
                 <div class="wear">
@@ -3504,11 +4794,13 @@
             } catch {}
           },
         };
-        // French typography: narrow no-break space in thousands, no-break space before units.
+        // French typography: narrow no-break space in thousands, no-break space before units,
+        // no line break inside a number range ("10–60").
         const fr = (s) =>
           String(s)
             .replace(/(\d) (?=\d{3}\b)/g, "$1 ")
-            .replace(/(\d) (?=[A-Za-zé€%])/g, "$1 ");
+            .replace(/(\d) (?=[A-Za-zé€%])/g, "$1 ")
+            .replace(/(\d)–(?=\d)/g, "$1–\u2060");
 
         const BIKES = {
           spectral: {
@@ -3609,6 +4901,7 @@
             used: "83 j",
             of: "90 j",
             note: "Le 1er novembre",
+            item: "sealant",
           },
           {
             bike: "lourd",
@@ -3641,6 +4934,7 @@
             used: "83 j",
             of: "90 j",
             note: "Le 1er novembre",
+            item: "sealant",
           },
           {
             icon: "link",
@@ -3661,18 +4955,6 @@
             used: "29 j",
             of: "365 j",
             note: "Le 26 septembre 2027",
-          },
-        ];
-        const PARTS = [
-          {
-            name: "Kit joints bas de fourreaux Lyrik",
-            meta: "Spectral · ≈ 35 €",
-            badge: ["outline", "À commander"],
-          },
-          {
-            name: "Chaîne Shimano CN-M8100",
-            meta: "Gravel alu · 29,90 €",
-            badge: ["brand", "Commandée"],
           },
         ];
         const ACTIVITY = [
@@ -3838,6 +5120,625 @@
           },
         ];
 
+        /* ---------- Workshop data (proposed concept, fictitious) ---------- */
+        // Shops are fictitious; the online one uses the reserved .example domain.
+        const SHOP_HOST = "rayonlibre.example";
+        const KINDS = {
+          part: ["Pièce", "Pièces"],
+          product: ["Produit", "Produits"],
+          tool: ["Outil", "Outils"],
+        };
+        // Categories reuse the component groups of the bike page, plus "care" and "other".
+        const CATS = {
+          brakes: ["Freins", "disc"],
+          drivetrain: ["Transmission", "link"],
+          suspension: ["Suspension", "chevrons-down-up"],
+          wheels: ["Roues et pneus", "circle-dot"],
+          frame: ["Cadre", "bike"],
+          care: ["Entretien courant", "spray-can"],
+          other: ["Général", "wrench"],
+        };
+        const UNITS = {
+          piece: ["pièce", "pièces"],
+          pair: ["paire", "paires"],
+          set: ["lot", "lots"],
+        };
+        const LEVELS = {
+          full: ["Plein", 3],
+          started: ["Entamé", 2],
+          low: ["Presque vide", 1],
+          empty: ["Vide", 0],
+        };
+        // Restocking states: accent and neutrals only (wear colours stay reserved), icon + label.
+        const STATES = {
+          to_order: ["outline", "shopping-cart", "À commander"],
+          ordered: ["brand", "truck", "En commande"],
+          low: ["stock", "package-minus", "Stock bas"],
+        };
+        const MOVES = {
+          purchase: "Achat",
+          use: "Utilisation",
+          initial: "Stock initial",
+          adjust: "Correction",
+        };
+        const FLACON = ["flacon", "flacons"];
+        // Stock is the sum of the movements: quantities below are what that sum gives today.
+        // A movement with a `bike` field comes from a maintenance event on that bike.
+        const ITEMS = [
+          {
+            id: "maven-pads",
+            kind: "part",
+            name: "Plaquettes Maven organiques",
+            brand: "SRAM",
+            ref: "Maven organique",
+            cat: "brakes",
+            slot: "brake_pads",
+            bikes: ["spectral"],
+            loc: "Établi, tiroir 2",
+            unit: "pair",
+            qty: 1,
+            alertAt: 1,
+            links: [
+              { shop: "Rayon Libre", host: SHOP_HOST, price: 2200, last: "3 sept." },
+              { shop: "Cycles du Lac", store: true, price: 2600, seen: "26 sept." },
+            ],
+            moves: [
+              {
+                d: "12 oct.",
+                kind: "use",
+                delta: -1,
+                who: "Spectral",
+                what: "Chaîne et plaquettes avant remplacées",
+                bike: "spectral",
+              },
+              { d: "3 sept.", kind: "purchase", delta: 2, who: "Rayon Libre", what: "2 × 22,00 €" },
+              {
+                d: "14 juil.",
+                kind: "use",
+                delta: -1,
+                who: "Spectral",
+                what: "Plaquettes arrière remplacées",
+                bike: "spectral",
+              },
+              { d: "5 mai", kind: "initial", delta: 1, what: "Saisi à la création de l'objet" },
+            ],
+            notes:
+              "Organiques sur le Spectral : plus de mordant à froid, mais elles s'usent vite dans la boue.",
+          },
+          {
+            id: "n04c",
+            kind: "part",
+            name: "Plaquettes métal N04C",
+            brand: "Shimano",
+            ref: "N04C",
+            cat: "brakes",
+            slot: "brake_pads",
+            bikes: ["lourd"],
+            loc: "Établi, tiroir 2",
+            unit: "pair",
+            qty: 2,
+            alertAt: 1,
+            links: [{ shop: "Rayon Libre", host: SHOP_HOST, price: 1990, last: "3 sept." }],
+            moves: [
+              {
+                d: "20 oct.",
+                kind: "use",
+                delta: -1,
+                who: "Le Lourd",
+                what: "Plaquettes arrière remplacées",
+                bike: "lourd",
+              },
+              { d: "3 sept.", kind: "purchase", delta: 3, who: "Rayon Libre", what: "3 × 19,90 €" },
+            ],
+            notes: "Métal : elles tiennent mieux que les organiques avec le poids du moteur.",
+          },
+          {
+            id: "cn-m8100",
+            kind: "part",
+            name: "Chaîne CN-M8100",
+            brand: "Shimano",
+            ref: "CN-M8100",
+            cat: "drivetrain",
+            slot: "chain",
+            bikes: ["gravel"],
+            loc: "Armoire, bac transmission",
+            unit: "piece",
+            qty: 0,
+            alertAt: 0,
+            restock: "ordered",
+            restockOn: "18 oct.",
+            restockQty: 1,
+            orderedOn: "21 oct.",
+            orderShop: "Rayon Libre",
+            links: [{ shop: "Rayon Libre", host: SHOP_HOST, price: 2990, last: "2 mai" }],
+            moves: [
+              {
+                d: "6 mai",
+                kind: "use",
+                delta: -1,
+                who: "Gravel alu",
+                what: "Chaîne remplacée",
+                bike: "gravel",
+              },
+              { d: "2 mai", kind: "purchase", delta: 1, who: "Rayon Libre", what: "1 × 29,90 €" },
+            ],
+          },
+          {
+            id: "gx-chain",
+            kind: "part",
+            name: "Chaîne GX Eagle T-Type",
+            brand: "SRAM",
+            ref: "Flattop T-Type",
+            cat: "drivetrain",
+            slot: "chain",
+            bikes: ["spectral"],
+            loc: "Armoire, bac transmission",
+            unit: "piece",
+            qty: 1,
+            alertAt: 0,
+            links: [{ shop: "Rayon Libre", host: SHOP_HOST, price: 4690, last: "3 sept." }],
+            moves: [
+              {
+                d: "12 oct.",
+                kind: "use",
+                delta: -1,
+                who: "Spectral",
+                what: "Chaîne et plaquettes avant remplacées",
+                bike: "spectral",
+              },
+              { d: "3 sept.", kind: "purchase", delta: 2, who: "Rayon Libre", what: "2 × 46,90 €" },
+            ],
+          },
+          {
+            id: "lyrik-kit",
+            kind: "part",
+            name: "Kit joints bas de fourreaux Lyrik",
+            brand: "RockShox",
+            ref: "Service 50 h, 35 mm",
+            cat: "suspension",
+            slot: "fork",
+            bikes: ["spectral"],
+            loc: null,
+            unit: "set",
+            qty: 0,
+            alertAt: null,
+            restock: "to_order",
+            restockOn: "18 oct.",
+            links: [],
+            moves: [],
+            notes: "Pour l'entretien des bas de fourreaux, déjà en retard de 6 h 20.",
+          },
+          {
+            id: "tube29",
+            kind: "part",
+            name: "Chambre à air 29 × 2,3–2,6",
+            brand: "Schwalbe",
+            ref: "Presta 40 mm",
+            cat: "wheels",
+            slot: null,
+            bikes: ["spectral", "lourd"],
+            loc: "Sac de selle et étagère",
+            unit: "piece",
+            qty: 2,
+            alertAt: 1,
+            links: [{ shop: "Cycles du Lac", store: true, price: 850, last: "5 mai" }],
+            moves: [
+              {
+                d: "30 août",
+                kind: "use",
+                delta: -1,
+                who: "Hors entretien",
+                what: "Crevaison au Salève",
+              },
+              { d: "5 mai", kind: "purchase", delta: 3, who: "Cycles du Lac", what: "3 × 8,50 €" },
+            ],
+            notes: "Une dans le sac de selle du Spectral, une en réserve pour le Lourd.",
+          },
+          {
+            id: "udh",
+            kind: "part",
+            name: "Patte de dérailleur UDH",
+            brand: "SRAM",
+            ref: "UDH",
+            cat: "frame",
+            slot: null,
+            bikes: ["spectral", "lourd"],
+            loc: "Boîte à petites pièces",
+            unit: "piece",
+            qty: 1,
+            alertAt: 0,
+            links: [{ shop: "Rayon Libre", host: SHOP_HOST, price: 2490, last: "8 juin" }],
+            moves: [
+              { d: "8 juin", kind: "purchase", delta: 1, who: "Rayon Libre", what: "1 × 24,90 €" },
+            ],
+            notes: "La même pour les deux vélos : en racheter une dès qu'elle sert.",
+          },
+          {
+            id: "sealant",
+            kind: "product",
+            name: "Liquide préventif tubeless",
+            short: "Préventif",
+            brand: "Stan's NoTubes",
+            ref: "Original, 946 ml",
+            cat: "wheels",
+            slot: "tire",
+            bikes: "all",
+            loc: "Étagère haute",
+            pack: FLACON,
+            containers: 0,
+            level: "empty",
+            restock: "to_order",
+            restockOn: "19 oct.",
+            restockQty: 2,
+            links: [{ shop: "Rayon Libre", host: SHOP_HOST, price: 2790, last: "12 avr." }],
+            moves: [
+              {
+                d: "19 oct.",
+                kind: "level",
+                delta: -1,
+                level: "empty",
+                who: "Gravel alu",
+                what: "Ajout de liquide préventif, flacon terminé",
+                bike: "gravel",
+              },
+              {
+                d: "3 août",
+                kind: "level",
+                delta: 0,
+                level: "low",
+                who: "Spectral",
+                what: "Ajout de liquide préventif",
+                bike: "spectral",
+              },
+              { d: "12 avr.", kind: "purchase", delta: 1, who: "Rayon Libre", what: "1 × 27,90 €" },
+            ],
+            notes: "Environ 90 ml par pneu de VTT, 60 ml pour le gravel.",
+          },
+          {
+            id: "maven-oil",
+            kind: "product",
+            name: "Huile minérale Maven",
+            brand: "SRAM",
+            ref: null,
+            cat: "brakes",
+            slot: "brake",
+            bikes: ["spectral"],
+            loc: "Boîte « freins »",
+            pack: FLACON,
+            containers: 1,
+            level: "full",
+            links: [{ shop: "Cycles du Lac", store: true, price: 1800, last: "26 sept." }],
+            moves: [
+              {
+                d: "26 sept.",
+                kind: "purchase",
+                delta: 1,
+                who: "Cycles du Lac",
+                what: "Acheté après la purge en atelier",
+              },
+            ],
+            notes: "Réservée aux freins Maven.",
+          },
+          {
+            id: "shimano-oil",
+            kind: "product",
+            name: "Huile minérale Shimano",
+            brand: "Shimano",
+            ref: "SM-DB-OIL, 100 ml",
+            cat: "brakes",
+            slot: "brake",
+            bikes: ["lourd", "gravel"],
+            loc: "Boîte « freins »",
+            pack: FLACON,
+            containers: 1,
+            level: "started",
+            links: [{ shop: "Rayon Libre", host: SHOP_HOST, price: 990, last: "3 mars" }],
+            moves: [
+              {
+                d: "15 mai",
+                kind: "level",
+                delta: 0,
+                level: "started",
+                who: "Gravel alu",
+                what: "Purge du frein arrière",
+                bike: "gravel",
+              },
+              { d: "3 mars", kind: "purchase", delta: 1, who: "Rayon Libre", what: "1 × 9,90 €" },
+            ],
+          },
+          {
+            id: "lube",
+            kind: "product",
+            name: "Lubrifiant chaîne conditions humides",
+            brand: "Muc-Off",
+            ref: "Wet Lube, 120 ml",
+            cat: "drivetrain",
+            slot: null,
+            bikes: "all",
+            loc: "Établi, étagère du haut",
+            pack: FLACON,
+            containers: 2,
+            level: "low",
+            links: [{ shop: "Rayon Libre", host: SHOP_HOST, price: 899, last: "3 sept." }],
+            moves: [
+              {
+                d: "24 oct.",
+                kind: "level",
+                delta: 0,
+                level: "low",
+                who: "Hors entretien",
+                what: "Graissage après la sortie dans la boue",
+              },
+              { d: "3 sept.", kind: "purchase", delta: 1, who: "Rayon Libre", what: "1 × 8,99 €" },
+            ],
+          },
+          {
+            id: "degreaser",
+            kind: "product",
+            name: "Dégraissant transmission",
+            brand: "Muc-Off",
+            ref: "Drivetrain Cleaner, 500 ml",
+            cat: "care",
+            slot: null,
+            bikes: "all",
+            loc: "Sous l'établi",
+            pack: FLACON,
+            containers: 1,
+            level: "low",
+            links: [{ shop: "Cycles du Lac", store: true, price: 1490, last: "2 juin" }],
+            moves: [
+              {
+                d: "24 oct.",
+                kind: "level",
+                delta: 0,
+                level: "low",
+                who: "Hors entretien",
+                what: "Nettoyage du Spectral après la boue",
+              },
+              {
+                d: "2 juin",
+                kind: "purchase",
+                delta: 1,
+                who: "Cycles du Lac",
+                what: "1 × 14,90 €",
+              },
+            ],
+          },
+          {
+            id: "torque-s",
+            kind: "tool",
+            name: "Clé dynamométrique 2–14 N·m",
+            brand: "Park Tool",
+            ref: "TW-5.2",
+            cat: "other",
+            slot: null,
+            bikes: "all",
+            loc: "Caisse à outils",
+            owned: true,
+            links: [{ shop: "Rayon Libre", host: SHOP_HOST, price: 11900, last: "14 mars 2024" }],
+            moves: [
+              {
+                d: "14 mars 2024",
+                kind: "purchase",
+                delta: 1,
+                who: "Rayon Libre",
+                what: "Achetée avec le Spectral",
+              },
+            ],
+          },
+          {
+            id: "torque-l",
+            kind: "tool",
+            name: "Clé dynamométrique 10–60 N·m",
+            brand: "Park Tool",
+            ref: null,
+            cat: "other",
+            slot: null,
+            bikes: "all",
+            loc: null,
+            owned: false,
+            restock: "to_order",
+            restockOn: "2 oct.",
+            links: [{ shop: "Rayon Libre", host: SHOP_HOST, price: 13500, seen: "2 oct." }],
+            moves: [],
+            notes: "Pour les pédales, la cassette et le boîtier de pédalier.",
+          },
+          {
+            id: "bleed-sram",
+            kind: "tool",
+            name: "Kit de purge Bleeding Edge",
+            brand: "SRAM",
+            ref: null,
+            cat: "brakes",
+            slot: "brake",
+            bikes: ["spectral"],
+            loc: "Boîte « freins »",
+            owned: true,
+            links: [{ shop: "Rayon Libre", host: SHOP_HOST, price: 5990, last: "2 mars" }],
+            moves: [
+              { d: "2 mars", kind: "purchase", delta: 1, who: "Rayon Libre", what: "1 × 59,90 €" },
+            ],
+          },
+          {
+            id: "bleed-shimano",
+            kind: "tool",
+            name: "Kit de purge Shimano",
+            brand: "Shimano",
+            ref: "TL-BR003",
+            cat: "brakes",
+            slot: "brake",
+            bikes: ["lourd", "gravel"],
+            loc: "Boîte « freins »",
+            owned: true,
+            links: [{ shop: "Cycles du Lac", store: true, price: 2400, last: "3 mars" }],
+            moves: [
+              {
+                d: "3 mars",
+                kind: "purchase",
+                delta: 1,
+                who: "Cycles du Lac",
+                what: "1 × 24,00 €",
+              },
+            ],
+          },
+          {
+            id: "chain-tool",
+            kind: "tool",
+            name: "Dérive-chaîne",
+            brand: "Park Tool",
+            ref: "CT-3.3",
+            cat: "drivetrain",
+            slot: null,
+            bikes: "all",
+            loc: "Caisse à outils",
+            owned: true,
+            links: [],
+            moves: [],
+          },
+          {
+            id: "chain-checker",
+            kind: "tool",
+            name: "Indicateur d'usure de chaîne",
+            brand: "Park Tool",
+            ref: "CC-4",
+            cat: "drivetrain",
+            slot: "chain",
+            bikes: "all",
+            loc: "Caisse à outils",
+            owned: true,
+            links: [{ shop: "Rayon Libre", host: SHOP_HOST, price: 2690, last: "14 mars 2024" }],
+            moves: [
+              {
+                d: "14 mars 2024",
+                kind: "purchase",
+                delta: 1,
+                who: "Rayon Libre",
+                what: "1 × 26,90 €",
+              },
+            ],
+          },
+          {
+            id: "shock-pump",
+            kind: "tool",
+            name: "Pompe haute pression",
+            brand: "RockShox",
+            ref: "300 psi",
+            cat: "suspension",
+            slot: null,
+            bikes: ["spectral", "lourd"],
+            loc: "Mur, crochet 3",
+            owned: true,
+            links: [{ shop: "Cycles du Lac", store: true, price: 4500, last: "14 mars 2024" }],
+            moves: [
+              {
+                d: "14 mars 2024",
+                kind: "purchase",
+                delta: 1,
+                who: "Cycles du Lac",
+                what: "1 × 45,00 €",
+              },
+            ],
+          },
+        ];
+        // Upcoming rules per slot type: an item serves the rules of its slot on the bikes it is linked to.
+        const SLOT_RULES = {
+          fork: [
+            {
+              bike: "spectral",
+              title: "Entretien des bas de fourreaux",
+              status: "late",
+              note: "56 h 20 / 50 h",
+            },
+          ],
+          tire: [
+            {
+              bike: "spectral",
+              title: "Ajout de liquide préventif",
+              status: "soon",
+              note: "Le 1er novembre",
+            },
+          ],
+          chain: [
+            {
+              bike: "gravel",
+              title: "Contrôle d'usure de la chaîne",
+              status: "soon",
+              note: "462 km / 500 km",
+            },
+            {
+              bike: "spectral",
+              title: "Contrôle d'usure de la chaîne",
+              status: "ok",
+              note: "86 km / 500 km",
+            },
+          ],
+          brake: [
+            {
+              bike: "spectral",
+              title: "Purge des freins",
+              status: "ok",
+              note: "Le 26 septembre 2027",
+            },
+          ],
+        };
+        // One-off tasks: shown under "À prévoir" (dashboard, bike page), next to the rules.
+        const TASKS = [
+          {
+            id: "pivots",
+            title: "Vérifier le serrage des pivots",
+            bike: "spectral",
+            due: "Avant le 31 octobre",
+          },
+          { id: "truing", title: "Dévoiler la roue arrière", bike: "gravel", due: null },
+        ];
+        // "Replace a part" sketch on the Spectral: slots that can be filled from the workshop.
+        const SLOTS = [
+          {
+            id: "pads_front",
+            label: "Plaquettes avant",
+            type: "brake_pads",
+            fitted: "SRAM organiques · 86 km",
+            done: "Plaquettes avant remplacées",
+          },
+          {
+            id: "pads_rear",
+            label: "Plaquettes arrière",
+            type: "brake_pads",
+            fitted: "SRAM organiques · 604 km",
+            done: "Plaquettes arrière remplacées",
+          },
+          {
+            id: "chain",
+            label: "Chaîne",
+            type: "chain",
+            fitted: "SRAM GX Eagle T-Type · 86 km",
+            done: "Chaîne remplacée",
+          },
+          {
+            id: "tire_front",
+            label: "Pneu avant",
+            type: "tire",
+            fitted: "Maxxis Assegai 2.5 · EXO+",
+            done: "Pneu avant remplacé",
+          },
+        ];
+        const REASONS = [
+          ["worn", "Usée"],
+          ["broken", "Cassée"],
+          ["crash", "Chute"],
+          ["upgrade", "Amélioration"],
+          ["other", "Autre"],
+        ];
+        // Guided empty state: one tap opens the add sheet, prefilled.
+        const SUGGESTIONS = [
+          { kind: "part", name: "Plaquettes de frein", cat: "brakes", unit: "pair" },
+          { kind: "part", name: "Chaîne", cat: "drivetrain", unit: "piece" },
+          { kind: "product", name: "Liquide préventif tubeless", cat: "wheels" },
+          { kind: "product", name: "Huile de frein", cat: "brakes" },
+          { kind: "tool", name: "Clé dynamométrique", cat: "other" },
+        ];
+        const SHELF_ART = `<svg viewBox="0 0 120 70" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8 V64 M108 8 V64 M12 36 H108 M12 64 H108"/><rect x="22" y="16" width="26" height="20" rx="2"/><path d="M35 16 V23"/><path d="M66 36 V25 Q66 21 70 20 V14 H76 V20 Q80 21 80 25 V36"/><circle cx="38" cy="54" r="8"/><circle cx="38" cy="54" r="3"/><rect x="66" y="46" width="22" height="18" rx="3"/></g></svg>`;
+
         const BIKE_PATH =
           "M26 48 L56 48 L46 20 Z M46 20 L82 18 M56 48 L84 26 M82 18 L84 26 L94 48 M82 18 L84 12 L91 11 M46 20 L44 12 M38 11 L50 11 M56 48 L61 54";
         const bikeLine = (cls = "") =>
@@ -3864,12 +5765,18 @@
               : `<div class="rule-actions">
         <button type="button" class="btn secondary sm" data-toast="Saisie d'entretien préremplie (non maquettée)"><i data-lucide="check"></i>C'est fait</button>
         <button type="button" class="btn ghost sm" data-toast="Rappel reporté de 2 semaines"><i data-lucide="calendar-clock"></i>Reporter</button></div>`;
+          // Workshop link: the stock item this rule consumes (proposed concept).
+          const it = r.item && ITEMS.find((x) => x.id === r.item);
+          const st = it && stateOf(it);
+          const stock = it
+            ? `<p class="rule-stock"><i data-lucide="${st ? "package-x" : "package-check"}"></i>${esc(it.short || it.name)} : ${fr(stockText(it))}${st ? ` · ${STATES[st][2].toLowerCase()}` : ""}<button type="button" class="link" data-go="ws" data-ws-open="${it.id}">Voir dans l'atelier</button></p>`
+            : "";
           return `<li class="rule" data-status="${r.status}">${lead}
       <div class="rule-body">
         <div class="rule-top"><span class="rule-ctx">${withBike ? b.name + " · " : ""}${r.comp}</span>${badge(r.status)}</div>
         <h3 class="rule-title">${r.title}</h3>
         <div class="wear" role="img" aria-label="${fr(r.used)} sur ${fr(r.of)}, ${r.p} %"><span class="wear-fill" style="--p:${r.p}%"></span><span class="wear-tick"></span></div>
-        <div class="rule-meta"><span><span class="num">${fr(r.used)}</span> / ${fr(r.of)}</span><span>${fr(r.note)}</span></div>
+        <div class="rule-meta"><span><span class="num">${fr(r.used)}</span> / ${fr(r.of)}</span><span>${fr(r.note)}</span></div>${stock}
       </div>${actions}</li>`;
         }
         function tlItem(it, withBike) {
@@ -3881,9 +5788,94 @@
       <h4 class="tl-title">${it.title}</h4><p class="tl-meta">${fr(it.meta)}</p>${tags}</div></li>`;
         }
 
+        // A one-off task in "À prévoir": same row as a rule, no wear bar, a neutral "Tâche" badge.
+        function taskRow(t, withBike) {
+          const b = t.bike && BIKES[t.bike];
+          const lead =
+            withBike && b
+              ? cover(b)
+              : `<span class="rule-ico"><i data-lucide="list-checks"></i></span>`;
+          return `<li class="rule" data-status="task">${lead}
+      <div class="rule-body">
+        <div class="rule-top"><span class="rule-ctx">${withBike ? (b ? b.name : "Général") + " · " : ""}Tâche ponctuelle</span><span class="badge"><i data-lucide="list-checks"></i>Tâche</span></div>
+        <h3 class="rule-title">${esc(t.title)}</h3>
+        <div class="rule-meta"><span>${t.due ? fr(t.due) : "Sans échéance"}</span></div>
+      </div><div class="rule-actions"><button type="button" class="btn secondary sm" data-task-done="${t.id}" aria-label="Marquer « ${esc(t.title)} » comme faite"><i data-lucide="check"></i>Fait</button></div></li>`;
+        }
+        const ADD_TASK = `<li class="inv-foot"><button type="button" class="btn ghost sm" data-toast="Nouvelle tâche : titre, vélo, échéance (non maquettée)"><i data-lucide="plus"></i>Ajouter une tâche</button></li>`;
+        function renderRules() {
+          const open = TASKS.filter((t) => !t.done);
+          $("#dash-rules").innerHTML =
+            DASH_RULES.map((r) => ruleRow(r, true)).join("") +
+            open.map((t) => taskRow(t, true)).join("") +
+            ADD_TASK;
+          $("#bike-rules").innerHTML =
+            BIKE_RULES.map((r) => ruleRow(r, false)).join("") +
+            open
+              .filter((t) => t.bike === "spectral")
+              .map((t) => taskRow(t, false))
+              .join("") +
+            ADD_TASK;
+        }
+        // Dashboard "À racheter": everything to rebuy, the most urgent first (an item needed by a
+        // late or due-soon rule, then to order, ordered, low stock).
+        const KIND_ICONS = { part: "package", product: "droplet", tool: "wrench" };
+        const urgentRule = (it) =>
+          (SLOT_RULES[it.slot] || []).find((r) => r.status !== "ok" && servesBike(it, r.bike));
+        function renderDashParts() {
+          const rank = (it) => {
+            const st = stateOf(it);
+            const r = st === "to_order" && urgentRule(it);
+            return r ? (r.status === "late" ? 0 : 1) : { to_order: 2, ordered: 3, low: 4 }[st];
+          };
+          const all = ITEMS.filter((it) => stateOf(it)).sort((a, b) => rank(a) - rank(b));
+          $("#dash-parts-n").textContent = all.length;
+          $("#dash-parts-all").textContent = `Tout voir (${all.length})`;
+          $("#dash-parts").innerHTML =
+            all
+              .slice(0, 5)
+              .map((it) => {
+                const st = stateOf(it);
+                const link = bestLink(it);
+                const r = st === "to_order" && urgentRule(it);
+                const meta =
+                  st === "low"
+                    ? `reste ${stockText(it)}`
+                    : st === "ordered"
+                      ? `${link ? eur(link.price) + " · " : ""}commande du ${it.orderedOn}`
+                      : r
+                        ? r.status === "late"
+                          ? "pour un entretien en retard"
+                          : `nécessaire ${r.note.toLowerCase()}`
+                        : link
+                          ? eur(link.price)
+                          : "aucun lien d'achat";
+                return `<li><button type="button" class="part part-btn" data-go="ws" data-ws-tab="restock" data-ws-open="${it.id}"><span class="part-ico"><i data-lucide="${KIND_ICONS[it.kind]}"></i></span>
+      <span class="part-main"><span class="part-name">${fr(esc(it.name))}</span><span class="part-meta">${fr(`${bikesText(it)} · ${meta}`)}</span></span>${stateBadge(st)}</button></li>`;
+              })
+              .join("") ||
+            `<li class="part"><span class="part-meta">Rien à racheter pour l'instant.</span></li>`;
+        }
+        // Bike page "En stock pour ce vélo": what is on the shelf for the Spectral, alerts first.
+        function renderBikeStock() {
+          const mine = ITEMS.filter((it) => servesBike(it, "spectral"));
+          const inStock = mine.filter(
+            (it) =>
+              (it.kind === "part" && it.qty > 0) || (it.kind === "product" && it.containers > 0),
+          );
+          const rank = (it) => (stateOf(it) ? 0 : 2) + (it.kind === "part" ? 0 : 1);
+          const shown = inStock.sort((a, b) => rank(a) - rank(b)).slice(0, 5);
+          const toBuy = mine.filter((it) => stateOf(it)).length;
+          $("#bike-stock").innerHTML =
+            shown.map((it) => invRow(it, { go: true, sel: false, loc: true })).join("") +
+            `<li class="inv-foot"><button type="button" class="btn ghost sm" data-go="ws" data-ws-tab="restock" data-ws-bike="spectral"><i data-lucide="shopping-cart"></i>${toBuy} objet${toBuy > 1 ? "s" : ""} à racheter pour ce vélo</button></li>`;
+          $("#bike-stock-all").textContent = `Tout voir (${mine.length})`;
+        }
+
         function render() {
-          $("#dash-rules").innerHTML = DASH_RULES.map((r) => ruleRow(r, true)).join("");
-          $("#bike-rules").innerHTML = BIKE_RULES.map((r) => ruleRow(r, false)).join("");
+          renderRules();
+          renderDashParts();
+          renderBikeStock();
           $("#dash-bikes").innerHTML = Object.values(BIKES)
             .map(
               (b) => `
@@ -3893,10 +5885,6 @@
       </button>`,
             )
             .join("");
-          $("#dash-parts").innerHTML = PARTS.map(
-            (p) => `<li class="part"><span class="part-ico"><i data-lucide="package"></i></span>
-      <div class="part-main"><p class="part-name">${p.name}</p><p class="part-meta">${fr(p.meta)}</p></div><span class="badge ${p.badge[0]}">${p.badge[1]}</span></li>`,
-          ).join("");
           $("#dash-activity").innerHTML = ACTIVITY.map((a) => tlItem(a, true)).join("");
           $("#bike-history").innerHTML = HISTORY.map(
             (m) =>
@@ -3962,10 +5950,19 @@
               if (el.dataset.go === visible) el.setAttribute("aria-current", "page");
               else el.removeAttribute("aria-current");
             });
-            $(".tb-dash").hidden = visible !== "dash";
+            $(".tb-dash").hidden = visible !== "dash" && visible !== "ws";
             $(".tb-bike").hidden = visible !== "bike";
             $(".tb-ai").hidden = visible !== "ai";
+            $(".tb-ws").hidden = visible !== "ws";
             $(".tb-bike-only").hidden = visible !== "bike";
+            $$("[data-note]").forEach((n) => {
+              n.hidden = n.dataset.note !== (visible === "ws" ? "ws" : "default");
+            });
+            if (visible === "ws") {
+              app.dataset.wsView = ws.view;
+              renderWs();
+              icons();
+            } else delete app.dataset.wsView;
             main.scrollTop = 0;
             if (flash) {
               main.classList.add("loading");
@@ -3996,7 +5993,14 @@
           store.set("theme", value);
           updateFoundation();
         }
-        const setters = { screen: (v) => setScreen(v), frame: setFrame, theme: setTheme };
+        const setters = {
+          screen: (v) => {
+            if (v === "ws") ws.view = "list";
+            setScreen(v);
+          },
+          frame: setFrame,
+          theme: setTheme,
+        };
         $$(".seg[data-control]").forEach((seg) =>
           seg.addEventListener("click", (e) => {
             const b = e.target.closest("button[data-value]");
@@ -4004,23 +6008,41 @@
           }),
         );
 
-        /* ---------- Sheet ---------- */
-        const sheet = $("#sheet");
+        /* ---------- Sheets: quick ride entry, add an item, replace a part ---------- */
+        const SHEETS = {
+          ride: [$("#sheet"), "input[name='qa-bike']:checked"],
+          item: [$("#sheet-item"), "input[name='ai-type']"],
+          replace: [$("#sheet-replace"), "input[name='rp-slot']:checked"],
+        };
+        // While a sheet is open, the app behind it is inert: Tab stays inside the dialog.
+        const behind = [".sidebar", ".topbar", ".main", ".bottomnav"].map((s) => $(s, app));
         let lastFocus = null;
-        function openSheet({ focus = false } = {}) {
-          lastFocus = document.activeElement;
-          sheet.removeAttribute("inert");
+        let openSheetEl = null;
+        function openSheet(name = "ride", { focus = false } = {}) {
+          const [el, firstField] = SHEETS[name];
+          if (openSheetEl && openSheetEl !== el) closeSheet({ keepScreen: true });
+          if (!openSheetEl) lastFocus = document.activeElement;
+          openSheetEl = el;
+          el.removeAttribute("inert");
+          el.classList.add("is-open");
           app.classList.add("sheet-open");
+          behind.forEach((b) => b.setAttribute("inert", ""));
           if (focus)
             setTimeout(
-              () => $("#sheet input[name='qa-bike']:checked")?.focus({ preventScroll: true }),
+              () =>
+                $(typeof focus === "string" ? focus : firstField, el)?.focus({
+                  preventScroll: true,
+                }),
               60,
             );
         }
         function closeSheet({ keepScreen = false } = {}) {
-          if (!app.classList.contains("sheet-open")) return;
+          if (!openSheetEl) return;
+          openSheetEl.classList.remove("is-open");
+          openSheetEl.setAttribute("inert", "");
+          openSheetEl = null;
           app.classList.remove("sheet-open");
-          sheet.setAttribute("inert", "");
+          behind.forEach((b) => b.removeAttribute("inert"));
           if (!keepScreen && screen === "quick") {
             screen = "dash";
             syncSeg("screen", "dash");
@@ -4035,7 +6057,10 @@
         /* ---------- Toast ---------- */
         const toastEl = $("#toast");
         let toastTimer;
+        let undoFn = null;
+        // `undo`: true for the default ride undo, or a function that reverts the change.
         function toast(message, { undo = false } = {}) {
+          undoFn = typeof undo === "function" ? undo : null;
           $(".toast-msg", toastEl).textContent = message;
           $(".toast-undo", toastEl).hidden = !undo;
           toastEl.hidden = true;
@@ -4046,22 +6071,107 @@
             toastEl.hidden = true;
           }, 4500);
         }
-        $(".toast-undo", toastEl).addEventListener("click", () => toast("Sortie supprimée"));
+        $(".toast-undo", toastEl).addEventListener("click", () => {
+          const fn = undoFn;
+          undoFn = null;
+          if (fn) fn();
+          else toast("Sortie supprimée");
+        });
 
         /* ---------- Delegated clicks ---------- */
         document.addEventListener("click", (e) => {
           const t = e.target;
           const go = t.closest("[data-go]");
           if (go && app.contains(go)) {
+            const toWs = go.dataset.go === "ws";
+            if (toWs) wsPrepare(go.dataset);
             setScreen(go.dataset.go, { flash: true });
+            // Phone and tablet: an item opened from another screen gets the focus after the skeleton.
+            if (toWs && go.dataset.wsOpen && isNarrow())
+              setTimeout(() => $("#item-title")?.focus({ preventScroll: true }), 440);
             return;
           }
           if (t.closest("[data-open-sheet]")) {
-            openSheet({ focus: true });
+            openSheet("ride", { focus: true });
             return;
           }
           if (t.closest("[data-close-sheet]")) {
             closeSheet();
+            return;
+          }
+          /* Workshop hooks */
+          const add = t.closest("[data-add-item]");
+          if (add) {
+            openAddItem(add.dataset.addItem ? SUGGESTIONS[add.dataset.addItem] : null);
+            return;
+          }
+          const rep = t.closest("[data-replace]");
+          if (rep) {
+            openReplace(rep.dataset.replace);
+            return;
+          }
+          const open = t.closest("[data-ws-open]");
+          if (open) {
+            wsOpen(open.dataset.wsOpen);
+            // "Reçu…" in the list: land on the reception button, the quantity just above it.
+            if (open.hasAttribute("data-receive"))
+              $('#ws-detail [data-restock="received"]')?.focus({ preventScroll: true });
+            return;
+          }
+          if (t.closest("[data-ws-back]")) {
+            wsBack();
+            return;
+          }
+          const wsTab = t.closest("[data-ws-tab]");
+          if (wsTab) {
+            setWsTab(wsTab.dataset.wsTab, { focusTab: true });
+            return;
+          }
+          const rs = t.closest("[data-restock]");
+          if (rs) {
+            setRestock(findItem(rs.dataset.item), rs.dataset.restock);
+            return;
+          }
+          const done = t.closest("[data-task-done]");
+          if (done) {
+            const task = TASKS.find((x) => x.id === done.dataset.taskDone);
+            const listId = done.closest("ul").id;
+            task.done = true;
+            renderRules();
+            icons();
+            // The row is gone: keep the keyboard in the same list.
+            $(`#${listId} .inv-foot button`)?.focus({ preventScroll: true });
+            toast(`Tâche faite : ${task.title}`, {
+              undo: () => {
+                task.done = false;
+                renderRules();
+                icons();
+                toast("Tâche rouverte");
+              },
+            });
+            return;
+          }
+          const rq = t.closest("[data-rq]");
+          if (rq) {
+            const it = findItem(ws.sel);
+            it.restockQty = Math.max(1, (it.restockQty || 1) + Number(rq.dataset.rq));
+            keepFocus(renderWs);
+            return;
+          }
+          const mv = t.closest("[data-move]");
+          if (mv) {
+            moveStock(findItem(ws.sel), Number(mv.dataset.move));
+            return;
+          }
+          if (t.closest("[data-ws-clear]")) {
+            ws.q = "";
+            ws.bike = "";
+            $("#ws-q").value = "";
+            $("#ws-bike").value = "";
+            ensureSel();
+            renderWs();
+            icons();
+            $("#ws-q").focus();
             return;
           }
           const tt = t.closest("[data-toast]");
@@ -4093,6 +6203,19 @@
         });
         document.addEventListener("keydown", (e) => {
           if (e.key === "Escape") closeSheet();
+          // Keep Tab inside the open sheet, as a modal dialog does.
+          if (e.key !== "Tab" || !openSheetEl) return;
+          const f = $$("button, input, select, textarea, summary", openSheetEl).filter(
+            (el) => !el.disabled && el.getClientRects().length,
+          );
+          const inside = openSheetEl.contains(document.activeElement);
+          if (e.shiftKey && (!inside || document.activeElement === f[0])) {
+            e.preventDefault();
+            f[f.length - 1].focus();
+          } else if (!e.shiftKey && (!inside || document.activeElement === f[f.length - 1])) {
+            e.preventDefault();
+            f[0].focus();
+          }
         });
 
         /* ---------- Quick add form ---------- */
@@ -4146,6 +6269,990 @@
           });
           form.reset();
           syncForm();
+        });
+
+        /* ---------- Workshop (Atelier): inventory and restocking. Proposed ---------- */
+        const TODAY = "25 oct.";
+        const esc = (s) =>
+          String(s ?? "").replace(
+            /[&<>"']/g,
+            (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c],
+          );
+        const eur = (cents) =>
+          fr(
+            (cents / 100)
+              .toFixed(2)
+              .replace(".", ",")
+              .replace(/\B(?=(\d{3})+,)/g, " ") + " €",
+          );
+        const plural = (n, [one, many]) => (Math.abs(n) > 1 ? many : one);
+        const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+        const clone = (o) => JSON.parse(JSON.stringify(o));
+        const findItem = (id) =>
+          ITEMS.find((x) => x.id === id) || EMPTY_POOL.find((x) => x.id === id);
+        // Low stock: parts at or under their alert level; products down to their last, nearly
+        // empty container. Tools have no stock alert, only "to buy".
+        const isLow = (it) =>
+          it.kind === "part"
+            ? it.alertAt != null && it.qty <= it.alertAt
+            : it.kind === "product"
+              ? it.containers === 0 || (it.containers === 1 && it.level === "low")
+              : false;
+        // One state per item, explicit restocking first: to_order | ordered | low | null.
+        const stateOf = (it) => it.restock || (isLow(it) ? "low" : null);
+        const levelOf = (it) => (it.containers === 0 ? "empty" : it.level);
+        const servesBike = (it, id) => it.bikes === "all" || it.bikes.includes(id);
+        const bikeIds = (it) => (it.bikes === "all" ? Object.keys(BIKES) : it.bikes);
+        const qtyText = (it, n = it.qty) => `${n} ${plural(n, UNITS[it.unit])}`;
+        const packText = (it, n = it.containers) => `${n} ${plural(n, it.pack)}`;
+        const bestLink = (it) =>
+          it.links
+            .filter((l) => l.price != null)
+            .reduce((a, b) => (!a || b.price < a.price ? b : a), null);
+        const stateBadge = (st) => {
+          const [cls, ic, label] = STATES[st];
+          return `<span class="badge ${cls}"><i data-lucide="${ic}"></i>${label}</span>`;
+        };
+        const gauge = (lvl) =>
+          `<span class="gauge" aria-hidden="true">${[1, 2, 3].map((i) => `<span${i <= LEVELS[lvl][1] ? ' class="on"' : ""}></span>`).join("")}</span>`;
+        // Bike "pastille": a mini cover (sky and mountains of the bike's placeholder art).
+        const pip = (id) => {
+          const c = BIKES[id].c;
+          return `<span class="pip" style="background: linear-gradient(170deg, ${c[0]} 0 46%, ${c[2]} 46% 72%, ${c[3]} 72%)"></span>`;
+        };
+        function stockText(it) {
+          if (it.kind === "part") return qtyText(it);
+          if (it.kind === "product") {
+            const l = LEVELS[levelOf(it)][0].toLowerCase();
+            return it.containers > 1 ? `${l} · ${packText(it)}` : l;
+          }
+          return it.owned ? "possédé" : "non possédé";
+        }
+        function bikesText(it) {
+          if (it.bikes === "all") return "Tous les vélos";
+          if (!it.bikes.length) return "Aucun vélo";
+          const names = it.bikes.map((id) => BIKES[id].name);
+          return names.length > 2 ? `${names.length} vélos` : names.join(" · ");
+        }
+        function bikesMeta(it) {
+          const ids = bikeIds(it);
+          const sr =
+            it.bikes !== "all" && ids.length > 2
+              ? `<span class="sr-only"> : ${ids.map((id) => BIKES[id].name).join(", ")}</span>`
+              : "";
+          const pips = ids.length
+            ? `<span class="pips" aria-hidden="true">${ids.map(pip).join("")}</span>`
+            : "";
+          return `${pips}<span class="inv-bk">${bikesText(it)}${sr}</span>`;
+        }
+        function sideHTML(it) {
+          if (it.kind === "part")
+            return `<span class="inv-qty num">${it.qty}</span><span class="inv-unit">${plural(it.qty, UNITS[it.unit])}</span>`;
+          if (it.kind === "product") {
+            const l = levelOf(it);
+            const spare = it.containers - 1;
+            return `${gauge(l)}<span class="inv-unit">${LEVELS[l][0]}</span>${spare > 0 ? `<span class="inv-unit">+${spare} en réserve</span>` : ""}`;
+          }
+          return it.owned
+            ? `<span class="inv-unit"><i data-lucide="check"></i>Possédé</span>`
+            : `<span class="inv-unit">Non possédé</span>`;
+        }
+        function rowAction(it, st) {
+          if (st === "ordered" && it.kind !== "tool")
+            return `<span class="inv-act"><button type="button" class="btn secondary sm" data-ws-open="${it.id}" data-receive aria-label="Noter la réception de ${esc(it.name)}"><i data-lucide="package-check"></i>Reçu…</button></span>`;
+          const [to, ic, label, verb] =
+            st === "ordered"
+              ? ["received", "package-check", "Reçu", "comme reçu"]
+              : st === "to_order"
+                ? ["ordered", "truck", "Commandé", "comme commandé"]
+                : ["to_order", "shopping-cart", "À commander", "à commander"];
+          return `<span class="inv-act"><button type="button" class="btn secondary sm" data-restock="${to}" data-item="${it.id}" aria-label="Marquer ${esc(it.name)} ${verb}"><i data-lucide="${ic}"></i>${label}</button></span>`;
+        }
+        // One dense row. Options: go (opens the workshop from another screen), sel (highlight the
+        // selected item), loc (storage place instead of bikes), act (restocking action; the group
+        // heading then states the status, so the badge is left out), buy (cheapest purchase link).
+        function invRow(
+          it,
+          { go = false, sel = true, loc = false, act = false, buy = false } = {},
+        ) {
+          const st = stateOf(it);
+          const meta = loc
+            ? `<i data-lucide="map-pin"></i><span class="inv-bk">${it.loc ? esc(it.loc) : "Rangement non précisé"}</span>`
+            : bikesMeta(it);
+          const link = buy && bestLink(it);
+          const buyLine = buy
+            ? `<span class="inv-meta">${link ? fr(`${esc(link.shop)} · ${eur(link.price)}`) : "Aucun lien d'achat"}</span>`
+            : "";
+          const current = sel && it.id === ws.sel ? ' aria-current="true"' : "";
+          const withAct = act && st;
+          return `<li class="inv${withAct ? " has-act" : ""}"><button type="button" class="inv-open"${go ? ' data-go="ws"' : ""} data-ws-open="${it.id}"${current}>
+      <span class="part-ico inv-ico"><i data-lucide="${CATS[it.cat][1]}"></i></span><span class="inv-name">${fr(esc(it.name))}</span>
+      <span class="inv-side">${sideHTML(it)}</span><span class="inv-meta">${meta}</span>${buyLine}${st && !act ? `<span class="inv-badges">${stateBadge(st)}</span>` : ""}</button>${withAct ? rowAction(it, st) : ""}</li>`;
+        }
+
+        // Workshop view state. `empty` swaps in an empty inventory to show the guided empty state.
+        const ws = { tab: "part", q: "", bike: "", sel: "maven-pads", view: "list", empty: false };
+        const EMPTY_POOL = [];
+        const pool = () => (ws.empty ? EMPTY_POOL : ITEMS);
+        const norm = (s) =>
+          String(s || "")
+            .toLowerCase()
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "");
+        const passes = (it) => {
+          if (ws.bike && !servesBike(it, ws.bike)) return false;
+          const q = norm(ws.q.trim());
+          return (
+            !q || norm([it.name, it.brand, it.ref, CATS[it.cat][0], it.loc].join(" ")).includes(q)
+          );
+        };
+        const inView = (it, tab) => (tab === "restock" ? !!stateOf(it) : it.kind === tab);
+        const visibleItems = (tab = ws.tab) => pool().filter((it) => inView(it, tab) && passes(it));
+        const CAT_GROUPS = Object.entries(CATS).map(([k, [label, ic]]) => [k, label, ic]);
+        const RESTOCK_GROUPS = [
+          ["to_order", "À commander", "shopping-cart"],
+          ["ordered", "En commande", "truck"],
+          ["low", "Stock bas · pas encore prévu", "package-minus"],
+        ];
+        function ensureSel() {
+          const list = visibleItems();
+          if (!list.some((it) => it.id === ws.sel)) ws.sel = list[0]?.id ?? null;
+        }
+        function syncTabRadio() {
+          $$('input[name="ws-tab"]').forEach((r) => {
+            r.checked = r.value === ws.tab;
+          });
+        }
+        function groupsHTML(list, keyOf, groups, opts) {
+          return `<div class="card inv-card">${groups
+            .filter(([k]) => list.some((it) => keyOf(it) === k))
+            .map(([k, label, ic]) => {
+              const rows = list.filter((it) => keyOf(it) === k);
+              return `<div class="comp-group"><h2 class="group-head"><i data-lucide="${ic}"></i>${label}<span class="count">${rows.length}</span></h2><ul class="comp-list">${rows.map((it) => invRow(it, opts)).join("")}</ul></div>`;
+            })
+            .join("")}</div>`;
+        }
+        function emptyHTML() {
+          return `<div class="card empty"><div class="empty-art">${SHELF_ART}</div><h3>Ton atelier est vide</h3>
+      <p>Note ce que tu as en réserve. Le stock baisse tout seul quand tu montes une pièce, et l'accueil te prévient quand il faut racheter.</p>
+      <button type="button" class="btn primary" data-add-item><i data-lucide="plus"></i>Ajouter un objet</button>
+      <p class="hint">Ou commence par ce qui s'use vite :</p>
+      <div class="empty-sugg">${SUGGESTIONS.map((s, i) => `<button type="button" class="btn secondary sm" data-add-item="${i}">${s.name}</button>`).join("")}</div></div>`;
+        }
+        function noMatchHTML() {
+          const filtered = ws.q.trim() || ws.bike;
+          if (ws.tab === "restock" && !filtered)
+            return `<div class="card empty compact"><h3>Rien à racheter</h3><p>Les objets sous leur seuil d'alerte arriveront ici tout seuls.</p></div>`;
+          return `<div class="card empty compact"><h3>Aucun objet ne correspond</h3><p>Essaie un autre mot ou un autre vélo.</p>${filtered ? `<button type="button" class="btn secondary sm" data-ws-clear><i data-lucide="x"></i>Effacer les filtres</button>` : ""}</div>`;
+        }
+
+        /* Item detail ("fiche") */
+        function stockHTML(it, st) {
+          const badgeHTML = st ? stateBadge(st) : "";
+          if (it.kind === "part") {
+            const u = UNITS[it.unit][0];
+            return `<section class="card pad" aria-labelledby="stock-h">
+      <div class="stock-top"><h3 class="eyebrow" id="stock-h">En stock</h3>${badgeHTML}</div>
+      <div class="stepper">
+        <button type="button" class="step-btn" data-move="-1" aria-label="Retirer 1 ${u} (utilisation)"${it.qty ? "" : " disabled"}><i data-lucide="minus"></i></button>
+        <p class="step-val"><span class="num">${it.qty}</span>${plural(it.qty, UNITS[it.unit])}</p>
+        <button type="button" class="step-btn" data-move="1" aria-label="Ajouter 1 ${u} (achat)"><i data-lucide="plus"></i></button>
+      </div>
+      <p class="hint">${it.alertAt != null ? fr(`Alerte à partir de ${qtyText(it, it.alertAt)}.`) : "Pas d'alerte de stock."} « − » note une utilisation, « + » un achat : le stock n'est jamais saisi directement.</p>
+      <div class="stock-tools">
+        <button type="button" class="btn ghost sm" data-toast="Seuil d'alerte : modifiable dans la fiche (non maquetté)"><i data-lucide="sliders-horizontal"></i>Modifier le seuil</button>
+        <button type="button" class="btn ghost sm" data-toast="Après un comptage, saisis le total : l'écart est enregistré comme correction"><i data-lucide="clipboard-list"></i>Corriger le stock</button>
+      </div>${restockHTML(it)}</section>`;
+          }
+          if (it.kind === "product") {
+            const lvl = levelOf(it);
+            const p = it.pack;
+            const levels = it.containers
+              ? `<fieldset class="fs"><legend class="legend">${cap(p[0])} en cours</legend><div class="chips">${Object.entries(
+                  LEVELS,
+                )
+                  .map(
+                    ([v, [label]]) =>
+                      `<label class="chip"><input type="radio" name="lvl" value="${v}"${v === lvl ? " checked" : ""}><span>${label}</span></label>`,
+                  )
+                  .join("")}</div></fieldset>`
+              : `<p class="empty-line"><i data-lucide="package-x"></i>Vide : plus aucun ${p[0]} en réserve.</p>`;
+            return `<section class="card pad" aria-labelledby="stock-h">
+      <div class="stock-top"><h3 class="eyebrow" id="stock-h">Niveau</h3>${badgeHTML}</div>${levels}
+      <div class="stock-pack"><span class="stock-pack-l" id="pack-l">${cap(p[1])} en stock</span>
+        <div class="stepper" role="group" aria-labelledby="pack-l">
+          <button type="button" class="step-btn" data-move="-1" aria-label="Retirer 1 ${p[0]} (terminé ou jeté)"${it.containers ? "" : " disabled"}><i data-lucide="minus"></i></button>
+          <p class="step-val"><span class="num">${it.containers}</span>${plural(it.containers, p)}</p>
+          <button type="button" class="step-btn" data-move="1" aria-label="Ajouter 1 ${p[0]} (achat)"><i data-lucide="plus"></i></button>
+        </div>
+      </div>
+      <p class="hint">Choisis « Vide » quand un ${p[0]} est fini : il sort du stock et le suivant devient le ${p[0]} en cours.</p>${restockHTML(it)}</section>`;
+          }
+          return `<section class="card pad" aria-labelledby="stock-h">
+      <div class="stock-top"><h3 class="eyebrow" id="stock-h">Possession</h3>${badgeHTML}</div>
+      <fieldset class="fs"><legend class="sr-only">Est-ce que tu as cet outil ?</legend><div class="chips">
+        <label class="chip"><input type="radio" name="own" value="yes"${it.owned ? " checked" : ""}><span><i data-lucide="check"></i>Je l'ai</span></label>
+        <label class="chip"><input type="radio" name="own" value="no"${it.owned ? "" : " checked"}><span>Je ne l'ai pas</span></label>
+      </div></fieldset>${restockHTML(it)}</section>`;
+        }
+        function restockHTML(it) {
+          if (!it.restock) {
+            const toBuy = it.kind === "tool" && !it.owned;
+            if (!toBuy && !isLow(it)) return "";
+            return `<div class="restock"><p class="restock-txt">${toBuy ? "Pas encore dans ton atelier." : "Stock bas."} Ajoute-le à « À racheter » pour ne pas l'oublier.</p>
+      <div class="row-wrap"><button type="button" class="btn secondary sm" data-restock="to_order" data-item="${it.id}"><i data-lucide="shopping-cart"></i>À commander</button></div></div>`;
+          }
+          const ordered = it.restock === "ordered";
+          const cur = ordered ? 1 : 0;
+          const steps = [
+            ["À commander", it.restockOn],
+            ["Commandé", ordered ? it.orderedOn : null],
+            ["Reçu", null],
+          ]
+            .map(([label, d], i) => {
+              const s = i < cur ? "done" : i === cur ? "now" : "todo";
+              const sr = { done: " (fait)", now: " (étape en cours)", todo: " (à venir)" }[s];
+              return `<li data-s="${s}"${s === "now" ? ' aria-current="step"' : ""}><b>${s === "done" ? '<i data-lucide="check"></i>' : ""}${label}<span class="sr-only">${sr}</span></b>${d ? `<span>${fr(d)}</span>` : ""}</li>`;
+            })
+            .join("");
+          // Quantity: set when ordering, prefilled and adjustable at reception (partial delivery).
+          const units =
+            it.kind === "part" ? UNITS[it.unit] : it.kind === "product" ? it.pack : null;
+          const q = it.restockQty || 1;
+          const qty = units
+            ? `<div class="stock-pack"><span class="stock-pack-l" id="rq-l">${ordered ? "Quantité reçue" : "Quantité à commander"}</span>
+        <div class="stepper" role="group" aria-labelledby="rq-l">
+          <button type="button" class="step-btn" data-rq="-1" aria-label="1 de moins"${q > 1 ? "" : " disabled"}><i data-lucide="minus"></i></button>
+          <p class="step-val"><span class="num">${q}</span>${plural(q, units)}</p>
+          <button type="button" class="step-btn" data-rq="1" aria-label="1 de plus"><i data-lucide="plus"></i></button>
+        </div></div>${ordered ? `<p class="hint">Préremplie avec la commande : ajuste-la si la livraison est incomplète.</p>` : ""}`
+            : "";
+          const next = ordered
+            ? `<button type="button" class="btn primary sm" data-restock="received" data-item="${it.id}"><i data-lucide="package-check"></i>Marquer reçu${units ? ` · +${q} ${plural(q, units)}` : ""}</button>`
+            : `<button type="button" class="btn primary sm" data-restock="ordered" data-item="${it.id}"><i data-lucide="truck"></i>Marquer commandé</button>`;
+          return `<div class="restock"><p class="restock-txt"><b>Rachat</b>${ordered && it.orderShop ? ` · chez ${esc(it.orderShop)}` : ""}</p><ol class="steps">${steps}</ol>${qty}
+      <div class="row-wrap">${next}<button type="button" class="btn ghost sm" data-restock="none" data-item="${it.id}">Annuler le rachat</button></div></div>`;
+        }
+        function bikesHTML(it) {
+          const body =
+            it.bikes === "all"
+              ? `<div class="row-wrap"><span class="pill"><span class="pips" aria-hidden="true">${Object.keys(BIKES).map(pip).join("")}</span>Tous les vélos</span></div><p class="hint item-foot">Y compris les vélos ajoutés plus tard.</p>`
+              : it.bikes.length
+                ? `<div class="row-wrap">${it.bikes.map((id) => `<span class="pill"><span class="mini">${cover(BIKES[id])}</span>${BIKES[id].name}</span>`).join("")}</div>`
+                : `<p class="hint">Aucun vélo lié : l'objet n'apparaît sur aucune page vélo.</p>`;
+          return `<section class="item-sec" aria-labelledby="bk-h"><div class="sec-head"><h3 class="sec-title" id="bk-h">Vélos</h3><button type="button" class="link" data-toast="Choix des vélos par puces, comme à l'ajout">Modifier</button></div>${body}</section>`;
+        }
+        function linksHTML(it) {
+          const best = it.links.length > 1 ? bestLink(it) : null;
+          const rows = it.links
+            .map((l) => {
+              const meta = `${l.store ? "En magasin" : l.host} · ${l.last ? `acheté le ${l.last}` : `prix noté le ${l.seen}`}`;
+              const open = l.store
+                ? ""
+                : `<button type="button" class="step-btn flat" data-toast="Ouvre ${l.host} dans un nouvel onglet" aria-label="Ouvrir la page chez ${esc(l.shop)}, nouvel onglet"><i data-lucide="external-link"></i></button>`;
+              return `<li class="pl"><span class="part-ico"><i data-lucide="${l.store ? "store" : "globe"}"></i></span>
+      <div class="part-main"><p class="part-name">${esc(l.shop)}</p><p class="part-meta">${fr(esc(meta))}</p></div>
+      <span class="pl-price num">${l.price != null ? eur(l.price) : "—"}${l === best ? '<span class="pl-best">le moins cher</span>' : ""}</span>${open}</li>`;
+            })
+            .join("");
+          const add = `data-toast="Nouveau lien : boutique, adresse de la page, prix"`;
+          const body = rows
+            ? `<ul class="card list">${rows}</ul>`
+            : `<div class="card mini-empty"><p class="part-name">Aucun lien d'achat</p><p class="hint">Note la boutique et le prix : tu sauras où racheter, et à quel prix.</p><button type="button" class="btn secondary sm" ${add}><i data-lucide="plus"></i>Ajouter un lien</button></div>`;
+          return `<section class="item-sec" aria-labelledby="pl-h"><div class="sec-head"><h3 class="sec-title" id="pl-h">Liens d'achat</h3>${rows ? `<button type="button" class="link" ${add}>Ajouter</button>` : ""}</div>${body}
+      <p class="hint item-foot">Prix notés à la main : l'app ne contacte jamais les boutiques.</p></section>`;
+        }
+        function maintHTML(it) {
+          const rules = (SLOT_RULES[it.slot] || []).filter((r) => servesBike(it, r.bike));
+          const last = it.moves.find((m) => m.bike);
+          if (!rules.length && !last) return "";
+          const rows = rules
+            .map((r) => {
+              const b = BIKES[r.bike];
+              return `<li class="ent"><span class="mini ent-cover">${cover(b)}</span><div class="part-main"><p class="part-name">${r.title}</p><p class="part-meta">${fr(`${b.name} · ${r.note}`)}</p></div>${badge(r.status)}</li>`;
+            })
+            .join("");
+          const lastLine = last
+            ? `<p class="hint item-foot">${fr(`Dernière utilisation : ${last.d}, ${BIKES[last.bike].name} · ${last.what}.`)}</p>`
+            : "";
+          return `<section class="item-sec" aria-labelledby="mt-h"><div class="sec-head"><h3 class="sec-title" id="mt-h">Entretiens concernés</h3></div>${rows ? `<ul class="card list">${rows}</ul>` : ""}${lastLine}</section>`;
+        }
+        function mvRow(m) {
+          const n = Math.abs(m.delta);
+          const delta =
+            m.kind === "level" && !m.delta
+              ? gauge(m.level)
+              : `<span aria-hidden="true">${m.delta > 0 ? "+" : "−"}${n}</span><span class="sr-only">${m.delta > 0 ? "plus" : "moins"} ${n}</span>`;
+          const title =
+            m.kind === "level" ? `Niveau : ${LEVELS[m.level][0].toLowerCase()}` : MOVES[m.kind];
+          // A movement from a maintenance event links to it (only the Spectral page is mocked).
+          const link = m.bike === "spectral";
+          const meta = [m.who, link ? "" : m.what].filter(Boolean).join(" · ");
+          const goTo = link
+            ? `<button type="button" class="link mv-link" data-go="bike">${m.what}</button>`
+            : "";
+          return `<li class="mv"><span class="mv-delta num${m.delta > 0 ? " plus" : ""}">${delta}</span><div class="part-main"><p class="mv-title">${title}</p>${meta ? `<p class="part-meta">${fr(meta)}</p>` : ""}${goTo}</div><span class="mv-date">${fr(m.d)}</span></li>`;
+        }
+        function movesHTML(it) {
+          const body = it.moves.length
+            ? `<ol class="card list">${it.moves.slice(0, 5).map(mvRow).join("")}</ol>`
+            : `<p class="card pad hint">Aucun mouvement pour l'instant.${it.restock ? " Le stock bougera à la réception." : ""}</p>`;
+          return `<section class="item-sec" aria-labelledby="mv-h"><div class="sec-head"><h3 class="sec-title" id="mv-h">Historique des mouvements</h3>${it.moves.length > 5 ? `<button type="button" class="link" data-todo>Tout voir</button>` : ""}</div>${body}</section>`;
+        }
+        function detailHTML(it) {
+          const st = stateOf(it);
+          const sub = [it.brand, it.ref ? `réf. ${it.ref}` : "sans référence"].filter(Boolean);
+          const slot = SLOTS.find((s) => s.type === it.slot);
+          const mount =
+            it.kind === "part" && slot && servesBike(it, "spectral")
+              ? `<button type="button" class="btn secondary sm" data-replace="${it.id}"><i data-lucide="replace"></i>Monter sur le Spectral</button>`
+              : it.kind !== "tool"
+                ? `<button type="button" class="btn secondary sm" data-toast="Saisie d'entretien avec cet objet déjà choisi (non maquettée)"><i data-lucide="wrench"></i>Utiliser lors d'un entretien</button>`
+                : "";
+          return `<article class="item" aria-labelledby="item-title">
+      <header class="item-head">
+        <button type="button" class="item-photo" data-toast="Ajout d'une photo : appareil photo ou photothèque" aria-label="Ajouter une photo de l'objet"><i data-lucide="camera"></i></button>
+        <div><p class="eyebrow">${KINDS[it.kind][0]} · ${CATS[it.cat][0]}</p>
+          <h2 class="item-title" id="item-title" tabindex="-1">${fr(esc(it.name))}</h2>
+          <p class="item-sub">${fr(sub.map(esc).join(" · "))}</p>
+          <p class="item-loc"><i data-lucide="map-pin"></i>${it.loc ? esc(it.loc) : "Rangement non précisé"}</p></div>
+      </header>
+      <div class="item-actions">${mount}
+        <button type="button" class="btn ghost sm" data-toast="Modification de l'objet (non maquettée)"><i data-lucide="pencil"></i>Modifier</button>
+      </div>
+      ${stockHTML(it, st)}${bikesHTML(it)}${linksHTML(it)}${maintHTML(it)}${movesHTML(it)}
+      ${it.notes ? `<section class="item-sec" aria-labelledby="nt-h"><div class="sec-head"><h3 class="sec-title" id="nt-h">Notes</h3></div><p class="card pad item-note">${fr(esc(it.notes))}</p></section>` : ""}
+      <div><button type="button" class="btn ghost sm" data-toast="Objet archivé : il quitte les listes, son historique reste"><i data-lucide="archive"></i>Archiver l'objet</button></div>
+    </article>`;
+        }
+
+        function renderWs() {
+          const el = $("#ws");
+          const items = pool();
+          const count = (st) => items.filter((it) => stateOf(it) === st).length;
+          // Summary: one line that leads to "À racheter".
+          const sums = [
+            [count("low"), "en stock bas"],
+            [count("ordered"), "en commande"],
+            [count("to_order"), "à commander"],
+          ].filter(([n]) => n);
+          $("#ws-summary").hidden = ws.empty || !sums.length;
+          $("#ws-summary").innerHTML =
+            `<span class="sum-ico"><i data-lucide="shopping-cart"></i></span><span class="ws-sum-txt">${sums.map(([n, label]) => `<b class="num">${n}</b> ${label}`).join(" · ")}<span class="sr-only">, voir « À racheter »</span></span><i data-lucide="chevron-right"></i>`;
+          ["part", "product", "tool", "restock"].forEach((t) => {
+            $(`#ws-n-${t}`).textContent = visibleItems(t).length;
+          });
+          const none = ws.empty && !items.length;
+          // The empty state carries its own "Ajouter" button: no duplicate in the header.
+          $("#ws-add-item").hidden = none;
+          $("#ws-find").hidden = none;
+
+          const list = none ? [] : visibleItems();
+          let html;
+          if (none) html = emptyHTML();
+          else if (!list.length) html = noMatchHTML();
+          else if (ws.tab === "restock")
+            html = groupsHTML(list, stateOf, RESTOCK_GROUPS, { act: true, buy: true });
+          else html = groupsHTML(list, (it) => it.cat, CAT_GROUPS, {});
+          $("#ws-body").innerHTML = html;
+          $("#ws-status").textContent = `${list.length} objet${list.length > 1 ? "s" : ""}`;
+
+          const sel = ws.sel && findItem(ws.sel);
+          const solo = !sel || none;
+          if (solo) ws.view = "list";
+          el.toggleAttribute("data-solo", solo);
+          el.dataset.view = ws.view;
+          if (!$("#ws").closest(".screen").hidden) app.dataset.wsView = ws.view;
+          $("#ws-detail").innerHTML = solo ? "" : detailHTML(sel);
+          $("#tb-ws-here").textContent = sel && !solo ? sel.name : "";
+        }
+
+        // Re-render without losing keyboard focus: find the focused control again by its hooks.
+        function keepFocus(fn) {
+          const a = document.activeElement;
+          const scope =
+            a && a.closest?.("#ws-detail, #ws-body, #ws-summary, #bike-stock, #dash-parts");
+          // Candidates, best first: the same control, then a sensible neighbour.
+          const sels = [];
+          if (scope) {
+            if (a.type === "radio") sels.push(`input[name="${a.name}"]:checked`);
+            if (a.type === "radio" || a.type === "checkbox")
+              sels.push(
+                `input[name="${a.name}"][value="${a.value}"]${a.dataset.task ? `[data-task="${a.dataset.task}"]` : ""}`,
+              );
+            const hooks = [
+              "data-ws-open",
+              "data-move",
+              "data-rq",
+              "data-restock",
+              "data-item",
+              "data-ws-tab",
+            ]
+              .filter((n) => a.hasAttribute(n))
+              .map((n) => `[${n}="${a.getAttribute(n)}"]`)
+              .join("");
+            if (hooks) sels.push(hooks);
+            // A restocking step moved on: its next step, or the item's row.
+            if (a.dataset.item)
+              sels.push(
+                `[data-restock][data-item="${a.dataset.item}"]`,
+                `[data-ws-open="${a.dataset.item}"]`,
+              );
+            if (a.dataset.move) sels.push('[data-move="1"]');
+            if (a.dataset.rq) sels.push('[data-rq="1"]');
+          }
+          fn();
+          icons();
+          if (!scope) return;
+          let target = null;
+          for (const s of sels) {
+            target = $(s, scope);
+            if (target && !target.disabled) break;
+            target = null;
+          }
+          if (!target)
+            target =
+              scope.id === "ws-detail" ? $("#item-title") : scope.id === "ws-body" ? scope : null;
+          target?.focus({ preventScroll: true });
+        }
+        function refreshAll() {
+          keepFocus(() => {
+            renderWs();
+            renderDashParts();
+            renderBikeStock();
+            renderRules();
+          });
+        }
+        const isNarrow = () => app.clientWidth < 1024;
+        function wsOpen(id) {
+          ws.sel = id;
+          ws.view = "item";
+          if (isNarrow()) {
+            renderWs();
+            icons();
+            main.scrollTop = 0;
+            $("#item-title")?.focus({ preventScroll: true });
+          } else keepFocus(renderWs);
+        }
+        function wsBack() {
+          ws.view = "list";
+          renderWs();
+          icons();
+          const row = $(`.inv-open[data-ws-open="${ws.sel}"]`, $("#ws-body"));
+          row?.focus({ preventScroll: true });
+          row?.scrollIntoView({ block: "nearest" });
+        }
+        function setWsTab(tab, { focusTab = false } = {}) {
+          ws.tab = tab;
+          ws.view = "list";
+          syncTabRadio();
+          ensureSel();
+          keepFocus(renderWs);
+          if (focusTab) $(`input[name="ws-tab"][value="${tab}"]`)?.focus();
+        }
+        // Navigation into the workshop from another screen (dashboard, bike page, rule rows).
+        function wsPrepare(d) {
+          if (d.wsBike !== undefined) {
+            ws.bike = d.wsBike;
+            $("#ws-bike").value = ws.bike;
+          }
+          if (d.wsOpen) {
+            const it = ITEMS.find((x) => x.id === d.wsOpen);
+            ws.empty = false;
+            syncEmptyToggle();
+            ws.tab = d.wsTab || it.kind;
+            if (!passes(it)) {
+              ws.q = "";
+              ws.bike = "";
+              $("#ws-q").value = "";
+              $("#ws-bike").value = "";
+            }
+            ws.sel = it.id;
+            ws.view = "item";
+          } else {
+            if (d.wsTab) ws.tab = d.wsTab;
+            ws.view = "list";
+            ensureSel();
+          }
+          syncTabRadio();
+        }
+
+        /* Stock changes: every change is a movement, with an undo toast. */
+        function moveStock(it, delta) {
+          const snap = clone(it);
+          let message;
+          if (it.kind === "part") {
+            if (it.qty + delta < 0) return;
+            it.qty += delta;
+            it.moves.unshift(
+              delta < 0
+                ? {
+                    d: TODAY,
+                    kind: "use",
+                    delta,
+                    who: "Hors entretien",
+                    what: "Noté depuis la fiche",
+                  }
+                : {
+                    d: TODAY,
+                    kind: "purchase",
+                    delta,
+                    who: "Depuis la fiche",
+                    what: "Prix non noté",
+                  },
+            );
+            message = `${delta < 0 ? "Utilisation notée" : "Achat noté"} · ${it.name} : ${qtyText(it)}`;
+          } else {
+            if (it.containers + delta < 0) return;
+            const wasEmpty = it.containers === 0;
+            it.containers += delta;
+            if (wasEmpty && delta > 0) it.level = "full";
+            if (it.containers === 0) it.level = "empty";
+            it.moves.unshift(
+              delta < 0
+                ? {
+                    d: TODAY,
+                    kind: "level",
+                    delta,
+                    level: "empty",
+                    who: "Hors entretien",
+                    what: `${cap(it.pack[0])} terminé ou jeté`,
+                  }
+                : {
+                    d: TODAY,
+                    kind: "purchase",
+                    delta,
+                    who: "Depuis la fiche",
+                    what: "Prix non noté",
+                  },
+            );
+            message = `${delta < 0 ? `${cap(it.pack[0])} en moins` : "Achat noté"} · ${it.name} : ${packText(it)}`;
+          }
+          finish(it, snap, message);
+        }
+        function finish(it, snap, message, revert = "Modification annulée") {
+          refreshAll();
+          toast(fr(message), {
+            undo: () => {
+              Object.assign(it, snap);
+              refreshAll();
+              toast(revert);
+            },
+          });
+        }
+        function setLevel(it, lvl) {
+          const snap = clone(it);
+          let message;
+          if (lvl === "empty") {
+            it.containers -= 1;
+            it.level = it.containers ? "full" : "empty";
+            it.moves.unshift({
+              d: TODAY,
+              kind: "level",
+              delta: -1,
+              level: "empty",
+              who: "Depuis la fiche",
+              what: it.containers
+                ? `Le ${it.pack[0]} suivant prend le relais`
+                : `Plus aucun ${it.pack[0]}`,
+            });
+            message = it.containers
+              ? `${cap(it.pack[0])} terminé · il en reste ${it.containers}, plein`
+              : `${cap(it.pack[0])} terminé · ${it.name} : vide`;
+          } else {
+            it.level = lvl;
+            it.moves.unshift({
+              d: TODAY,
+              kind: "level",
+              delta: 0,
+              level: lvl,
+              who: "Depuis la fiche",
+              what: "Niveau noté à l'œil",
+            });
+            message = `Niveau noté : ${LEVELS[lvl][0].toLowerCase()}`;
+          }
+          finish(it, snap, message);
+        }
+        function setOwned(it, owned) {
+          const snap = clone(it);
+          it.owned = owned;
+          if (owned) {
+            it.restock = null;
+            it.moves.unshift({
+              d: TODAY,
+              kind: "purchase",
+              delta: 1,
+              who: "Depuis la fiche",
+              what: "Prix non noté",
+            });
+          } else
+            it.moves.unshift({
+              d: TODAY,
+              kind: "adjust",
+              delta: -1,
+              who: "Plus dans l'atelier",
+              what: "Perdu, cassé ou prêté",
+            });
+          finish(
+            it,
+            snap,
+            owned ? `${it.name} : dans l'atelier` : `${it.name} : plus dans l'atelier`,
+          );
+        }
+        function setRestock(it, to) {
+          const snap = clone(it);
+          let message;
+          if (to === "to_order") {
+            it.restock = "to_order";
+            it.restockOn = TODAY;
+            it.restockQty = it.restockQty || 1;
+            message = `À commander : ${it.name}`;
+          } else if (to === "ordered") {
+            it.restock = "ordered";
+            it.restockOn = it.restockOn || TODAY;
+            it.orderedOn = TODAY;
+            it.orderShop = bestLink(it)?.shop || null;
+            message = `En commande : ${it.name}`;
+          } else if (to === "received") {
+            const link = bestLink(it);
+            const q = it.kind === "tool" ? 1 : it.restockQty || 1;
+            it.restock = null;
+            it.restockQty = null;
+            if (it.kind === "part") it.qty += q;
+            else if (it.kind === "product") {
+              if (!it.containers) it.level = "full";
+              it.containers += q;
+            } else it.owned = true;
+            it.moves.unshift({
+              d: TODAY,
+              kind: "purchase",
+              delta: q,
+              who: link ? link.shop : "Depuis la fiche",
+              what: link ? `${q} × ${eur(link.price)}` : "Prix non noté",
+            });
+            if (link) link.last = TODAY;
+            message = `Réception notée · ${it.name} : ${stockText(it)}`;
+          } else {
+            it.restock = null;
+            message = `Rachat annulé : ${it.name}`;
+          }
+          finish(it, snap, message);
+        }
+
+        /* Workshop events */
+        $("#ws-tabs").addEventListener("change", (e) => {
+          if (e.target.name === "ws-tab") setWsTab(e.target.value);
+        });
+        $("#ws-q").addEventListener("input", (e) => {
+          ws.q = e.target.value;
+          ensureSel();
+          renderWs();
+          icons();
+        });
+        $("#ws-bike").addEventListener("change", (e) => {
+          ws.bike = e.target.value;
+          ensureSel();
+          renderWs();
+          icons();
+        });
+        $("#ws").addEventListener("change", (e) => {
+          const t = e.target;
+          const it = ws.sel && findItem(ws.sel);
+          if (t.name === "lvl" && it) setLevel(it, t.value);
+          else if (t.name === "own" && it) setOwned(it, t.value === "yes");
+        });
+        const emptyToggle = $("#ws-empty-toggle");
+        function syncEmptyToggle() {
+          emptyToggle.textContent = ws.empty ? "Revoir l'exemple rempli" : "Voir l'atelier vide";
+        }
+        emptyToggle.addEventListener("click", () => {
+          ws.empty = !ws.empty;
+          ws.view = "list";
+          if (ws.empty) ws.tab = "part";
+          syncTabRadio();
+          ensureSel();
+          syncEmptyToggle();
+          renderWs();
+          icons();
+        });
+
+        /* Add sheet: type first, then a short form for that type, the rest folded away. */
+        const aiForm = $("#ai-form");
+        const AI_PLACEHOLDERS = {
+          part: "Ex. Plaquettes Maven organiques",
+          product: "Ex. Huile minérale Shimano",
+          tool: "Ex. Kit de purge",
+        };
+        const AI_DEFAULT_CAT = { part: "brakes", product: "care", tool: "other" };
+        let aiCatTouched = false;
+        $("#ai-bikes").innerHTML =
+          `<label class="chip"><input type="checkbox" name="ai-bike" value="all"><span><i data-lucide="bike"></i>Tous les vélos</span></label>` +
+          Object.entries(BIKES)
+            .map(
+              ([id, b]) =>
+                `<label class="chip"><input type="checkbox" name="ai-bike" value="${id}"><span><span class="mini">${cover(b)}</span>${b.name}</span></label>`,
+            )
+            .join("");
+        const aiKind = () => aiForm.querySelector('input[name="ai-type"]:checked')?.value;
+        function clearFormErrors(form) {
+          $$(".field.invalid", form).forEach((f) => f.classList.remove("invalid"));
+          $$(".err", form).forEach((p) => {
+            p.hidden = true;
+          });
+          $$("[aria-invalid]", form).forEach((i) => i.removeAttribute("aria-invalid"));
+        }
+        function syncAddItem() {
+          const kind = aiKind();
+          $("#ai-fields").hidden = !kind;
+          $$(".ai-kind", aiForm).forEach((el) => {
+            el.hidden = el.dataset.kind !== kind;
+          });
+          if (kind) {
+            $("#ai-name").placeholder = AI_PLACEHOLDERS[kind];
+            if (!aiCatTouched) $("#ai-cat").value = AI_DEFAULT_CAT[kind];
+          }
+        }
+        function openAddItem(pre) {
+          aiForm.reset();
+          clearFormErrors(aiForm);
+          aiCatTouched = false;
+          $(".more", aiForm).open = false;
+          if (pre) {
+            aiForm.querySelector(`input[name="ai-type"][value="${pre.kind}"]`).checked = true;
+            $("#ai-name").value = pre.name;
+            $("#ai-cat").value = pre.cat;
+            aiCatTouched = true;
+            if (pre.unit)
+              aiForm.querySelector(`input[name="ai-unit"][value="${pre.unit}"]`).checked = true;
+          }
+          syncAddItem();
+          openSheet("item", { focus: pre ? "#ai-name" : 'input[name="ai-type"]' });
+        }
+        aiForm.addEventListener("change", (e) => {
+          const t = e.target;
+          if (t.name === "ai-type") $("#ai-type-err").hidden = true;
+          if (t.id === "ai-cat") aiCatTouched = true;
+          if (t.name === "ai-bike") {
+            const boxes = $$('input[name="ai-bike"]', aiForm);
+            if (t.value === "all" && t.checked) boxes.forEach((b) => (b.checked = b === t));
+            else if (t.checked) boxes[0].checked = false;
+          }
+          syncAddItem();
+        });
+        aiForm.addEventListener("input", (e) => {
+          if (e.target.closest(".field.invalid")) clearFormErrors(aiForm);
+        });
+        aiForm.addEventListener("submit", (e) => {
+          e.preventDefault();
+          clearFormErrors(aiForm);
+          const kind = aiKind();
+          if (!kind) {
+            $("#ai-type-err").hidden = false;
+            aiForm.querySelector('input[name="ai-type"]').focus();
+            return;
+          }
+          const name = $("#ai-name").value.trim();
+          if (!name) {
+            $("#ai-name-field").classList.add("invalid");
+            $("#ai-name-err").hidden = false;
+            $("#ai-name").setAttribute("aria-invalid", "true");
+            $("#ai-name").focus();
+            return;
+          }
+          const toInt = (v, d) => {
+            const n = parseInt(v, 10);
+            return Number.isFinite(n) && n >= 0 ? n : d;
+          };
+          const bikes = $$('input[name="ai-bike"]:checked', aiForm).map((b) => b.value);
+          const item = {
+            id: "new-" + Date.now(),
+            kind,
+            name,
+            brand: $("#ai-brand").value.trim(),
+            ref: $("#ai-ref").value.trim() || null,
+            cat: $("#ai-cat").value,
+            slot: null,
+            bikes: bikes.includes("all") ? "all" : bikes,
+            loc: $("#ai-loc").value.trim() || null,
+            restock: null,
+            links: [],
+            moves: [],
+            notes: $("#ai-notes").value.trim(),
+          };
+          if (kind === "part") {
+            item.unit = aiForm.querySelector('input[name="ai-unit"]:checked').value;
+            item.qty = toInt($("#ai-qty").value, 0);
+            item.alertAt =
+              $("#ai-alert").value.trim() === "" ? null : toInt($("#ai-alert").value, null);
+          } else if (kind === "product") {
+            item.pack = FLACON;
+            item.containers = toInt($("#ai-cont").value, 1);
+            item.level = item.containers
+              ? aiForm.querySelector('input[name="ai-level"]:checked').value
+              : "empty";
+          } else {
+            item.owned = aiForm.querySelector('input[name="ai-own"]:checked').value === "yes";
+            if (!item.owned) {
+              item.restock = "to_order";
+              item.restockOn = TODAY;
+            }
+          }
+          const opening =
+            kind === "part" ? item.qty : kind === "product" ? item.containers : +item.owned;
+          if (opening)
+            item.moves.push({
+              d: TODAY,
+              kind: "initial",
+              delta: opening,
+              what: "Saisi à la création de l'objet",
+            });
+          const shop = $("#ai-shop").value.trim();
+          const url = $("#ai-url").value.trim();
+          const price = parseFloat($("#ai-price").value.replace(",", "."));
+          let host = null;
+          try {
+            if (url) host = new URL(url).host;
+          } catch {}
+          if (shop || host)
+            item.links.push({
+              shop: shop || host,
+              host,
+              store: !host,
+              price: Number.isFinite(price) ? Math.round(price * 100) : null,
+              seen: TODAY,
+            });
+          const target = pool();
+          target.push(item);
+          ws.tab = kind;
+          ws.sel = item.id;
+          ws.q = "";
+          ws.bike = "";
+          $("#ws-q").value = "";
+          $("#ws-bike").value = "";
+          syncTabRadio();
+          closeSheet();
+          refreshAll();
+          toast(`Nouvel objet dans l'atelier : ${name}`, {
+            undo: () => {
+              target.splice(target.indexOf(item), 1);
+              ensureSel();
+              refreshAll();
+              toast("Ajout annulé");
+            },
+          });
+        });
+
+        /* Replace sheet (sketch): the new part is picked from the workshop first. */
+        const rpForm = $("#rp-form");
+        $("#rp-slots").innerHTML = SLOTS.map(
+          (s) =>
+            `<label class="chip"><input type="radio" name="rp-slot" value="${s.id}"><span>${s.label}</span></label>`,
+        ).join("");
+        $("#rp-reasons").innerHTML = REASONS.map(
+          ([v, label], i) =>
+            `<label class="chip"><input type="radio" name="rp-reason" value="${v}"${i === 0 ? " checked" : ""}><span>${label}</span></label>`,
+        ).join("");
+        const rpVal = (name) => rpForm.querySelector(`input[name="${name}"]:checked`)?.value;
+        const eurInput = (cents) => (cents / 100).toFixed(2).replace(".", ",");
+        function renderReplacePicks(prefer) {
+          const slot = SLOTS.find((s) => s.id === rpVal("rp-slot"));
+          $("#rp-fitted").textContent = fr(`Montée aujourd'hui : ${slot.fitted}`);
+          const cands = ITEMS.filter(
+            (it) => it.kind === "part" && it.slot === slot.type && servesBike(it, "spectral"),
+          );
+          const usable = cands.filter((it) => it.qty > 0);
+          const chosen = usable.find((it) => it.id === prefer)?.id || usable[0]?.id || "other";
+          const rows = cands
+            .map(
+              (it) =>
+                `<label class="pick"><input type="radio" name="rp-new" value="${it.id}"${it.qty ? "" : " disabled"}><span><span class="part-ico"><i data-lucide="${CATS[it.cat][1]}"></i></span><span class="pick-main"><span class="pick-name">${fr(esc(it.name))}</span><span class="pick-meta">${fr(esc(`${it.brand} · ${qtyText(it)} en stock${it.loc ? " · " + it.loc : ""}`))}</span></span><span class="pick-dot" aria-hidden="true"></span></span></label>`,
+            )
+            .join("");
+          const none = cands.length
+            ? ""
+            : `<p class="hint">Rien dans l'atelier pour ce type de pièce. Ajoute-la à l'atelier pour la retrouver ici la prochaine fois.</p>`;
+          $("#rp-picks").innerHTML =
+            rows +
+            none +
+            `<label class="pick"><input type="radio" name="rp-new" value="other"><span><span class="part-ico"><i data-lucide="pencil"></i></span><span class="pick-main"><span class="pick-name">Autre pièce, hors atelier</span><span class="pick-meta">Saisie à la main, le stock ne change pas</span></span><span class="pick-dot" aria-hidden="true"></span></span></label>`;
+          rpForm.querySelector(`input[name="rp-new"][value="${chosen}"]`).checked = true;
+          syncReplace();
+          icons();
+        }
+        function syncReplace() {
+          const it = ITEMS.find((x) => x.id === rpVal("rp-new"));
+          $("#rp-model-field").classList.remove("invalid");
+          $("#rp-model-err").hidden = true;
+          $("#rp-model").removeAttribute("aria-invalid");
+          if (it) {
+            const after = it.qty - 1;
+            const lowAfter = it.alertAt != null && after <= it.alertAt;
+            const alert = isLow(it)
+              ? " : il est déjà en « Stock bas », pense à le racheter"
+              : lowAfter
+                ? " : il passera en « Stock bas » sur l'accueil"
+                : "";
+            $("#rp-effect").innerHTML =
+              `<div class="lift-head"><i data-lucide="package-minus"></i><p>${fr(`Le stock passe de ${qtyText(it)} à ${qtyText(it, after)}`)}${alert}. La pièce montée reprend la marque, le modèle, la référence et le prix du dernier achat.</p></div>`;
+            const link = bestLink(it);
+            $("#rp-brand").value = it.brand;
+            $("#rp-model").value = it.name;
+            $("#rp-price").value = link ? eurInput(link.price) : "";
+            $("#rp-more-hint").textContent = "préremplis depuis l'atelier";
+            $("#rp-more").open = false;
+          } else {
+            $("#rp-effect").innerHTML =
+              `<div class="lift-head"><i data-lucide="info"></i><p>Pièce saisie à la main : l'atelier ne bouge pas. Tu pourras l'y ajouter ensuite pour suivre son stock.</p></div>`;
+            $("#rp-brand").value = "";
+            $("#rp-model").value = "";
+            $("#rp-price").value = "";
+            $("#rp-more-hint").textContent = "à remplir";
+            $("#rp-more").open = true;
+          }
+          icons();
+        }
+        function openReplace(itemId) {
+          const it = itemId && findItem(itemId);
+          const slot = (it && SLOTS.find((s) => s.type === it.slot)) || SLOTS[0];
+          rpForm.reset();
+          rpForm.querySelector(`input[name="rp-slot"][value="${slot.id}"]`).checked = true;
+          renderReplacePicks(it?.id);
+          openSheet("replace", { focus: 'input[name="rp-slot"]:checked' });
+        }
+        rpForm.addEventListener("change", (e) => {
+          if (e.target.name === "rp-slot") renderReplacePicks();
+          else if (e.target.name === "rp-new") syncReplace();
+        });
+        rpForm.addEventListener("submit", (e) => {
+          e.preventDefault();
+          const slot = SLOTS.find((s) => s.id === rpVal("rp-slot"));
+          const it = ITEMS.find((x) => x.id === rpVal("rp-new"));
+          if (!it && !$("#rp-model").value.trim()) {
+            $("#rp-more").open = true;
+            $("#rp-model-field").classList.add("invalid");
+            $("#rp-model-err").hidden = false;
+            $("#rp-model").setAttribute("aria-invalid", "true");
+            $("#rp-model").focus();
+            return;
+          }
+          closeSheet();
+          if (!it) {
+            toast(`${slot.done} · pièce saisie à la main`, {
+              undo: () => toast("Remplacement annulé"),
+            });
+            return;
+          }
+          const snap = clone(it);
+          it.qty -= 1;
+          it.moves.unshift({
+            d: TODAY,
+            kind: "use",
+            delta: -1,
+            who: "Spectral",
+            what: slot.done,
+            bike: "spectral",
+          });
+          finish(it, snap, `${slot.done} · stock : ${qtyText(it)}`, "Remplacement annulé");
         });
 
         /* ---------- Phase 3 preview ---------- */
@@ -4213,6 +7320,8 @@
           ["Badge « À jour »", "--ok-ink", "--ok-soft"],
           ["Badge « Bientôt »", "--soon-ink", "--soon-soft"],
           ["Badge « En retard »", "--late-ink", "--late-soft"],
+          ["Badge « Stock bas »", "--fg", "--surface-2"],
+          ["Texte secondaire sur sélection", "--fg-muted", "--brand-soft"],
         ];
         function updateFoundation() {
           if ($("#foundation").hidden) return;
@@ -4233,11 +7342,12 @@
         render();
         icons();
         const fromHash = (location.hash || "").slice(1);
-        const valid = ["dash", "bike", "quick", "ai", "foundation"];
+        const valid = ["dash", "bike", "ws", "quick", "ai", "foundation"];
         setFrame(store.get("frame") || "auto");
         setTheme(store.get("theme") || "system");
         setScreen(valid.includes(fromHash) ? fromHash : store.get("screen") || "dash");
         syncForm();
+        syncAddItem();
       })();
     </script>
   </body>

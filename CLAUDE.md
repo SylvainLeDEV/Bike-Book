@@ -17,6 +17,7 @@ Remaining Phase 0 items are deployment-side (target host, backups, proxy checks)
 | `docs/05-roadmap.md` | What to build next, and the exit criteria |
 | `docs/06-integrations.md` | Before any Garmin/Strava/Komoot/Bosch work (re-check sources: this moves fast) |
 | `docs/07-ai.md` | Phase 3 only |
+| `docs/design/` | Before any UI work: design direction (`README.md`) and the HTML mockups, with their own working rules (`CLAUDE.md`) |
 | `node_modules/next/dist/docs/` | Next.js docs for the installed version (see `AGENTS.md`): read before using a Next.js API |
 
 ## Key decisions (summary — the docs win if they differ)
