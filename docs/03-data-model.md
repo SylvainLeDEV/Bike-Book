@@ -4,9 +4,11 @@ Target database: SQLite, with the schema written in Drizzle ORM (see
 [04-architecture.md](04-architecture.md#stack)). Types below are logical types;
 [Conventions](#conventions) gives the SQLite mapping.
 
-Status: **Proposed**. Simplifications that follow from decisions: one user to start with, but
-users and workspaces modelled from day one (D-25), components never change bike (D-05), bike
-park fields (D-06), files stored (D-07).
+Status: **Proposed**, except where a section says otherwise. Simplifications that follow from
+decisions: one user to start with, but users and workspaces modelled from day one (D-25),
+components never change bike (D-05), bike park fields (D-06), files stored (D-07). The workshop,
+the bike record, the total cost, the phase 1.5 tables (labels, procedures) and the rules that keep
+the data readable by an AI were **Decided** on 2026-10-25 (D-33 to D-47, D-50).
 
 ## Overview
 
@@ -16,6 +18,7 @@ erDiagram
     USER ||--o{ MEMBERSHIP : "has"
     WORKSPACE ||--o{ BIKE : "owns"
     WORKSPACE ||--o{ SHOP : "owns"
+    WORKSPACE ||--o{ INVENTORY_ITEM : "owns"
     USER |o--o{ MAINTENANCE_EVENT : "created"
     BIKE ||--o{ COMPONENT : "is fitted with"
     BIKE ||--o{ RIDE : "is ridden in"
@@ -35,7 +38,11 @@ erDiagram
     ATTACHMENT }o--o| COMPONENT : "illustrates"
     ATTACHMENT }o--o| MAINTENANCE_EVENT : "proves"
     ATTACHMENT }o--o| RIDE : "documents"
+    ATTACHMENT }o--o| INVENTORY_ITEM : "illustrates"
+    INVENTORY_ITEM |o--o{ COMPONENT : "becomes"
 ```
+
+The workshop's own tables are in [Workshop](#workshop-d-33-to-d-42).
 
 Two ideas carry the model:
 
@@ -63,8 +70,12 @@ Status: **Decided** (D-25, D-26) and built in Phase 0 (`src/server/db/schema.ts`
 
 Scoping rules:
 
-- Tables at the top of the hierarchy carry a `workspace_id`: `bikes`, `shops`, `tasks`, and the
-  custom `rule_templates` (`workspace_id` null = built-in template shared by everyone).
+- Tables at the top of the hierarchy carry a `workspace_id`: `bikes`, `shops`, `tasks`,
+  `inventory_items`, `tags` and `procedures` (1.5), and the custom `rule_templates`
+  (`workspace_id` null = built-in template shared by everyone).
+- Link tables between two workspace-owned rows (`inventory_item_bikes`, `attachment_tags`,
+  `procedure_bikes`) carry no workspace: the data-access layer checks that both rows belong to
+  the current workspace.
 - Everything below a bike (components, rides, maintenance, rules, readings, setups,
   attachments) inherits the workspace through `bike_id`, so no extra column is needed there.
 - Per-person data carries a `user_id`: Garmin integration (each person has their own Garmin
@@ -103,6 +114,9 @@ Scoping rules:
 | `cover_attachment_id` | FK `attachments` | Main photo |
 | `notes` | text | |
 | `created_at`, `updated_at` | timestamp | |
+
+The bike record (D-43) needs no other column: identity, purchase and security are these fields,
+and the total cost is computed (see [Total cost](#total-cost-d-44)).
 
 ### `component_types` (reference data, seeded)
 
@@ -158,9 +172,15 @@ Seed examples:
 | `initial_distance_m`, `initial_wear_s` | integer | Usage before it was fitted (second-hand part) or before tracking started |
 | `removed_at` | timestamp, nullable | `null` = currently fitted |
 | `removal_reason` | enum: `worn`, `broken`, `crash`, `upgrade`, `sold_with_bike`, `other` | Feeds phase 3 |
+| `removal_note` | text, nullable | Detail shown after the reason: "chape tordue aux Gets" (D-43). `notes` stays for the part itself |
 | `purchase_date`, `purchase_price_cents`, `shop_id` | | Optional |
+| `inventory_item_id` | FK `inventory_items`, nullable | The workshop item the part came from (D-33) |
 | `warranty_until` | date | |
 | `notes` | text | |
+
+**Original spec (D-43):** the components with `origin = stock`, each followed through
+`replaces_component_id` down to the part fitted today. The wear at removal is the component's
+counter at `removed_at`, computed, not stored.
 
 ### `rides`
 
@@ -194,6 +214,7 @@ Validation: at least one of `total_time_s` and `moving_time_s` is set.
 |-------|------|
 | `id` | integer PK |
 | `workspace_id` | FK `workspaces` |
+| `kind` | enum: `physical`, `online` (D-37) |
 | `name`, `city`, `phone`, `website`, `notes` | text |
 
 ### `maintenance_events`
@@ -229,10 +250,14 @@ cassette + pads + bleed): each one can reset its own rule and point to its own p
 | `cost_cents` | integer | Optional |
 | `measurement_value`, `measurement_unit` | real, text | E.g. chain stretch 0.5 %, pad thickness 1.2 mm. Feeds phase 3 |
 
-**"Replace a part" flow (one screen):** pick the old part, give a removal reason, then enter
-the new part (prefilled from the old one, or from a "part to order" task). The app sets
-`removed_at` on the old part, creates the new one with `replaces_component_id`, and records the
-item. Rules on that slot restart if `reset_on_replacement` is set.
+**"Replace a part" flow (one sheet):** pick the old part, give a removal reason and its detail,
+then choose the new part from the workshop first: items of the same slot type, serving the bike,
+in stock. Choosing one prefills the new part (brand, model, reference, last purchase price,
+D-38); "Autre pièce, hors atelier" stays possible, prefilled from the old part. The sheet spells
+out the effect on the stock before saving. In one transaction the app sets `removed_at` on the
+old part, creates the new one with `replaces_component_id` and `inventory_item_id`, records a
+`replaced` item and, for a stock item, a `use` movement of −1 linked to it. Undo removes all
+four together. Rules on that slot restart if `reset_on_replacement` is set.
 
 ### `maintenance_rules` — "what's coming", recurring
 
@@ -253,18 +278,20 @@ item. Rules on that slot restart if `reset_on_replacement` is set.
 
 ### `tasks` — "what's coming", one-off
 
+One-off to-dos only (D-34), shown under "À prévoir" after the rules: all of them on the
+dashboard, a bike's own on its page. Same row as a rule without the wear bar, a neutral "Tâche"
+badge, the due date or "Sans échéance", and "Fait" with undo. Parts to buy live in the workshop
+(D-33).
+
 | Field | Type | Notes |
 |-------|------|-------|
 | `id` | integer PK | |
 | `workspace_id` | FK `workspaces`, required | Tasks may have no bike, so they carry the workspace themselves |
-| `bike_id` | FK `bikes`, nullable | `null` = general ("buy a torque wrench") |
+| `bike_id` | FK `bikes`, nullable | `null` = general ("check the garage's floor pump") |
 | `component_type_code`, `position` | nullable | Optional slot |
-| `kind` | enum: `todo`, `part_to_order` | |
 | `title` | text | |
 | `due_on` | date, nullable | |
-| `status` | enum: `open`, `ordered`, `received`, `done`, `cancelled` | |
-| `part_reference`, `part_url` | text | For `part_to_order` |
-| `estimated_price_cents` | integer | |
+| `status` | enum: `open`, `done`, `cancelled` | |
 | `priority` | enum: `low`, `normal`, `high` | |
 | `done_at` | timestamp | |
 | `notes` | text | |
@@ -274,18 +301,128 @@ item. Rules on that slot restart if `reset_on_replacement` is set.
 | Field | Type | Notes |
 |-------|------|-------|
 | `id` | integer PK | |
-| `bike_id`, `component_id`, `maintenance_event_id`, `ride_id`, `task_id` | FK, nullable | **Exactly one** is set (CHECK constraint) |
+| `bike_id`, `component_id`, `maintenance_event_id`, `ride_id`, `task_id`, `inventory_item_id` | FK, nullable | **Exactly one** is set (CHECK constraint, D-45). Phase 1.5 adds `procedure_step_id` and `procedure_id` to the same CHECK |
 | `kind` | enum: `photo`, `invoice`, `manual`, `track`, `other` | |
 | `storage_path` | text | Relative to the data directory, e.g. `uploads/2026/10/<random>.jpg` |
 | `original_name`, `mime_type` | text | |
 | `size_bytes` | integer | |
 | `sha256` | text | Duplicate detection and integrity checks |
-| `width_px`, `height_px`, `taken_at` | | Photos |
-| `caption` | text | |
+| `width_px`, `height_px` | integer | Photos |
+| `taken_at` | timestamp | Photos: read from the photo's metadata at upload, else the upload time. Galleries sort on it |
+| `caption` | text | Without one, the alternative text is generated from the linked element ("Photo de l'entretien « … »"): nothing more to store |
 | `created_at` | timestamp | |
 
 Files live on disk, never in the database. Derived files (thumbnails, resized copies) go to a
 separate `cache/` folder: they can be regenerated, so they are left out of the backups.
+
+Accepted formats (D-46): JPEG, PNG, WebP and HEIC for photos (HEIC originals are kept, their
+copies made through a decoder that needs no native library), PDF for documents. Type checked from
+the content, 25 MB per file, one upload request per file so each shows its own progress.
+
+### Workshop (D-33 to D-42)
+
+The garage's inventory, owned by the workspace. Created complete in phase 1; the phase 1 UI
+offers parts only, products and tools come in 1.5 (D-33).
+
+| Kind | Tracked as | "Stock bas" when |
+|------|------------|------------------|
+| Part | Exact quantity and a unit (piece, pair, set) | Quantity ≤ the item's alert level |
+| Product (1.5) | Level of the open container (full, started, low, empty) and the number of containers (D-36) | The last container is low, or none is left |
+| Tool (1.5) | Owned or not | Never; a tool not owned can be put on the "to buy" list |
+
+```mermaid
+erDiagram
+    WORKSPACE ||--o{ INVENTORY_ITEM : "owns"
+    INVENTORY_ITEM ||--o{ INVENTORY_ITEM_BIKE : "serves"
+    BIKE ||--o{ INVENTORY_ITEM_BIKE : "is served by"
+    COMPONENT_TYPE |o--o{ INVENTORY_ITEM : "fits the slot of"
+    INVENTORY_ITEM ||--o{ INVENTORY_MOVEMENT : "changes through"
+    INVENTORY_ITEM ||--o{ PURCHASE_LINK : "is bought at"
+    SHOP |o--o{ PURCHASE_LINK : "sells through"
+    PURCHASE_LINK |o--o{ INVENTORY_MOVEMENT : "prices"
+    MAINTENANCE_ITEM |o--o{ INVENTORY_MOVEMENT : "consumes"
+    INVENTORY_ITEM |o--o{ COMPONENT : "becomes"
+    ATTACHMENT }o--o| INVENTORY_ITEM : "illustrates"
+```
+
+**`inventory_items`**
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `id` | integer PK | |
+| `workspace_id` | FK `workspaces`, required | Top of its hierarchy (D-25) |
+| `kind` | enum: `part`, `product`, `tool` | All three from phase 1 (D-33) |
+| `name` | text, required | |
+| `brand`, `reference` | text | `reference`: the manufacturer's part number |
+| `category` | enum: `suspension`, `drivetrain`, `brakes`, `wheels`, `cockpit`, `frame`, `electric`, `care`, `other` | The component groups, plus `care` (cleaning, lubrication) |
+| `component_type_code` | FK `component_types`, nullable | The slot type it fits or serves: feeds the stock picker of "replace a part" and the rules shown on the item |
+| `all_bikes` | boolean | `true`: every bike of the workspace, future ones included; `inventory_item_bikes` is then empty |
+| `unit` | enum: `piece`, `pair`, `set`, nullable | Parts only |
+| `low_stock_at` | integer, nullable | Parts only: "Stock bas" at or below it. A suggestion, never an order by itself (D-35) |
+| `container_label` | text, nullable | Products only: "flacon", "tube", "bidon" |
+| `restock_status` | enum: `none`, `to_order`, `ordered` | Received is an event (a purchase movement), not a status |
+| `restock_quantity` | integer, nullable | Set when ordering; prefilled at reception and correctable, then added to the stock (D-42) |
+| `restock_changed_on` | date, nullable | Shown on the restocking steps |
+| `location` | text | Storage place, free text |
+| `photo_attachment_id` | FK `attachments`, nullable | Like `bikes.cover_attachment_id` |
+| `notes` | text | |
+| `archived_at` | timestamp, nullable | Items are archived, not deleted, like bikes and components |
+| `created_at`, `updated_at` | timestamp | |
+
+No quantity is stored (D-39): the quantity of a part or tool, and the container count of a
+product, are the sum of its movements; a product's level is the `level_after` of its latest
+movement that sets one.
+
+**`inventory_item_bikes`**: `item_id`, `bike_id`, primary key on both.
+
+**`inventory_movements`**
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `id` | integer PK | |
+| `item_id` | FK `inventory_items`, required | |
+| `occurred_at` | timestamp | |
+| `kind` | enum: `initial`, `purchase`, `use`, `adjustment` | CHECK: `purchase` > 0, `use` ≤ 0, `initial` ≥ 0 |
+| `quantity_delta` | integer, signed | Parts: units. Products: containers (0 when only the level changes). Tools: +1 or −1 |
+| `level_after` | enum: `full`, `started`, `low`, `empty`, nullable | Products only |
+| `unit_cost_cents` | integer, nullable | Purchases |
+| `purchase_link_id` | FK `purchase_links`, nullable | Where it was bought |
+| `maintenance_item_id` | FK `maintenance_items`, nullable | The intervention that used it |
+| `created_by` | FK `users` | Who recorded it (D-25) |
+| `note` | text | |
+
+Stock moves by movements, never by a typed total: "−" records a use, "+" a purchase, and
+"Corriger le stock" after a count records the difference as an `adjustment`. Tools are not
+recorded per job (D-40).
+
+**`purchase_links`**
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `id` | integer PK | |
+| `item_id` | FK `inventory_items`, required | |
+| `shop_id` | FK `shops`, nullable | Physical and online shops alike (D-37) |
+| `url` | text, nullable | `null`: bought in a shop, no page. Displayed and opened in a new tab (`rel="noopener noreferrer"`), never fetched (D-09) |
+| `price_cents` | integer, nullable | Typed by hand |
+| `price_noted_on` | date, nullable | |
+| `position` | integer | Display order |
+| `notes` | text | |
+
+The last purchase date and the last price paid come from the movements, not from the link. A
+part taken from stock costs its last purchase price (D-38).
+
+**Rules meet items through the slot type:** an item with a component type serves the rules of
+that slot on its bikes. "À racheter" (dashboard and workshop) lists, most urgent first (D-41):
+items needed by a late or due-soon rule, then `to_order`, `ordered`, and low stock not ordered yet.
+
+**Flows**
+
+1. *Replace a part from stock*: see [`maintenance_items`](#maintenance_items).
+2. *Received*: the quantity received is confirmed (prefilled with `restock_quantity`), then a
+   `purchase` movement of that quantity (cost from the link or typed), then `restock_status`
+   back to `none`.
+3. *Bleed with mineral oil* (1.5): a `bled` maintenance item plus a movement on the product, with
+   `level_after` (delta 0, or −1 when the container is finished).
 
 ### `readings` — e-bike values read from the motor system (D-19)
 
@@ -332,6 +469,130 @@ One row per change; the latest row of a bike is its current setup. Per bike, not
 | `app_settings` | Key/value settings per workspace (JSON values) |
 | `user_settings` | Per-user preferences: notification channel, Telegram chat ID |
 | `notifications_log` | Phase 1.5: what was sent to whom, when and through which channel, so nothing is sent twice |
+
+## Phase 1.5 additions (labels, maintenance procedures)
+
+**Decided** on 2026-10-25 (D-45, D-47) and documented now so phase 1 closes no door; the tables
+are created in phase 1.5.
+
+```mermaid
+erDiagram
+    WORKSPACE ||--o{ TAG : "owns"
+    TAG ||--o{ ATTACHMENT_TAG : "labels"
+    ATTACHMENT ||--o{ ATTACHMENT_TAG : "is labelled"
+    WORKSPACE ||--o{ PROCEDURE : "owns"
+    PROCEDURE |o--o{ PROCEDURE : "is duplicated into"
+    PROCEDURE ||--o{ PROCEDURE_BIKE : "applies to"
+    BIKE ||--o{ PROCEDURE_BIKE : "has"
+    COMPONENT_TYPE |o--o{ PROCEDURE : "targets"
+    PROCEDURE ||--|{ PROCEDURE_STEP : "has"
+    PROCEDURE ||--o{ PROCEDURE_ITEM : "needs"
+    INVENTORY_ITEM |o--o{ PROCEDURE_ITEM : "is needed by"
+    PROCEDURE ||--o{ PROCEDURE_RESOURCE : "links to"
+    ATTACHMENT }o--o| PROCEDURE_STEP : "illustrates"
+    ATTACHMENT |o--o| PROCEDURE_RESOURCE : "is the PDF of"
+    MAINTENANCE_RULE }o--o| PROCEDURE : "is done with"
+    MAINTENANCE_EVENT }o--o| PROCEDURE : "followed"
+```
+
+### Labels (photos only, D-45)
+
+**`tags`**
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `id` | integer PK | |
+| `workspace_id` | FK `workspaces`, required | Labels are shared by the workspace (D-25) |
+| `name` | text, required | As first typed: "numéro de série" |
+| `name_key` | text, required | `name` trimmed, lower-cased, accents removed, spaces collapsed; **unique per workspace**. Computed by the app, not by a collation, so it works the same on SQLite and PostgreSQL |
+| `created_at` | timestamp | |
+
+**`attachment_tags`**: `attachment_id`, `tag_id`, primary key on both. Deleting a label removes
+its links; renaming keeps them. Labels apply to photos only; another link table can be added
+later without changing `tags`.
+
+### Maintenance procedures (D-47)
+
+Reusable how-tos written by the owner, distinct from the maintenance events they produce. No
+procedure ships with the app: the examples are demo data.
+
+**`procedures`**
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `id` | integer PK | |
+| `workspace_id` | FK `workspaces`, required | |
+| `title` | text, required | |
+| `description` | text | |
+| `component_type_code` | FK `component_types`, nullable | The kind of part it is about |
+| `model_hint` | text | Free text, "SRAM Maven": shown and searched, not matched against components |
+| `all_bikes` | boolean | `true`: every bike, future ones included; `procedure_bikes` is then empty |
+| `estimated_minutes` | integer, nullable | |
+| `difficulty` | enum: `easy`, `medium`, `hard` | |
+| `duplicated_from_id` | FK `procedures`, nullable | "Dupliquée de …" |
+| `archived_at` | timestamp, nullable | Archived, not deleted: past events keep their link |
+| `created_at`, `updated_at` | timestamp | |
+
+**`procedure_bikes`**: `procedure_id`, `bike_id`, primary key on both.
+
+**`procedure_steps`**
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `id` | integer PK | |
+| `procedure_id` | FK, required | |
+| `position` | integer | Rewritten on reorder |
+| `instruction` | text, required | |
+| `note` | text | |
+| `torque_nm` | real, nullable | Like `measurement_value`: torques have decimals (6.8 N·m) |
+
+**`procedure_items`**
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `id` | integer PK | |
+| `procedure_id` | FK, required | |
+| `inventory_item_id` | FK `inventory_items`, nullable | A given tool, part or product of the workshop |
+| `component_type_code` | FK, nullable | Or "a part of this type for the chosen bike": resolved at run time among the workshop's parts of that slot type serving the bike |
+| `label` | text, nullable | Or something not in the workshop yet ("Huile de fourche 15 WT"), with "Ajouter à l'atelier" |
+| `quantity` | integer, nullable | Parts: units used per job |
+| `position` | integer | |
+
+CHECK: exactly one of `inventory_item_id`, `component_type_code`, `label`.
+
+**`procedure_resources`**
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `id` | integer PK | |
+| `procedure_id` | FK, required | |
+| `kind` | enum: `video`, `pdf`, `link`, `note` | |
+| `url` | text, nullable | Video and link. A link card opened in a new tab, never an embedded player, never fetched (D-09, D-47) |
+| `title` | text | Typed by hand |
+| `duration_s` | integer, nullable | Videos, typed by hand |
+| `attachment_id` | FK `attachments`, nullable | PDF |
+| `body` | text, nullable | Note |
+| `position` | integer | |
+
+**Columns added to existing tables in 1.5**
+
+- `attachments`: `procedure_step_id` (reference photo of a step) and `procedure_id` (PDF manual),
+  inside the "exactly one" CHECK.
+- `maintenance_rules.procedure_id`: FK, nullable. The procedure "C'est fait" offers to run, on
+  due-soon and overdue rules only.
+- `maintenance_events.procedure_id`: FK, nullable, the procedure followed; and `labor_time_s`:
+  integer, nullable, the time spent (typed, or timed by workshop mode).
+
+Readiness ("Possédé", "Stock bas", "Manquant"…) is computed from the workshop: nothing about
+availability is stored.
+
+**Flow: save a workshop-mode run**, in one transaction: a `maintenance_events` row
+(`performed_by = self`, `procedure_id`, `total_cost_cents`, `labor_time_s`); one
+`maintenance_items` row per line of the procedure, with `rule_id` when the procedure points to a
+rule, which restarts it; `inventory_movements` for the parts used (`use`) and the product levels
+(`level_after`, one level down by default), linked to those items; the photos taken as
+attachments of the event. Undo removes all of it. Until it is saved, a run in progress lives in
+the browser's `localStorage`, not in the database.
 
 ## Phase 2 additions (Garmin)
 
@@ -415,6 +676,58 @@ With about 4 h 30 of riding a week over the last 8 weeks, the ETA is about one w
 descent times of the three bike park days been entered (about 2 h each), the total would be
 33 h 10 (66 %): the descent time field matters.
 
+Every figure the wear engine returns comes with the rides and the reset it was computed from:
+"Voir le détail" shows them in phase 1 (principle 2 in [01](01-vision-and-scope.md#principles)),
+and phase 3 reuses them for its "Why?" panel.
+
+## Total cost (D-44)
+
+Computed, never stored. Shown on the bike record in phase 1.
+
+```text
+upkeep_cents = sum of total_cost_cents of the bike's maintenance events
+               (shop visits: labour and parts; at home: parts, a stock part at its last
+               purchase price, D-38)
+total_cents  = purchase_price_cents + upkeep_cents − sale_price_cents (if sold)
+
+per_100_km           = total_cents  / ridden_distance_m × 100 000
+per_100_km_upkeep    = upkeep_cents / ridden_distance_m × 100 000
+```
+
+- `ridden_distance_m` is the sum of `distance_m` over the bike's rides: usage since tracking
+  started, without `initial_distance_m` (that distance was ridden before the costs counted here).
+  Per 100 km is not shown until the bike has rides.
+- Parts are counted through the maintenance events only, never again through
+  `components.purchase_price_cents`, so a part fitted at home is not counted twice.
+- Tools and stock not fitted yet do not count: they serve every bike.
+- Missing prices count as zero.
+
+## Readable by an AI (D-50)
+
+Phase 3 lets a model read this data (D-49), and the ZIP export is meant to be readable without
+the app. The data therefore has to explain itself. **Decided** on 2026-10-25.
+
+1. **Names say what and in which unit.** `distance_m`, `wear_s`, `price_cents`, `torque_nm`;
+   `*_on` for calendar dates, `*_at` for instants. No abbreviation that needs the code to decode.
+2. **Enums are English text values with a CHECK constraint**, each value defined in this
+   document. French labels exist only in the UI.
+3. **One meaning per column.** No column reused for another purpose, no magic values (`-1`,
+   `0` meaning "unknown"): unknown is `null`. JSON only for free key/values (`components.specs`,
+   `setups.extra`), never for something that is filtered or summed.
+4. **Clean on the way in.** Every write goes through a Zod schema in the Server Action or Route
+   Handler: required fields, ranges (no negative distance), trimmed text, normalised dates and
+   units. The database CHECK constraints are the last line, not the only one.
+5. **Derived values are computed, never stored**: wear counters, rule status, ETA, stock
+   quantities, total cost. They come from the pure domain functions in `src/server/domain`, with
+   the rides and events they are based on (principle 2).
+6. **This document is the data dictionary.** Every table and column of `src/server/db/schema.ts`
+   is described here, and the schema carries a short comment on each table and on every column
+   whose meaning is not obvious from its name. A schema change updates both in the same commit.
+7. **The export ships the dictionary**: the ZIP contains, next to the CSV/JSON files, a
+   machine-readable description of every table and column (type, unit, allowed values, meaning).
+8. **Fictitious data stays realistic and consistent** (D-22): seed and demo data obey the same
+   rules, so they can be used to test what a model reads.
+
 ## Conventions
 
 - **IDs**: integer primary keys (no sync between devices), except `users.id`, a text id
@@ -430,5 +743,6 @@ descent times of the three bike park days been entered (about 2 h each), the tot
 - **Enums**: text columns with CHECK constraints.
 - **Deletion**: bikes and components are retired (`status`, `removed_at`), not deleted. Hard
   deletes only fix mistakes, and cascade to attachments.
-- **Export**: every table can be exported to CSV/JSON in a single ZIP with the uploads. It
-  doubles as a portable backup.
+- **Export**: every table can be exported to CSV/JSON in a single ZIP with the uploads, the
+  workshop tables included (and the label and procedure tables from 1.5). It doubles as a
+  portable backup.

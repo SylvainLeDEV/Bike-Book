@@ -7,8 +7,9 @@ Bike-Book lists all of a rider's bikes (road, gravel, enduro, DH, e-MTB…) and,
 - **Rides**: date, place, duration, distance, ride type (e.g. bike park with lifts).
 - **Maintenance**: date, what was done, parts replaced, cost, shop or done yourself, invoice.
 - **Components**: the stock spec sheet and every replacement part, with its references.
-- **What's coming**: services due, parts to order, and reminders driven by thresholds
+- **What's coming**: services due, one-off tasks, and reminders driven by thresholds
   (hours, kilometres, date).
+- **Workshop**: the parts on the shelf and what to rebuy (D-33).
 
 Goal: a good-looking tracker that is pleasant to use every day.
 
@@ -44,11 +45,12 @@ Goal: a good-looking tracker that is pleasant to use every day.
 
 | Area | MVP (phase 1) | Later | Out of scope for now |
 |------|---------------|-------|----------------------|
-| Bikes | Create/edit, photos, status (active, sold…) | Sale or insurance file export; invitations and roles (D-25) | Public sign-up, shop features (customers, quotes) |
+| Bikes | Create/edit, full record (identity, purchase, security, status, total cost per 100 km), photos | Sale or insurance file export; invitations and roles (D-25) | Public sign-up, shop features (customers, quotes) |
 | Components | Stock spec + replacements, history per bike, references, warranty | Spec sheets filled by AI (phase 3) | Moving parts between bikes (Decided: never happens) |
 | Rides | Manual entry, bike park fields | Garmin import (phase 2), maps | Social features, segments, leaderboards |
 | Maintenance | Events with line items, costs, shop or self, invoices | Statistics, cost per km | Booking a shop |
-| What's coming | Threshold rules (km, hours, days, whichever comes first), tasks, parts to order, a "To plan" dashboard, a due-date projection | Telegram notifications, calendar feed, AI predictions (phase 3) | — |
+| What's coming | Threshold rules (km, hours, days, whichever comes first), one-off tasks, a "To plan" dashboard, a due-date projection | Telegram notifications, calendar feed, AI predictions (phase 3) | — |
+| Workshop | Parts in stock, restocking ("À racheter"), replace a part from stock | Products and tools, maintenance procedures, workshop mode (1.5) | Shop features |
 | Integrations | — | Garmin (phase 2) | Komoot, Strava, Apple Health (see [06](06-integrations.md)) |
 | Offline use | — (Assumption H-05) | Maybe | — |
 

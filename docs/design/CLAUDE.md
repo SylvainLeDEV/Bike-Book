@@ -7,8 +7,10 @@ This file says how to work on [mockups.html](mockups.html) without breaking it.
 
 - One static HTML page used to **validate design ideas before they are built**. It is not
   application code: nothing in `src/` imports it, and nothing here goes into the Docker image.
-- Status: **Proposed**. Choices become binding only once they are written into
-  `docs/02-decisions-and-questions.md` (after the owner validates them).
+- Status: validated on 2026-10-25 and recorded in `docs/02-decisions-and-questions.md`
+  (D-30 to D-48). The mockup was not updated for the decisions taken at validation (tablet tabs
+  D-48, HEIC D-46, run kept in `localStorage` D-47): where they differ, the decisions win.
+  New ideas still start as **Proposed** and reach 02 only after the owner validates them.
 - Lifecycle: at step A of phase 1 the screens are rebuilt in the app (real components, fixture
   data, a development-only `/design` route). The HTML file is then deleted. Until then, keep it
   coherent and runnable after every change.

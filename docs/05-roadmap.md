@@ -31,21 +31,36 @@ restored once, **before any real data goes in**.
 **Exit:** the empty app answers on its address, locally and through the VPN, and a restore has
 been tested.
 
-## Phase 1 — MVP, manual entry (≈ 12–20 evenings)
+## Phase 1 — MVP, manual entry (≈ 18–28 evenings)
+
+Scope decided on 2026-10-25 (D-30 to D-46): the size grew from 12–20 evenings with the design
+system, the bike record and the workshop (**Estimate**).
+
+**Step A — design system (≈ 3–5 evenings).** The mockup's screens rebuilt in the app with real
+components and fictitious data, on a development-only `/design` route (D-32): tokens for light
+and dark themes (D-31), Geist and Barlow Semi Condensed through `next/font`, lucide icons, the
+responsive shell (bottom bar, rail, sidebar), the building blocks (buttons, badges, chips, cards,
+lists, fields, wear bar, timeline, sheet, toast with undo, empty states, skeletons), then the
+dashboard, bike page, quick ride entry and workshop screens. Then `docs/design/mockups.html` is
+deleted.
+
+**Then, one feature at a time**, each with its migration, its scoped data access (D-25), its
+pure tested domain logic, its screens, and its tables described in the data dictionary (D-50):
 
 | # | Feature | Notes |
 |---|---------|-------|
-| 1 | Bikes | Create/edit, cover photo, status |
+| 1 | Bikes | Create/edit, full record: identity, purchase, security (frame number masked), status with its effect (D-43) |
 | 2 | Reference data | Seed component types and rule templates ([03](03-data-model.md#rule_templates-reference-data-seeded-editable)) |
-| 3 | Components | Stock spec sheet, replacements, history per slot, "replace a part" flow |
+| 3 | Components | Original spec sheet, replacements with reason and detail, history per slot, "replace a part" flow (from the workshop once item 8 exists) |
 | 4 | Rides | Manual entry, quick-add form for tablet and phone, bike park fields (total time, descent time, runs) |
-| 5 | Maintenance | Events with items, costs, shop or self, invoice upload |
-| 6 | Rule engine | Wear counters, rule status (ok / due soon / overdue), ETA projection. Unit-tested |
-| 7 | "To plan" dashboard | Overdue, due soon, open tasks, parts to order |
-| 8 | Tasks | To-dos and parts to order (open → ordered → received → fitted) |
-| 9 | Attachments | Photos and PDFs: upload, thumbnails, viewer |
-| 10 | Bike page | Counters, fitted components, timeline of rides and maintenance |
-| 11 | Export | One ZIP with CSV/JSON of every table and the uploads |
+| 5 | Maintenance | Events with items, costs, shop or self |
+| 6 | Rule engine | Wear counters with their sources ("Voir le détail"), rule status (ok / due soon / overdue), ETA projection. Unit-tested |
+| 7 | Tasks | One-off to-dos under "À prévoir", "Fait" with undo (D-34) |
+| 8 | Workshop: parts and restocking | Items, movements, purchase links, online shops (D-37), "À racheter", "En stock pour ce vélo", replace a part from stock, search and bike filter (D-33 to D-42) |
+| 9 | "À prévoir" dashboard | Overdue, due soon, open tasks, "À racheter" |
+| 10 | Attachments | Photos and PDFs: upload (iPhone through Safari first, D-46), thumbnails, viewer, gallery per bike, cover photo, invoices on maintenance events. No labels (D-45) |
+| 11 | Bike page | Counters, tabs below 1024 px and two columns above (D-48), components today / original spec, timeline, total cost per 100 km (D-44) |
+| 12 | Export | One ZIP with CSV/JSON of every table, the uploads and the data dictionary (D-50) |
 
 **Exit:** the success criteria in [01](01-vision-and-scope.md#mvp-success-criteria), after 2–4
 weeks of real use.
@@ -55,8 +70,12 @@ weeks of real use.
 - [ ] Notifications (D-18): dedicated Telegram bot (weekly digest + threshold crossed) and a calendar feed (ICS) behind a secret-token URL
 - [ ] Setup log per bike (D-24): current setup, dated changes, "restore this setup" view
 - [ ] E-bike readings (D-19): typed from the Bosch eBike Flow app, battery capacity and cycles charts
-- [ ] Statistics: km and hours per bike per month, total cost of ownership with purchase and sale prices (D-23), cost per bike per year, cost per 1,000 km
-- [ ] Search and filters, dark mode
+- [ ] Photo labels and the photo search across bikes, in Activité › Photos (D-45)
+- [ ] Workshop: products (four levels plus containers, D-36) and tools (D-33)
+- [ ] Maintenance procedures: list, detail, editor, rule → procedure link (D-47; ≈ 3–4 evenings, **Estimate**)
+- [ ] Workshop mode: one step at a time, summary, save with undo (D-47; ≈ 2–3 evenings, **Estimate**)
+- [ ] Statistics: km and hours per bike per month, cost per bike per year, cost per 100 km over time (D-23, D-44)
+- [ ] Search and filters beyond the workshop
 - [ ] CSV import (only if H-06 turns out wrong)
 - [ ] HTTPS + PWA (only if a domain is bought, see [04](04-architecture.md#behind-a-reverse-proxy))
 
@@ -92,5 +111,5 @@ Details: [07-ai.md](07-ai.md).
 | 3.4 | Service manuals: store the PDFs, extract intervals with citations | LLM on documents |
 | 3.5 | Optional: questions in plain language about the data | LLM over structured data |
 
-**Prerequisites:** an OpenAI-compatible endpoint (gateway or provider API), and clean data
-from phase 1: removal reasons, conditions, wear measurements.
+**Prerequisites:** a local OpenAI-compatible endpoint (D-49), and clean, self-describing data
+from phase 1 (D-50): removal reasons, conditions, wear measurements.

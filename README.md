@@ -32,7 +32,7 @@ Configuration is only through environment variables: see `.env.example` and
 
 A self-hosted, single-user web app that lists every bike you own — road, gravel, enduro, DH,
 e-MTB… For each one it logs rides, maintenance and components, and shows what is coming up:
-services due by hours, kilometres or date, and parts to order. It ships as one Docker image
+services due by hours, kilometres or date, and parts to rebuy. It ships as one Docker image
 that keeps all its data in a single directory, and is meant to run on your own server, on a
 private network.
 
@@ -49,6 +49,8 @@ private network.
 | Backups | The operator backs up the data directory; built-in ZIP export | Decided |
 | Network | Private network or VPN; HTTPS optional through a reverse proxy | Decided |
 | Wear in bike park | Descent time if entered, else moving time, else total time | Decided |
+| Design | Turquoise accent, light and dark themes, bottom bar / rail / sidebar by width | Decided |
+| Workshop | Parts in stock and restocking in phase 1; products, tools and maintenance procedures in 1.5 | Decided |
 | GPS import (phase 2) | Garmin **Personal API** (new on 2026-10-21), FIT file upload as fallback | Decided |
 
 The full list, with assumptions and open questions, is in
@@ -66,7 +68,7 @@ The full list, with assumptions and open questions, is in
 | [06-integrations.md](docs/06-integrations.md) | Garmin, Komoot, Strava, Apple Health, Bosch…: public API, access rules, limits, what is still uncertain |
 | [07-ai.md](docs/07-ai.md) | Phase 3: maintenance prediction and manufacturer data retrieval |
 | [ideas-backlog.md](docs/ideas-backlog.md) | Ideas not scheduled yet |
-| [design/](docs/design/README.md) | Design direction and HTML mockups of the main screens (proposed, awaiting validation) |
+| [design/](docs/design/README.md) | Design direction (decided) and HTML mockups of the main screens, until phase 1 step A |
 
 ## Labels used in these docs
 

@@ -182,8 +182,9 @@ Backing up is the operator's job (D-12); the app makes it easy:
   a reverse proxy in front must overwrite that header, not append to what the client sent.
 - **Every query is scoped** by the current user and workspace in the data-access layer
   (`src/server/db`); pages and actions never query tables directly (D-25).
-- Uploads: size limit, type checked from the file content (magic bytes), random file names,
-  stored outside any static folder, served with `X-Content-Type-Options: nosniff`.
+- Uploads: size limit (25 MB), type checked from the file content (magic bytes), random file
+  names, stored outside any static folder, served with `X-Content-Type-Options: nosniff`.
+  Accepted: JPEG, PNG, WebP, HEIC and PDF (D-46).
 - Container: non-root user, read-only root filesystem, `no-new-privileges`.
 - **Public repository (D-22):** no secrets, no real data, no installation details. `.gitignore`
   covers `data/`, `.env*` and uploads; seed data is fictitious; GitHub secret scanning and push
@@ -205,9 +206,12 @@ Backing up is the operator's job (D-12); the app makes it easy:
    the proxy before real use.
 3. **Time.** Store UTC, display in the configured timezone: daylight-saving changes are where
    date bugs hide.
-4. **iPhone photos in HEIC.** sharp's prebuilt binaries may not decode HEIC, and Safari on iOS
-   usually converts photos to JPEG on upload (both **Unverified**). Test with a real iPhone
-   photo early.
+4. **iPhone photos in HEIC.** sharp's prebuilt binaries read JPEG, PNG, WebP, AVIF, TIFF, GIF
+   and SVG, not HEIC (**Verified 2026-10-25** on sharp's install page). Safari on iOS converts
+   HEIC to JPEG when the file input's `accept` leaves HEIC out, and the order of `accept` steers
+   the target format (**Secondary**: WebKit bug reports, behaviour varies across iOS versions).
+   D-46: `accept` lists JPEG first and no HEIC, and a HEIC that still arrives is decoded without
+   a native library. Test with a real iPhone photo first (H-11).
 5. **Garmin key expiry (phase 2).** The Personal API key lasts one year at most: the app shows
    its expiry date and warns 30 days before.
 6. **Docker inside Proxmox LXC containers**, a common self-hosting setup: a November 2025

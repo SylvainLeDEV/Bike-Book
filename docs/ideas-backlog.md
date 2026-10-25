@@ -15,7 +15,6 @@ and effort are rough guesses (**Estimates**): S = an evening or two, M = a few e
 | Automatic Bosch readings | Medium | M | D-19. Only if an official owner access appears (EU Data Act); community tools are unofficial |
 | Weather auto-fill for ride conditions, from date and place | Low | M | Needs a weather API (not checked) |
 | Map of rides or a heatmap (phase 2 data) | Low | M | MapLibre + OpenStreetMap tiles; check the tile usage policy |
-| Spare parts stock and tool inventory | Low | S | |
 | Cost and turnaround comparison between shops | Low | S | |
 | Invitations and roles (owner, member, mechanic) in a workspace | Depends | M | D-25: the tables exist, only the UI is missing |
 | Bike shop mode: customers, bike intake, quotes, work orders | Depends | L | A product of its own on top of workspaces |

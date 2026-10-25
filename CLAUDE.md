@@ -1,7 +1,7 @@
 # Bike-Book — Claude Code context
 
 Self-hosted web app to track bikes: rides, maintenance, components, and what is coming up
-(services due by hours, kilometres or date, parts to order).
+(services due by hours, kilometres or date, parts to rebuy from the workshop).
 
 **Status:** Phase 0 application scaffold done (auth, data-access layer, Docker image, CI).
 Remaining Phase 0 items are deployment-side (target host, backups, proxy checks): see
@@ -37,6 +37,11 @@ Remaining Phase 0 items are deployment-side (target host, backups, proxy checks)
 - **Wear rule (D-13):** on lift-assisted rides, wear time = descent time if set, else moving
   time, else total time. Same logic for distance.
 - **UI language:** French (H-01). Code, comments, commit messages and docs: English.
+- **Design and phase 1 scope** decided on 2026-10-25 (D-30 to D-48): light and dark themes,
+  workshop (parts and restocking) instead of "parts to order", bike record with total cost per
+  100 km. Phase 1.5: labels, products and tools, maintenance procedures.
+- **Data readable by an AI (D-50):** names carry their unit, enums defined in 03, inputs
+  validated, derived values computed, `docs/03-data-model.md` kept as the data dictionary.
 
 ## Rules
 
