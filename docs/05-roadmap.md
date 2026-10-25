@@ -23,10 +23,10 @@ restored once, **before any real data goes in**.
 - [x] Auth with Better Auth: first-launch setup screen (first user + workspace), login, data-access layer scoped by user and workspace (D-25) (done 2026-10-24, D-26 to D-28)
 - [x] Dockerfile (non-root, health check) and a local compose file (done 2026-10-24)
 - [x] CI: lint and tests on each push; build the image and push it to GHCR on each `v*` tag (written 2026-10-24, not run on GitHub yet)
-- [ ] Deploy the image on the target host, behind its reverse proxy (installation-specific steps are kept outside this repository)
+- [x] Deploy the image on the target host, behind its reverse proxy (done 2026-10-25 with 0.1.0; installation-specific steps are kept outside this repository)
 - [ ] Backups of the data directory in place, restore tested once
 - [ ] Check through the proxy: a form submit (Server Actions origin check) and a 10 MB upload
-- [ ] Health check monitored
+- [x] Health check monitored (done 2026-10-25: probed directly and through the proxy, alert on failure)
 
 **Exit:** the empty app answers on its address, locally and through the VPN, and a restore has
 been tested.

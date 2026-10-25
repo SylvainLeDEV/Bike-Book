@@ -1,0 +1,4244 @@
+<!doctype html>
+<!--
+  Bike-Book design mockups, phase 1 (plus a phase 3 preview). Status: Proposed, awaiting validation.
+  A static reference, not application code: at step A of phase 1 the same screens are rebuilt in the
+  app with the real components, then this file is deleted. All data is fictitious (D-22).
+  See README.md in this folder.
+-->
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Bike-Book · Maquettes</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&family=Geist:wght@400..700&display=swap"
+    />
+    <style>
+      :root {
+        /* Layout: one app frame read through container queries: bottom tab bar under 700px, icon rail from 700px, full sidebar from 1024px. */
+        color-scheme: light;
+        --accent-h: 205;
+        --accent-c: 0.085;
+        --accent-hd: 195;
+        --accent-cd: 0.11;
+        --bg: oklch(0.975 0.004 220);
+        --surface: oklch(1 0 0);
+        --surface-2: oklch(0.952 0.006 220);
+        --border: oklch(0.9 0.008 220);
+        --track: oklch(0.9 0.008 220);
+        --fg: oklch(0.2 0.012 230);
+        --fg-muted: oklch(0.47 0.014 230);
+        --brand: oklch(0.5 var(--accent-c) var(--accent-h));
+        --brand-hover: oklch(0.44 var(--accent-c) var(--accent-h));
+        --brand-fg: oklch(0.99 0 0);
+        --brand-soft: oklch(0.94 0.03 var(--accent-h));
+        --brand-ink: oklch(0.43 calc(var(--accent-c) * 0.9) var(--accent-h));
+        --ok: oklch(0.56 0.13 150);
+        --ok-ink: oklch(0.43 0.11 150);
+        --ok-soft: oklch(0.95 0.045 150);
+        --soon: oklch(0.68 0.14 65);
+        --soon-ink: oklch(0.47 0.1 62);
+        --soon-soft: oklch(0.955 0.042 85);
+        --late: oklch(0.56 0.2 27);
+        --late-ink: oklch(0.49 0.18 27);
+        --late-soft: oklch(0.95 0.022 25);
+        --toast-bg: oklch(0.22 0.012 230);
+        --toast-fg: oklch(0.97 0.004 230);
+        --toast-action: oklch(0.82 var(--accent-cd) var(--accent-hd));
+        --toast-ok: oklch(0.78 0.15 150);
+        --on-photo: oklch(0.99 0 0);
+        --photo-glass: oklch(1 0 0 / 0.2);
+        --photo-shade: oklch(0.14 0.02 250 / 0.78);
+        --scrim: oklch(0.18 0.01 230 / 0.42);
+        --bezel: oklch(0.24 0.01 250);
+        --shadow-sm: 0 1px 2px oklch(0.2 0.02 230 / 0.07);
+        --shadow-md:
+          0 6px 16px -4px oklch(0.2 0.02 230 / 0.14), 0 2px 4px -2px oklch(0.2 0.02 230 / 0.08);
+        --shadow-lg: 0 24px 48px -12px oklch(0.2 0.02 230 / 0.28);
+        --r-control: 10px;
+        --r-card: 14px;
+        --r-sheet: 22px;
+        --font-ui: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+        --font-num: "Barlow Semi Condensed", "Arial Narrow", ui-sans-serif, sans-serif;
+        --dur: 160ms;
+        --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+      }
+      @media (prefers-color-scheme: dark) {
+        :root:not([data-theme="light"]) {
+          color-scheme: dark;
+          --bg: oklch(0.165 0.008 230);
+          --surface: oklch(0.205 0.009 230);
+          --surface-2: oklch(0.25 0.01 230);
+          --border: oklch(0.3 0.01 230);
+          --track: oklch(0.3 0.01 230);
+          --fg: oklch(0.95 0.005 230);
+          --fg-muted: oklch(0.72 0.012 230);
+          --brand: oklch(0.8 var(--accent-cd) var(--accent-hd));
+          --brand-hover: oklch(0.86 var(--accent-cd) var(--accent-hd));
+          --brand-fg: oklch(0.18 0.03 var(--accent-hd));
+          --brand-soft: oklch(0.3 0.05 var(--accent-hd));
+          --brand-ink: oklch(0.85 calc(var(--accent-cd) * 0.85) var(--accent-hd));
+          --ok: oklch(0.72 0.15 150);
+          --ok-ink: oklch(0.83 0.13 150);
+          --ok-soft: oklch(0.28 0.05 150);
+          --soon: oklch(0.8 0.15 78);
+          --soon-ink: oklch(0.87 0.13 84);
+          --soon-soft: oklch(0.29 0.05 75);
+          --late: oklch(0.68 0.19 25);
+          --late-ink: oklch(0.8 0.11 25);
+          --late-soft: oklch(0.29 0.07 25);
+          --toast-bg: oklch(0.93 0.006 230);
+          --toast-fg: oklch(0.2 0.012 230);
+          --toast-action: oklch(0.45 var(--accent-c) var(--accent-h));
+          --toast-ok: oklch(0.5 0.13 150);
+          --photo-shade: oklch(0.1 0.02 250 / 0.82);
+          --scrim: oklch(0.05 0.01 230 / 0.6);
+          --bezel: oklch(0.34 0.01 250);
+          --shadow-sm: 0 1px 2px oklch(0 0 0 / 0.4);
+          --shadow-md: 0 8px 20px -6px oklch(0 0 0 / 0.55);
+          --shadow-lg: 0 24px 56px -12px oklch(0 0 0 / 0.7);
+        }
+      }
+      :root[data-theme="dark"] {
+        color-scheme: dark;
+        --bg: oklch(0.165 0.008 230);
+        --surface: oklch(0.205 0.009 230);
+        --surface-2: oklch(0.25 0.01 230);
+        --border: oklch(0.3 0.01 230);
+        --track: oklch(0.3 0.01 230);
+        --fg: oklch(0.95 0.005 230);
+        --fg-muted: oklch(0.72 0.012 230);
+        --brand: oklch(0.8 var(--accent-cd) var(--accent-hd));
+        --brand-hover: oklch(0.86 var(--accent-cd) var(--accent-hd));
+        --brand-fg: oklch(0.18 0.03 var(--accent-hd));
+        --brand-soft: oklch(0.3 0.05 var(--accent-hd));
+        --brand-ink: oklch(0.85 calc(var(--accent-cd) * 0.85) var(--accent-hd));
+        --ok: oklch(0.72 0.15 150);
+        --ok-ink: oklch(0.83 0.13 150);
+        --ok-soft: oklch(0.28 0.05 150);
+        --soon: oklch(0.8 0.15 78);
+        --soon-ink: oklch(0.87 0.13 84);
+        --soon-soft: oklch(0.29 0.05 75);
+        --late: oklch(0.68 0.19 25);
+        --late-ink: oklch(0.8 0.11 25);
+        --late-soft: oklch(0.29 0.07 25);
+        --toast-bg: oklch(0.93 0.006 230);
+        --toast-fg: oklch(0.2 0.012 230);
+        --toast-action: oklch(0.45 var(--accent-c) var(--accent-h));
+        --toast-ok: oklch(0.5 0.13 150);
+        --photo-shade: oklch(0.1 0.02 250 / 0.82);
+        --scrim: oklch(0.05 0.01 230 / 0.6);
+        --bezel: oklch(0.34 0.01 250);
+        --shadow-sm: 0 1px 2px oklch(0 0 0 / 0.4);
+        --shadow-md: 0 8px 20px -6px oklch(0 0 0 / 0.55);
+        --shadow-lg: 0 24px 56px -12px oklch(0 0 0 / 0.7);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+      [hidden] {
+        display: none !important;
+      }
+      html,
+      body {
+        background: var(--bg);
+        color: var(--fg);
+      }
+      body {
+        margin: 0;
+        font: 400 15px/1.5 var(--font-ui);
+        padding-inline: 16px;
+        padding-block: 16px 48px;
+        -webkit-font-smoothing: antialiased;
+      }
+      button,
+      input,
+      select,
+      textarea {
+        font: inherit;
+        color: inherit;
+      }
+      button {
+        cursor: pointer;
+      }
+      :focus-visible {
+        outline: 2px solid var(--brand);
+        outline-offset: 2px;
+      }
+      h1,
+      h2,
+      h3,
+      h4,
+      p {
+        margin: 0;
+      }
+      .sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip: rect(0 0 0 0);
+        white-space: nowrap;
+      }
+      .num {
+        font-family: var(--font-num);
+        font-variant-numeric: tabular-nums;
+        letter-spacing: 0.005em;
+      }
+      svg.lucide {
+        width: 18px;
+        height: 18px;
+        flex: none;
+      }
+      .hint {
+        font-size: 12.5px;
+        color: var(--fg-muted);
+        font-weight: 400;
+      }
+      .eyebrow,
+      .ctl-label,
+      .group-head,
+      .tl-month,
+      .f-kicker {
+        font: 600 12px/16px var(--font-ui);
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--fg-muted);
+      }
+
+      /* ---------- Mockup controls ---------- */
+      .ctl {
+        max-width: 1320px;
+        margin: 0 auto 16px;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px 24px;
+      }
+      .ctl-brand {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .ctl-name {
+        font: 700 22px/1 var(--font-num);
+        letter-spacing: 0.01em;
+      }
+      .ctl-sub {
+        font-size: 13px;
+        color: var(--fg-muted);
+        margin-top: 3px;
+      }
+      .ctl-groups {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px 18px;
+        min-width: 0;
+        max-width: 100%;
+      }
+      .ctl-group {
+        display: grid;
+        gap: 4px;
+        min-width: 0;
+        max-width: 100%;
+      }
+      .seg {
+        display: inline-flex;
+        gap: 2px;
+        padding: 3px;
+        border-radius: 12px;
+        background: var(--surface-2);
+        border: 1px solid var(--border);
+        overflow-x: auto;
+        max-width: 100%;
+        scrollbar-width: none;
+      }
+      .seg button {
+        height: 32px;
+        padding: 0 12px;
+        border: 0;
+        border-radius: 9px;
+        background: transparent;
+        color: var(--fg-muted);
+        font-weight: 500;
+        font-size: 13px;
+        white-space: nowrap;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        transition:
+          background-color var(--dur) var(--ease),
+          color var(--dur) var(--ease);
+      }
+      .seg button:hover {
+        color: var(--fg);
+      }
+      .seg button[aria-pressed="true"] {
+        background: var(--surface);
+        color: var(--fg);
+        box-shadow: var(--shadow-sm);
+        font-weight: 600;
+      }
+
+      .stage {
+        max-width: 1320px;
+        margin: 0 auto;
+        overflow-x: auto;
+        padding-block: 4px 12px;
+      }
+      .frame {
+        position: relative;
+        margin: 0 auto;
+        width: 100%;
+        height: clamp(620px, calc(100dvh - 48px), 940px);
+        border: 1px solid var(--border);
+        border-radius: 18px;
+        overflow: hidden;
+        background: var(--bg);
+        box-shadow: var(--shadow-lg);
+        container: app / inline-size;
+      }
+      .frame[data-frame="mobile"] {
+        width: 410px;
+        height: 820px;
+        border: 10px solid var(--bezel);
+        border-radius: 48px;
+      }
+      .frame[data-frame="tablet"] {
+        width: 840px;
+        height: 920px;
+        border: 10px solid var(--bezel);
+        border-radius: 30px;
+      }
+      .frame[data-frame="desktop"] {
+        width: 1280px;
+        height: 820px;
+      }
+      .stage-note {
+        max-width: 1320px;
+        margin: 6px auto 0;
+        text-align: center;
+        font-size: 13px;
+        color: var(--fg-muted);
+      }
+
+      /* ---------- App shell ---------- */
+      .app {
+        position: relative;
+        height: 100%;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: auto minmax(0, 1fr) auto;
+        grid-template-areas: "top" "main" "nav";
+        overflow: hidden;
+        background: var(--bg);
+      }
+      .sidebar {
+        grid-area: side;
+        display: none;
+        flex-direction: column;
+        align-items: center;
+        gap: 4px;
+        padding: 14px 10px;
+        background: var(--surface);
+        border-right: 1px solid var(--border);
+        min-height: 0;
+        overflow-y: auto;
+      }
+      .sidebar .lbl {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip: rect(0 0 0 0);
+        white-space: nowrap;
+      }
+      .sb-brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 2px 0 14px;
+      }
+      .mark {
+        width: 38px;
+        height: 38px;
+        border-radius: 11px;
+        display: grid;
+        place-items: center;
+        background: var(--brand);
+        color: var(--brand-fg);
+        flex: none;
+      }
+      .mark svg.lucide {
+        width: 22px;
+        height: 22px;
+        stroke-width: 2.2;
+      }
+      .brand-name {
+        font: 700 21px/1 var(--font-num);
+        letter-spacing: 0.01em;
+      }
+      .sb-add {
+        width: 48px;
+        padding: 0;
+        margin-bottom: 12px;
+      }
+      .sb-nav {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: grid;
+        gap: 2px;
+        width: 100%;
+        justify-items: center;
+      }
+      .nav-item {
+        width: 48px;
+        height: 44px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+        border: 0;
+        border-radius: var(--r-control);
+        background: transparent;
+        color: var(--fg-muted);
+        font-weight: 500;
+        font-size: 14.5px;
+        transition:
+          background-color var(--dur) var(--ease),
+          color var(--dur) var(--ease);
+      }
+      .nav-item:hover {
+        background: var(--surface-2);
+        color: var(--fg);
+      }
+      .nav-item[aria-current="page"] {
+        background: var(--brand-soft);
+        color: var(--brand-ink);
+        font-weight: 600;
+      }
+      .sb-foot {
+        margin-top: auto;
+        width: 100%;
+        display: grid;
+        gap: 2px;
+        justify-items: center;
+        padding-top: 12px;
+        border-top: 1px solid var(--border);
+      }
+      .user {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 0 2px;
+        min-width: 0;
+      }
+      .avatar {
+        width: 34px;
+        height: 34px;
+        border-radius: 50%;
+        display: grid;
+        place-items: center;
+        background: var(--surface-2);
+        border: 1px solid var(--border);
+        font: 600 12px/1 var(--font-ui);
+        color: var(--fg);
+        flex: none;
+      }
+      .user-name {
+        font-weight: 600;
+        font-size: 14px;
+      }
+      .user-ws {
+        font-size: 12.5px;
+        color: var(--fg-muted);
+      }
+
+      .topbar {
+        grid-area: top;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        height: 56px;
+        padding: 0 10px 0 16px;
+        border-bottom: 1px solid var(--border);
+        background: var(--surface);
+        min-width: 0;
+      }
+      .tb-group {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        min-width: 0;
+      }
+      .tb-actions {
+        margin-left: auto;
+      }
+      .ws-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        height: 40px;
+        padding: 0 10px;
+        margin-left: -10px;
+        border: 0;
+        border-radius: var(--r-control);
+        background: transparent;
+        font-weight: 600;
+        font-size: 15px;
+      }
+      .ws-btn:hover {
+        background: var(--surface-2);
+      }
+      .icon-btn {
+        width: 40px;
+        height: 40px;
+        display: grid;
+        place-items: center;
+        border: 0;
+        border-radius: var(--r-control);
+        background: transparent;
+        color: var(--fg-muted);
+        flex: none;
+        transition:
+          background-color var(--dur) var(--ease),
+          color var(--dur) var(--ease);
+      }
+      .icon-btn:hover {
+        background: var(--surface-2);
+        color: var(--fg);
+      }
+      .crumb {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 15px;
+        min-width: 0;
+      }
+      .crumb .back {
+        display: inline-flex;
+        align-items: center;
+        gap: 2px;
+        height: 40px;
+        padding: 0 8px 0 4px;
+        margin-left: -8px;
+        border: 0;
+        border-radius: var(--r-control);
+        background: transparent;
+        color: var(--brand-ink);
+        font-weight: 500;
+      }
+      .crumb .back:hover {
+        background: var(--surface-2);
+      }
+      .crumb .here {
+        font-weight: 600;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .crumb .sep {
+        color: var(--fg-muted);
+        display: none;
+      }
+
+      .main {
+        grid-area: main;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        min-height: 0;
+      }
+      .main-inner {
+        max-width: 1120px;
+        margin: 0 auto;
+        padding: 16px 16px 28px;
+      }
+
+      .bottomnav {
+        grid-area: nav;
+        position: relative;
+        z-index: 3;
+        display: grid;
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        align-items: end;
+        padding: 4px 6px max(8px, env(safe-area-inset-bottom, 0px));
+        background: var(--surface);
+        border-top: 1px solid var(--border);
+      }
+      .bn-item {
+        min-height: 52px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+        border: 0;
+        border-radius: 12px;
+        background: transparent;
+        color: var(--fg-muted);
+        font: 500 11px/1 var(--font-ui);
+      }
+      .bn-item svg.lucide {
+        width: 22px;
+        height: 22px;
+      }
+      .bn-item[aria-current="page"] {
+        color: var(--brand-ink);
+        font-weight: 600;
+      }
+      .bn-item[aria-current="page"] svg.lucide {
+        stroke-width: 2.5;
+      }
+      .bn-fab {
+        justify-self: center;
+        align-self: center;
+        width: 56px;
+        height: 56px;
+        margin-top: -26px;
+        border: 0;
+        border-radius: 18px;
+        display: grid;
+        place-items: center;
+        background: var(--brand);
+        color: var(--brand-fg);
+        box-shadow: var(--shadow-md);
+        transition:
+          transform var(--dur) var(--ease),
+          background-color var(--dur) var(--ease);
+      }
+      .bn-fab:hover {
+        background: var(--brand-hover);
+      }
+      .bn-fab:active {
+        transform: scale(0.94);
+      }
+      .bn-fab svg.lucide {
+        width: 26px;
+        height: 26px;
+        stroke-width: 2.5;
+      }
+      .frame[data-frame="mobile"] .bottomnav {
+        padding-bottom: 26px;
+      }
+      .frame[data-frame="mobile"] .bottomnav::after {
+        content: "";
+        position: absolute;
+        left: 50%;
+        bottom: 8px;
+        width: 128px;
+        height: 5px;
+        border-radius: 3px;
+        background: var(--fg);
+        opacity: 0.8;
+        transform: translateX(-50%);
+      }
+
+      @container app (min-width: 700px) {
+        .app {
+          grid-template-columns: 76px minmax(0, 1fr);
+          grid-template-rows: auto minmax(0, 1fr);
+          grid-template-areas: "side top" "side main";
+        }
+        .sidebar {
+          display: flex;
+        }
+        .bottomnav {
+          display: none;
+        }
+        .topbar {
+          padding: 0 16px 0 24px;
+        }
+        .main-inner {
+          padding: 24px 24px 36px;
+        }
+        .crumb .sep {
+          display: inline;
+        }
+      }
+      @container app (min-width: 1024px) {
+        .app {
+          grid-template-columns: 248px minmax(0, 1fr);
+        }
+        .sidebar {
+          align-items: stretch;
+          padding: 18px 14px;
+        }
+        .sidebar .lbl {
+          position: static;
+          width: auto;
+          height: auto;
+          overflow: visible;
+          clip: auto;
+        }
+        .sb-brand {
+          padding: 2px 6px 16px;
+        }
+        .sb-add {
+          width: 100%;
+          padding: 0 16px;
+        }
+        .sb-nav {
+          justify-items: stretch;
+        }
+        .nav-item {
+          width: 100%;
+          justify-content: flex-start;
+          padding: 0 12px;
+        }
+        .sb-foot {
+          justify-items: stretch;
+        }
+        .main-inner {
+          padding: 28px 32px 40px;
+        }
+      }
+
+      /* ---------- Buttons, badges, fields ---------- */
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        height: 40px;
+        padding: 0 16px;
+        border: 1px solid transparent;
+        border-radius: var(--r-control);
+        font: 600 14px/1 var(--font-ui);
+        white-space: nowrap;
+        text-decoration: none;
+        transition:
+          background-color var(--dur) var(--ease),
+          border-color var(--dur) var(--ease),
+          color var(--dur) var(--ease),
+          transform var(--dur) var(--ease),
+          opacity var(--dur) var(--ease);
+      }
+      .btn:active {
+        transform: translateY(1px);
+      }
+      .btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+        transform: none;
+      }
+      .btn.primary {
+        background: var(--brand);
+        color: var(--brand-fg);
+      }
+      .btn.primary:hover:not(:disabled) {
+        background: var(--brand-hover);
+      }
+      .btn.secondary {
+        background: var(--surface);
+        border-color: var(--border);
+        color: var(--fg);
+        box-shadow: var(--shadow-sm);
+      }
+      .btn.secondary:hover {
+        background: var(--surface-2);
+      }
+      .btn.ghost {
+        background: transparent;
+        color: var(--fg-muted);
+      }
+      .btn.ghost:hover {
+        background: var(--surface-2);
+        color: var(--fg);
+      }
+      .btn.danger {
+        background: var(--late-soft);
+        color: var(--late-ink);
+      }
+      .btn.danger:hover {
+        background: color-mix(in oklch, var(--late-soft), var(--late) 14%);
+      }
+      .btn.sm {
+        height: 34px;
+        padding: 0 12px;
+        font-size: 13px;
+      }
+      .btn.lg {
+        height: 48px;
+        font-size: 15px;
+      }
+      .btn.block {
+        width: 100%;
+      }
+      .btn svg.lucide {
+        width: 17px;
+        height: 17px;
+      }
+      .touch .btn {
+        min-height: 44px;
+      }
+      .link {
+        border: 0;
+        background: none;
+        padding: 4px 0;
+        color: var(--brand-ink);
+        font-weight: 500;
+        font-size: 14px;
+        text-decoration: none;
+      }
+      .link:hover {
+        text-decoration: underline;
+        text-underline-offset: 3px;
+      }
+
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        height: 24px;
+        padding: 0 9px 0 7px;
+        border-radius: 999px;
+        font: 600 12px/1 var(--font-ui);
+        white-space: nowrap;
+        flex: none;
+        background: var(--b-bg, var(--surface-2));
+        color: var(--b-fg, var(--fg-muted));
+      }
+      .badge svg.lucide {
+        width: 14px;
+        height: 14px;
+        stroke-width: 2.4;
+      }
+      .badge.ok {
+        --b-bg: var(--ok-soft);
+        --b-fg: var(--ok-ink);
+      }
+      .badge.soon {
+        --b-bg: var(--soon-soft);
+        --b-fg: var(--soon-ink);
+      }
+      .badge.late {
+        --b-bg: var(--late-soft);
+        --b-fg: var(--late-ink);
+      }
+      .badge.brand {
+        --b-bg: var(--brand-soft);
+        --b-fg: var(--brand-ink);
+      }
+      .badge.outline {
+        background: transparent;
+        box-shadow: inset 0 0 0 1px var(--border);
+      }
+
+      .wear {
+        position: relative;
+        height: 8px;
+        border-radius: 999px;
+        background: var(--track);
+      }
+      .wear-fill {
+        position: absolute;
+        inset: 0 auto 0 0;
+        width: min(var(--p), 100%);
+        border-radius: inherit;
+        background-color: var(--bar, var(--ok));
+        transition: width 500ms var(--ease);
+      }
+      .wear-tick {
+        position: absolute;
+        left: 90%;
+        top: -3px;
+        bottom: -3px;
+        width: 2px;
+        border-radius: 1px;
+        background: var(--fg-muted);
+        opacity: 0.6;
+      }
+      [data-status="soon"] {
+        --bar: var(--soon);
+      }
+      [data-status="late"] {
+        --bar: var(--late);
+      }
+      [data-status="late"] .wear-fill {
+        background-image: repeating-linear-gradient(
+          -45deg,
+          transparent 0 5px,
+          oklch(1 0 0 / 0.32) 5px 9px
+        );
+      }
+
+      .fs {
+        border: 0;
+        margin: 0;
+        padding: 0;
+        min-width: 0;
+        display: grid;
+        gap: 8px;
+      }
+      .legend {
+        padding: 0;
+        margin-bottom: 8px;
+        font: 600 13.5px/1.2 var(--font-ui);
+        color: var(--fg);
+      }
+      .field {
+        display: grid;
+        gap: 6px;
+        min-width: 0;
+      }
+      .field > label {
+        font: 600 13.5px/1.2 var(--font-ui);
+      }
+      .input-wrap {
+        display: flex;
+        align-items: center;
+        height: 44px;
+        border: 1px solid var(--border);
+        border-radius: var(--r-control);
+        background: var(--surface);
+        transition:
+          border-color var(--dur) var(--ease),
+          box-shadow var(--dur) var(--ease);
+        min-width: 0;
+      }
+      .input-wrap:focus-within {
+        border-color: var(--brand);
+        box-shadow: 0 0 0 3px color-mix(in oklch, var(--brand), transparent 72%);
+      }
+      .input-wrap input,
+      .input-wrap textarea {
+        flex: 1;
+        min-width: 0;
+        height: 100%;
+        border: 0;
+        background: transparent;
+        padding: 0 12px;
+        font-size: 16px;
+        outline: none;
+      }
+      .input-wrap textarea {
+        padding: 10px 12px;
+        resize: vertical;
+      }
+      .input-wrap.area {
+        height: auto;
+      }
+      .input-wrap .suffix {
+        padding-right: 12px;
+        color: var(--fg-muted);
+        font-size: 14px;
+      }
+      .input-wrap input::placeholder,
+      .input-wrap textarea::placeholder {
+        color: color-mix(in oklch, var(--fg-muted), transparent 25%);
+      }
+      .touch .input-wrap:not(.area) {
+        height: 48px;
+      }
+      .field.invalid .input-wrap {
+        border-color: var(--late);
+        box-shadow: 0 0 0 3px color-mix(in oklch, var(--late), transparent 80%);
+      }
+      .err {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 13px;
+        font-weight: 500;
+        color: var(--late-ink);
+      }
+      .err svg.lucide {
+        width: 16px;
+        height: 16px;
+      }
+      .duo,
+      .grid2 {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+      }
+
+      .chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      .chips.scroll {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        margin-inline: -20px;
+        padding: 2px 20px 4px;
+        scrollbar-width: none;
+      }
+      .chip {
+        position: relative;
+        display: inline-flex;
+        flex: none;
+      }
+      .chip input {
+        position: absolute;
+        opacity: 0;
+        pointer-events: none;
+      }
+      .chip > span {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        height: 40px;
+        padding: 0 14px;
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        background: var(--surface);
+        color: var(--fg);
+        font-weight: 500;
+        font-size: 14px;
+        white-space: nowrap;
+        cursor: pointer;
+        transition:
+          background-color var(--dur) var(--ease),
+          border-color var(--dur) var(--ease),
+          color var(--dur) var(--ease);
+      }
+      .chip:hover > span {
+        border-color: color-mix(in oklch, var(--border), var(--fg) 25%);
+      }
+      .chip input:checked + span {
+        background: var(--brand-soft);
+        border-color: var(--brand);
+        color: var(--brand-ink);
+        font-weight: 600;
+      }
+      .chip input:focus-visible + span {
+        outline: 2px solid var(--brand);
+        outline-offset: 2px;
+      }
+      .chip svg.lucide {
+        width: 16px;
+        height: 16px;
+      }
+      .touch .chip > span {
+        height: 44px;
+      }
+      .chip .mini {
+        width: 28px;
+        height: 28px;
+        margin-left: -8px;
+        border-radius: 50%;
+        overflow: hidden;
+        flex: none;
+      }
+      .mini .cover {
+        aspect-ratio: auto;
+        width: 100%;
+        height: 100%;
+      }
+      .mini .cover-bike {
+        display: none;
+      }
+      .chip-btn {
+        height: 32px;
+        padding: 0 12px;
+        border: 1px dashed var(--border);
+        border-radius: 999px;
+        background: transparent;
+        color: var(--fg-muted);
+        font-size: 13px;
+      }
+      .chip-btn:hover {
+        color: var(--fg);
+        border-color: color-mix(in oklch, var(--border), var(--fg) 30%);
+      }
+
+      .card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--r-card);
+        box-shadow: var(--shadow-sm);
+      }
+      .card.pad {
+        padding: 16px;
+      }
+      .list {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+      .list > li + li {
+        border-top: 1px solid var(--border);
+      }
+      .row-wrap {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: center;
+      }
+
+      /* ---------- Bike covers (placeholder art until a photo is uploaded) ---------- */
+      .cover {
+        position: relative;
+        aspect-ratio: 16 / 9;
+        overflow: hidden;
+        background: linear-gradient(180deg, var(--sky1), var(--sky2));
+      }
+      .cover-land {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+      }
+      .cover-land .m1 {
+        fill: var(--m1);
+      }
+      .cover-land .m2 {
+        fill: var(--m2);
+      }
+      .cover-bike {
+        position: absolute;
+        left: 50%;
+        bottom: 7%;
+        width: 40%;
+        transform: translateX(-50%);
+        color: var(--on-photo);
+        opacity: 0.92;
+      }
+
+      /* ---------- Dashboard ---------- */
+      .page-head {
+        margin-bottom: 16px;
+      }
+      .page-title {
+        font: 650 28px/1.15 var(--font-ui);
+        letter-spacing: -0.02em;
+        text-wrap: balance;
+        margin-top: 4px;
+      }
+      .lead-muted {
+        color: var(--fg-muted);
+        font-size: 14.5px;
+        max-width: 64ch;
+        margin-top: 8px;
+      }
+      .summary {
+        display: flex;
+        gap: 8px;
+        overflow-x: auto;
+        margin: 0 -16px 22px;
+        padding: 2px 16px 4px;
+        scrollbar-width: none;
+      }
+      .sum {
+        flex: none;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        height: 48px;
+        padding: 0 16px 0 8px;
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        background: var(--surface);
+        box-shadow: var(--shadow-sm);
+        transition:
+          border-color var(--dur) var(--ease),
+          transform var(--dur) var(--ease);
+      }
+      .sum:hover {
+        border-color: color-mix(in oklch, var(--border), var(--fg) 25%);
+      }
+      .sum:active {
+        transform: translateY(1px);
+      }
+      .sum-ico {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        display: grid;
+        place-items: center;
+        background: var(--c-soft);
+        color: var(--c-ink);
+      }
+      .sum-ico svg.lucide {
+        width: 17px;
+        height: 17px;
+        stroke-width: 2.3;
+      }
+      .sum strong {
+        font: 700 24px/1 var(--font-num);
+      }
+      .sum .l {
+        font-size: 13.5px;
+        color: var(--fg-muted);
+      }
+      .sum.late {
+        --c-soft: var(--late-soft);
+        --c-ink: var(--late-ink);
+      }
+      .sum.soon {
+        --c-soft: var(--soon-soft);
+        --c-ink: var(--soon-ink);
+      }
+      .sum.parts {
+        --c-soft: var(--brand-soft);
+        --c-ink: var(--brand-ink);
+      }
+
+      .dash {
+        display: grid;
+        gap: 26px;
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-areas: "plan" "bikes" "parts" "activity";
+      }
+      .area-plan {
+        grid-area: plan;
+      }
+      .area-bikes {
+        grid-area: bikes;
+      }
+      .area-parts {
+        grid-area: parts;
+      }
+      .area-activity {
+        grid-area: activity;
+      }
+      .sec-head {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 10px;
+      }
+      .sec-title {
+        font: 600 17px/1.3 var(--font-ui);
+        letter-spacing: -0.01em;
+      }
+
+      .rule {
+        display: grid;
+        grid-template-columns: 44px minmax(0, 1fr);
+        gap: 0 12px;
+        padding: 14px 16px;
+      }
+      .rule > .cover,
+      .rule-ico {
+        width: 44px;
+        height: 44px;
+        border-radius: 11px;
+        aspect-ratio: auto;
+      }
+      .rule > .cover .cover-bike {
+        display: none;
+      }
+      .rule-ico {
+        display: grid;
+        place-items: center;
+        background: var(--surface-2);
+        color: var(--fg-muted);
+      }
+      .rule-body {
+        min-width: 0;
+      }
+      .rule-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+      }
+      .rule-ctx {
+        font-size: 13px;
+        color: var(--fg-muted);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        min-width: 0;
+      }
+      .rule-title {
+        font: 600 15px/1.35 var(--font-ui);
+        margin: 3px 0 10px;
+      }
+      .rule-meta {
+        display: flex;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 2px 10px;
+        margin-top: 8px;
+        font-size: 13px;
+        color: var(--fg-muted);
+      }
+      .rule-meta .num {
+        font-size: 16px;
+        font-weight: 600;
+        color: var(--fg);
+      }
+      .rule-actions {
+        grid-column: 2;
+        display: flex;
+        gap: 8px;
+        margin-top: 12px;
+      }
+      @container app (min-width: 700px) {
+        .rule {
+          grid-template-columns: 44px minmax(0, 1fr) auto;
+        }
+        .rule-actions {
+          grid-column: 3;
+          grid-row: 1;
+          flex-direction: column;
+          align-self: center;
+          margin: 0 0 0 8px;
+        }
+        .summary {
+          margin-inline: 0;
+          padding-inline: 0;
+          overflow: visible;
+          flex-wrap: wrap;
+        }
+      }
+
+      .bike-cards {
+        display: flex;
+        gap: 12px;
+        overflow-x: auto;
+        scroll-snap-type: x mandatory;
+        margin: 0 -16px;
+        padding: 2px 16px 6px;
+        scrollbar-width: none;
+      }
+      .bike-card {
+        flex: 0 0 80%;
+        scroll-snap-align: start;
+        display: block;
+        border: 1px solid var(--border);
+        border-radius: var(--r-card);
+        overflow: hidden;
+        background: var(--surface);
+        box-shadow: var(--shadow-sm);
+        color: inherit;
+        text-decoration: none;
+        text-align: left;
+        padding: 0;
+        transition:
+          transform var(--dur) var(--ease),
+          box-shadow var(--dur) var(--ease);
+      }
+      .bike-card:hover {
+        transform: translateY(-2px);
+        box-shadow: var(--shadow-md);
+      }
+      .bike-card .cover {
+        aspect-ratio: 16 / 9;
+      }
+      .bc-shade {
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(to top, var(--photo-shade), transparent 55%);
+      }
+      .bc-label {
+        position: absolute;
+        left: 14px;
+        right: 14px;
+        bottom: 11px;
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 8px;
+        color: var(--on-photo);
+      }
+      .bc-name {
+        font: 700 24px/1 var(--font-num);
+        letter-spacing: 0.01em;
+      }
+      .photo-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        height: 24px;
+        padding: 0 9px;
+        border-radius: 999px;
+        background: var(--photo-glass);
+        backdrop-filter: blur(6px);
+        -webkit-backdrop-filter: blur(6px);
+        color: var(--on-photo);
+        font: 600 12px/1 var(--font-ui);
+        white-space: nowrap;
+      }
+      .photo-chip svg.lucide {
+        width: 13px;
+        height: 13px;
+      }
+      .bc-foot {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        padding: 10px 14px;
+        font-size: 13px;
+        color: var(--fg-muted);
+      }
+      .bc-foot .num {
+        font-size: 15px;
+        font-weight: 600;
+        color: var(--fg);
+      }
+      @container app (min-width: 700px) {
+        .bike-cards {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          margin: 0;
+          padding: 0;
+          overflow: visible;
+        }
+      }
+      @container app (min-width: 1024px) {
+        .dash {
+          grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr);
+          grid-template-areas: "plan bikes" "activity parts";
+          align-items: start;
+          column-gap: 28px;
+        }
+        .bike-cards {
+          grid-template-columns: minmax(0, 1fr);
+        }
+        .area-bikes .bike-card .cover {
+          aspect-ratio: 2.7 / 1;
+        }
+      }
+
+      .part {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 16px;
+      }
+      .part-ico {
+        width: 36px;
+        height: 36px;
+        border-radius: 10px;
+        display: grid;
+        place-items: center;
+        background: var(--surface-2);
+        color: var(--fg-muted);
+        flex: none;
+      }
+      .part-main {
+        flex: 1;
+        min-width: 0;
+      }
+      .part-name {
+        font-weight: 600;
+        font-size: 14.5px;
+      }
+      .part-meta {
+        font-size: 13px;
+        color: var(--fg-muted);
+      }
+
+      /* ---------- Timeline ---------- */
+      .tl {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+      .tl-month {
+        margin: 18px 0 10px;
+      }
+      .tl-month:first-child {
+        margin-top: 0;
+      }
+      .tl-item {
+        position: relative;
+        display: grid;
+        grid-template-columns: 36px minmax(0, 1fr);
+        gap: 12px;
+        padding-bottom: 18px;
+      }
+      .tl-item::before {
+        content: "";
+        position: absolute;
+        left: 17px;
+        top: 40px;
+        bottom: 4px;
+        width: 2px;
+        border-radius: 1px;
+        background: var(--border);
+      }
+      .tl-item:last-child {
+        padding-bottom: 0;
+      }
+      .tl-item:last-child::before {
+        display: none;
+      }
+      .tl-node {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        display: grid;
+        place-items: center;
+        background: var(--surface-2);
+        color: var(--fg-muted);
+      }
+      .tl-item[data-kind="maint"] .tl-node {
+        background: var(--brand-soft);
+        color: var(--brand-ink);
+      }
+      .tl-top {
+        display: flex;
+        align-items: baseline;
+        gap: 6px;
+        font-size: 13px;
+        color: var(--fg-muted);
+        flex-wrap: wrap;
+      }
+      .tl-top b {
+        font-weight: 600;
+        color: var(--fg);
+      }
+      .tl-title {
+        font: 600 15px/1.35 var(--font-ui);
+        margin-top: 2px;
+      }
+      .tl-meta {
+        font: 500 16px/1.35 var(--font-num);
+        letter-spacing: 0.01em;
+        margin-top: 2px;
+      }
+      .tags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-top: 8px;
+      }
+      .tag {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 12px;
+        font-weight: 500;
+        padding: 3px 8px;
+        border-radius: 6px;
+        background: var(--surface-2);
+        color: var(--fg-muted);
+      }
+      .tag.info {
+        background: var(--brand-soft);
+        color: var(--brand-ink);
+      }
+      .tag svg.lucide {
+        width: 13px;
+        height: 13px;
+      }
+
+      /* ---------- Bike page ---------- */
+      .bike-hero {
+        position: relative;
+        margin: -16px -16px 0;
+        overflow: hidden;
+      }
+      .bike-hero .cover {
+        aspect-ratio: 16 / 10;
+      }
+      .hero-shade {
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(to top, var(--photo-shade), transparent 62%);
+      }
+      .hero-text {
+        position: absolute;
+        left: 16px;
+        right: 16px;
+        bottom: 14px;
+        color: var(--on-photo);
+      }
+      .hero-chips {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+      }
+      .hero-name {
+        font: 700 40px/1 var(--font-num);
+        letter-spacing: 0.005em;
+        margin: 8px 0 4px;
+      }
+      .hero-sub {
+        font-size: 14px;
+        opacity: 0.92;
+      }
+      .photo-btn {
+        position: absolute;
+        top: 12px;
+        right: 12px;
+        height: 34px;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 0 12px;
+        border: 0;
+        border-radius: 999px;
+        background: var(--photo-glass);
+        backdrop-filter: blur(6px);
+        -webkit-backdrop-filter: blur(6px);
+        color: var(--on-photo);
+        font: 600 13px/1 var(--font-ui);
+      }
+      .photo-btn svg.lucide {
+        width: 16px;
+        height: 16px;
+      }
+      .bike-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin: 16px 0;
+      }
+      .stats {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 1px;
+        background: var(--border);
+        border: 1px solid var(--border);
+        border-radius: var(--r-card);
+        overflow: hidden;
+      }
+      .stat {
+        background: var(--surface);
+        padding: 14px 16px;
+      }
+      .stat-v {
+        font: 700 30px/1 var(--font-num);
+      }
+      .stat-v small {
+        font-size: 17px;
+        font-weight: 500;
+        color: var(--fg-muted);
+        margin-left: 3px;
+      }
+      .stat-l {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 13px;
+        color: var(--fg-muted);
+        margin-top: 6px;
+      }
+      .info-btn {
+        width: 24px;
+        height: 24px;
+        display: inline-grid;
+        place-items: center;
+        border: 0;
+        border-radius: 50%;
+        background: transparent;
+        color: var(--fg-muted);
+        padding: 0;
+      }
+      .info-btn:hover {
+        background: var(--surface-2);
+        color: var(--fg);
+      }
+      .info-btn svg.lucide {
+        width: 15px;
+        height: 15px;
+      }
+      .trust {
+        font-size: 13px;
+        color: var(--fg-muted);
+        margin-top: 8px;
+      }
+      .tabs {
+        display: flex;
+        gap: 2px;
+        padding: 3px;
+        margin: 20px 0 16px;
+        background: var(--surface-2);
+        border-radius: 12px;
+      }
+      .tab {
+        flex: 1;
+        height: 38px;
+        border: 0;
+        border-radius: 9px;
+        background: transparent;
+        color: var(--fg-muted);
+        font-weight: 500;
+        font-size: 14px;
+      }
+      .tab[aria-selected="true"] {
+        background: var(--surface);
+        color: var(--fg);
+        box-shadow: var(--shadow-sm);
+        font-weight: 600;
+      }
+      .bike-grid {
+        display: grid;
+        gap: 26px;
+        grid-template-columns: minmax(0, 1fr);
+      }
+      .group-head {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 14px 16px 6px;
+      }
+      .group-head svg.lucide {
+        width: 15px;
+        height: 15px;
+      }
+      .comp {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 10px 16px;
+      }
+      .comp-main {
+        flex: 1;
+        min-width: 0;
+      }
+      .comp-type {
+        font-weight: 600;
+        font-size: 14.5px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .comp-model {
+        font-size: 13px;
+        color: var(--fg-muted);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .comp-side {
+        text-align: right;
+        flex: none;
+      }
+      .comp-side .num {
+        font-size: 17px;
+        font-weight: 600;
+      }
+      .comp-since {
+        display: block;
+        font-size: 12px;
+        color: var(--fg-muted);
+      }
+      .comp-list {
+        list-style: none;
+        margin: 0;
+        padding: 0 0 6px;
+      }
+      .comp-list > li + li {
+        border-top: 1px solid var(--border);
+      }
+      .comp-group + .comp-group {
+        border-top: 1px solid var(--border);
+      }
+      .status-mark {
+        width: 18px;
+        height: 18px;
+        display: inline-grid;
+        place-items: center;
+        border-radius: 50%;
+        background: var(--b-bg);
+        color: var(--b-fg);
+      }
+      .status-mark svg.lucide {
+        width: 12px;
+        height: 12px;
+        stroke-width: 2.8;
+      }
+      .status-mark.late {
+        --b-bg: var(--late-soft);
+        --b-fg: var(--late-ink);
+      }
+      .status-mark.soon {
+        --b-bg: var(--soon-soft);
+        --b-fg: var(--soon-ink);
+      }
+      @container app (max-width: 699px) {
+        .bike-grid[data-tab="overview"] > :not(.sec-plan),
+        .bike-grid[data-tab="components"] > :not(.sec-components),
+        .bike-grid[data-tab="history"] > :not(.sec-history) {
+          display: none;
+        }
+      }
+      @container app (min-width: 700px) {
+        .bike-hero {
+          margin: 0;
+          border-radius: var(--r-card);
+        }
+        .bike-hero .cover {
+          aspect-ratio: 3 / 1;
+        }
+        .hero-text {
+          left: 24px;
+          bottom: 20px;
+        }
+        .hero-name {
+          font-size: 48px;
+        }
+        .stats {
+          grid-template-columns: repeat(4, minmax(0, 1fr));
+        }
+        .tabs {
+          display: none;
+        }
+        .bike-grid {
+          margin-top: 26px;
+        }
+      }
+      @container app (min-width: 1024px) {
+        .bike-grid {
+          grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+          align-items: start;
+          column-gap: 28px;
+        }
+        .sec-history {
+          grid-column: 2;
+          grid-row: 1 / span 2;
+        }
+      }
+
+      /* ---------- Phase 3 preview: certainty levels and suggestions ---------- */
+      .levels {
+        list-style: none;
+        margin: 0 0 26px;
+        padding: 0;
+        display: grid;
+        gap: 10px;
+        grid-template-columns: minmax(0, 1fr);
+      }
+      .levels li {
+        display: flex;
+        gap: 10px;
+        align-items: flex-start;
+        padding: 12px;
+        border-radius: var(--r-card);
+        background: var(--surface);
+        border: 1px solid var(--border);
+      }
+      .levels li.lv-suggest {
+        border: 1.5px dashed color-mix(in oklch, var(--brand), transparent 35%);
+      }
+      .lv-ico {
+        width: 32px;
+        height: 32px;
+        border-radius: 9px;
+        display: grid;
+        place-items: center;
+        background: var(--surface-2);
+        color: var(--fg-muted);
+        flex: none;
+      }
+      .lv-suggest .lv-ico {
+        background: var(--brand-soft);
+        color: var(--brand-ink);
+      }
+      .lv-name {
+        font-weight: 600;
+        font-size: 14.5px;
+      }
+      .ai-grid {
+        display: grid;
+        gap: 26px;
+        grid-template-columns: minmax(0, 1fr);
+      }
+      .suggest {
+        display: grid;
+        gap: 10px;
+        padding: 16px;
+        border: 1.5px dashed color-mix(in oklch, var(--brand), transparent 35%);
+        border-radius: var(--r-card);
+        background: color-mix(in oklch, var(--brand-soft), var(--surface) 50%);
+      }
+      .suggest.flush {
+        gap: 0;
+        padding: 0;
+        overflow: hidden;
+      }
+      .ai-label {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font: 600 13px/1.3 var(--font-ui);
+        color: var(--brand-ink);
+      }
+      .ai-label svg.lucide {
+        width: 16px;
+        height: 16px;
+      }
+      .suggest.flush > .ai-label {
+        padding: 14px 16px 10px;
+      }
+      .suggest-text {
+        font-size: 15px;
+        line-height: 1.5;
+      }
+      .review {
+        border-top: 1px dashed color-mix(in oklch, var(--brand), transparent 60%);
+      }
+      .review > li + li {
+        border-top: 1px dashed color-mix(in oklch, var(--brand), transparent 60%);
+      }
+      .rv {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 10px 16px;
+        min-height: 52px;
+      }
+      .rv input {
+        width: 20px;
+        height: 20px;
+        margin: 0;
+        accent-color: var(--brand);
+        flex: none;
+      }
+      .rv-main {
+        flex: 1;
+        min-width: 0;
+        display: grid;
+        cursor: pointer;
+      }
+      .src {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 12.5px;
+        color: var(--brand-ink);
+        white-space: nowrap;
+      }
+      .src svg.lucide {
+        width: 14px;
+        height: 14px;
+      }
+      .review-foot {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        padding: 12px 16px 14px;
+        border-top: 1px dashed color-mix(in oklch, var(--brand), transparent 60%);
+      }
+      .why {
+        margin-top: 12px;
+      }
+      .why summary {
+        list-style: none;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+        min-height: 32px;
+        cursor: pointer;
+        font-size: 13.5px;
+        font-weight: 500;
+        color: var(--brand-ink);
+      }
+      .why summary::-webkit-details-marker {
+        display: none;
+      }
+      .why ul {
+        margin: 8px 0 0;
+        padding-left: 18px;
+        display: grid;
+        gap: 4px;
+        font-size: 13.5px;
+        color: var(--fg-muted);
+      }
+      .ask {
+        margin-bottom: 12px;
+      }
+      .ask .icon-btn {
+        color: var(--brand-ink);
+        margin-right: 2px;
+      }
+      .answer {
+        display: grid;
+        gap: 8px;
+      }
+      .answer-text {
+        font-size: 15px;
+      }
+      .answer-text .num {
+        font-size: 19px;
+      }
+      @container app (min-width: 700px) {
+        .levels {
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+      }
+      @container app (min-width: 1024px) {
+        .ai-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          align-items: start;
+          column-gap: 28px;
+        }
+      }
+
+      /* ---------- Skeleton ---------- */
+      .sk {
+        display: block;
+        border-radius: 8px;
+        background: linear-gradient(
+          90deg,
+          var(--surface-2) 0%,
+          color-mix(in oklch, var(--surface-2), var(--fg) 8%) 50%,
+          var(--surface-2) 100%
+        );
+        background-size: 200% 100%;
+        animation: sk 1.3s linear infinite;
+      }
+      @keyframes sk {
+        from {
+          background-position: 200% 0;
+        }
+        to {
+          background-position: -200% 0;
+        }
+      }
+      .sk-screen {
+        display: none;
+      }
+      .main.loading .screen {
+        display: none;
+      }
+      .main.loading .sk-screen {
+        display: grid;
+        gap: 14px;
+      }
+      .sk-row {
+        display: grid;
+        grid-template-columns: 44px 1fr;
+        gap: 12px;
+        padding: 14px 16px;
+      }
+
+      /* ---------- Sheet (quick add) ---------- */
+      .scrim {
+        position: absolute;
+        inset: 0;
+        z-index: 10;
+        background: var(--scrim);
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 220ms var(--ease);
+      }
+      .sheet {
+        position: absolute;
+        z-index: 11;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        max-height: 94%;
+        display: flex;
+        flex-direction: column;
+        background: var(--surface);
+        border-radius: var(--r-sheet) var(--r-sheet) 0 0;
+        box-shadow: var(--shadow-lg);
+        transform: translateY(102%);
+        visibility: hidden;
+        transition:
+          transform 280ms var(--ease),
+          visibility 0s linear 280ms;
+      }
+      .sheet-open .scrim {
+        opacity: 1;
+        pointer-events: auto;
+      }
+      .sheet-open .sheet {
+        transform: none;
+        visibility: visible;
+        transition:
+          transform 280ms var(--ease),
+          visibility 0s;
+      }
+      .grabber {
+        width: 40px;
+        height: 5px;
+        border-radius: 3px;
+        background: var(--border);
+        margin: 8px auto 0;
+        flex: none;
+      }
+      .sheet-head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 10px 12px 12px 20px;
+        flex: none;
+      }
+      .sheet-title {
+        font: 650 21px/1.2 var(--font-ui);
+        letter-spacing: -0.015em;
+      }
+      .sheet form {
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+        flex: 1;
+      }
+      .sheet-body {
+        overflow-y: auto;
+        padding: 4px 20px 18px;
+        display: grid;
+        gap: 20px;
+        min-height: 0;
+      }
+      .sheet-foot {
+        flex: none;
+        padding: 12px 20px max(12px, env(safe-area-inset-bottom, 0px));
+        border-top: 1px solid var(--border);
+        background: var(--surface);
+      }
+      .frame[data-frame="mobile"] .sheet-foot {
+        padding-bottom: 30px;
+      }
+      .liftbox {
+        display: grid;
+        gap: 12px;
+        padding: 14px;
+        border-radius: var(--r-card);
+        background: var(--brand-soft);
+      }
+      .lift-head {
+        display: flex;
+        gap: 10px;
+        align-items: flex-start;
+        color: var(--brand-ink);
+        font-size: 13.5px;
+        line-height: 1.45;
+      }
+      .lift-head svg.lucide {
+        width: 20px;
+        height: 20px;
+        margin-top: 1px;
+      }
+      .liftbox .input-wrap {
+        background: var(--surface);
+      }
+      .lift-grid {
+        display: grid;
+        gap: 12px;
+        grid-template-columns: minmax(0, 1fr);
+      }
+      .more {
+        border-top: 1px solid var(--border);
+        padding-top: 4px;
+      }
+      .more summary {
+        list-style: none;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-height: 44px;
+        cursor: pointer;
+        font-weight: 600;
+        font-size: 14.5px;
+      }
+      .more summary::-webkit-details-marker {
+        display: none;
+      }
+      .more summary svg.lucide {
+        transition: transform var(--dur) var(--ease);
+      }
+      .more[open] summary svg.lucide {
+        transform: rotate(90deg);
+      }
+      .more-body {
+        display: grid;
+        gap: 16px;
+        padding-top: 6px;
+      }
+      @container app (min-width: 700px) {
+        .sheet {
+          left: 50%;
+          right: auto;
+          top: 50%;
+          bottom: auto;
+          width: min(580px, calc(100% - 48px));
+          max-height: calc(100% - 64px);
+          border-radius: var(--r-sheet);
+          opacity: 0;
+          transform: translate(-50%, -47%) scale(0.98);
+          transition:
+            transform 220ms var(--ease),
+            opacity 220ms var(--ease),
+            visibility 0s linear 220ms;
+        }
+        .sheet-open .sheet {
+          opacity: 1;
+          transform: translate(-50%, -50%);
+          transition:
+            transform 220ms var(--ease),
+            opacity 220ms var(--ease),
+            visibility 0s;
+        }
+        .grabber {
+          display: none;
+        }
+        .sheet-head {
+          padding-top: 18px;
+        }
+        .lift-grid {
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+      }
+
+      /* ---------- Toast ---------- */
+      .toast {
+        position: absolute;
+        z-index: 20;
+        left: 50%;
+        bottom: 92px;
+        transform: translateX(-50%);
+        width: max-content;
+        max-width: calc(100% - 32px);
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 8px 8px 14px;
+        border-radius: 14px;
+        background: var(--toast-bg);
+        color: var(--toast-fg);
+        box-shadow: var(--shadow-lg);
+        font-size: 14px;
+        font-weight: 500;
+        animation: toast-in 240ms var(--ease);
+      }
+      .toast > svg.lucide {
+        color: var(--toast-ok);
+      }
+      .toast-undo {
+        height: 34px;
+        padding: 0 10px;
+        border: 0;
+        border-radius: 8px;
+        background: transparent;
+        color: var(--toast-action);
+        font-weight: 600;
+      }
+      .toast-undo:hover {
+        background: color-mix(in oklch, var(--toast-bg), var(--toast-fg) 10%);
+      }
+      .frame[data-frame="mobile"] .toast {
+        bottom: 110px;
+      }
+      @keyframes toast-in {
+        from {
+          opacity: 0;
+          translate: 0 10px;
+        }
+      }
+      @container app (min-width: 700px) {
+        .toast {
+          left: auto;
+          right: 24px;
+          bottom: 24px;
+          transform: none;
+        }
+      }
+
+      /* ---------- Empty state ---------- */
+      .empty {
+        display: grid;
+        justify-items: center;
+        text-align: center;
+        gap: 10px;
+        padding: 28px 20px;
+      }
+      .empty-art {
+        width: 132px;
+        height: 92px;
+        display: grid;
+        place-items: center;
+        border-radius: 26px;
+        background: var(--brand-soft);
+        color: var(--brand-ink);
+      }
+      .empty-art svg {
+        width: 92px;
+      }
+      .empty h3 {
+        font: 600 17px/1.3 var(--font-ui);
+        margin-top: 6px;
+      }
+      .empty p {
+        color: var(--fg-muted);
+        max-width: 36ch;
+        font-size: 14px;
+      }
+      .empty .btn {
+        margin-top: 6px;
+      }
+
+      /* ---------- Foundation board ---------- */
+      .foundation {
+        max-width: 1320px;
+        margin: 0 auto;
+        display: grid;
+        gap: 16px;
+        grid-template-columns: minmax(0, 1fr);
+      }
+      .f-card {
+        padding: 20px;
+        min-width: 0;
+      }
+      .f-card > h2 {
+        font: 650 19px/1.25 var(--font-ui);
+        letter-spacing: -0.01em;
+        margin: 4px 0 14px;
+      }
+      .f-card > p.lead {
+        color: var(--fg-muted);
+        font-size: 14px;
+        margin: -6px 0 14px;
+        max-width: 70ch;
+      }
+      .f-sub {
+        font: 600 14px/1.3 var(--font-ui);
+        margin: 18px 0 10px;
+      }
+      .swatches {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+        gap: 14px;
+      }
+      .sw {
+        display: grid;
+        gap: 5px;
+        min-width: 0;
+      }
+      .sw-chip {
+        height: 54px;
+        border-radius: 10px;
+        border: 1px solid var(--border);
+        background: var(--c);
+      }
+      .sw-name {
+        font-weight: 600;
+        font-size: 13.5px;
+      }
+      .sw-meta {
+        font:
+          12px/1.35 ui-monospace,
+          SFMono-Regular,
+          Menlo,
+          monospace;
+        color: var(--fg-muted);
+        overflow-wrap: anywhere;
+      }
+      .table-wrap {
+        overflow-x: auto;
+      }
+      .ctable {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 14px;
+      }
+      .ctable th,
+      .ctable td {
+        padding: 9px 8px;
+        border-bottom: 1px solid var(--border);
+        text-align: left;
+        vertical-align: middle;
+      }
+      .ctable th {
+        font: 600 12px/16px var(--font-ui);
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--fg-muted);
+      }
+      .ctable td.r {
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+      }
+      .sample {
+        display: inline-flex;
+        align-items: center;
+        height: 28px;
+        padding: 0 10px;
+        border-radius: 7px;
+        font-weight: 600;
+        font-size: 13px;
+        white-space: nowrap;
+      }
+      .type-row {
+        display: grid;
+        gap: 4px;
+        padding: 12px 0;
+        border-bottom: 1px solid var(--border);
+      }
+      .type-row:last-child {
+        border-bottom: 0;
+      }
+      .type-tag {
+        font:
+          12px/1.3 ui-monospace,
+          SFMono-Regular,
+          Menlo,
+          monospace;
+        color: var(--fg-muted);
+      }
+      .radius-demo {
+        width: 76px;
+        height: 56px;
+        display: grid;
+        place-items: center;
+        background: var(--surface-2);
+        border: 1px solid var(--border);
+        font-size: 12px;
+        color: var(--fg-muted);
+      }
+      .shadow-demo {
+        width: 96px;
+        height: 64px;
+        display: grid;
+        place-items: center;
+        border-radius: var(--r-card);
+        background: var(--surface);
+        font-size: 12px;
+        color: var(--fg-muted);
+        border: 1px solid var(--border);
+      }
+      .space-demo {
+        display: grid;
+        gap: 6px;
+      }
+      .space-demo div {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font:
+          12px ui-monospace,
+          SFMono-Regular,
+          Menlo,
+          monospace;
+        color: var(--fg-muted);
+      }
+      .space-demo span {
+        display: block;
+        height: 10px;
+        border-radius: 3px;
+        background: var(--brand);
+      }
+      .f-stack {
+        display: grid;
+        gap: 14px;
+      }
+      .demo-toast {
+        position: static;
+        transform: none;
+        animation: none;
+        display: inline-flex;
+      }
+      @media (min-width: 900px) {
+        .foundation {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+        .f-wide {
+          grid-column: 1 / -1;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+          animation-duration: 0.01ms !important;
+          animation-iteration-count: 1 !important;
+          transition-duration: 0.01ms !important;
+          scroll-behavior: auto !important;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="ctl">
+      <div class="ctl-brand">
+        <span class="mark"><i data-lucide="bike"></i></span>
+        <div>
+          <p class="ctl-name">Bike-Book</p>
+          <p class="ctl-sub">Maquettes de la phase 1 · proposition à valider</p>
+        </div>
+      </div>
+      <div class="ctl-groups">
+        <div class="ctl-group">
+          <span class="ctl-label" id="lbl-screen">Écran</span>
+          <div class="seg" data-control="screen" role="group" aria-labelledby="lbl-screen">
+            <button type="button" data-value="dash">Accueil</button>
+            <button type="button" data-value="bike">Page vélo</button>
+            <button type="button" data-value="quick">Saisie rapide</button>
+            <button type="button" data-value="ai">IA (phase 3)</button>
+            <button type="button" data-value="foundation">Fondation</button>
+          </div>
+        </div>
+        <div class="ctl-group">
+          <span class="ctl-label" id="lbl-frame">Cadre</span>
+          <div class="seg" data-control="frame" role="group" aria-labelledby="lbl-frame">
+            <button type="button" data-value="auto">Auto</button>
+            <button type="button" data-value="mobile">iPhone</button>
+            <button type="button" data-value="tablet">Tablette</button>
+            <button type="button" data-value="desktop">PC</button>
+          </div>
+        </div>
+        <div class="ctl-group">
+          <span class="ctl-label" id="lbl-theme">Thème</span>
+          <div class="seg" data-control="theme" role="group" aria-labelledby="lbl-theme">
+            <button type="button" data-value="system">Système</button>
+            <button type="button" data-value="light">Clair</button>
+            <button type="button" data-value="dark">Sombre</button>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <div class="stage" id="stage">
+        <div class="frame" id="frame" data-frame="auto">
+          <div class="app" id="app">
+            <nav class="sidebar" aria-label="Navigation principale">
+              <div class="sb-brand">
+                <span class="mark"><i data-lucide="bike"></i></span
+                ><span class="lbl brand-name">Bike-Book</span>
+              </div>
+              <button
+                type="button"
+                class="btn primary sb-add"
+                data-open-sheet
+                aria-label="Ajouter une sortie"
+              >
+                <i data-lucide="plus"></i><span class="lbl">Ajouter une sortie</span>
+              </button>
+              <ul class="sb-nav">
+                <li>
+                  <button type="button" class="nav-item" data-go="dash">
+                    <i data-lucide="house"></i><span class="lbl">Accueil</span>
+                  </button>
+                </li>
+                <li>
+                  <button type="button" class="nav-item" data-go="bike">
+                    <i data-lucide="bike"></i><span class="lbl">Vélos</span>
+                  </button>
+                </li>
+                <li>
+                  <button type="button" class="nav-item" data-todo>
+                    <i data-lucide="activity"></i><span class="lbl">Activité</span>
+                  </button>
+                </li>
+                <li>
+                  <button type="button" class="nav-item" data-todo>
+                    <i data-lucide="list-checks"></i><span class="lbl">Tâches</span>
+                  </button>
+                </li>
+              </ul>
+              <div class="sb-foot">
+                <button type="button" class="nav-item" data-todo>
+                  <i data-lucide="settings"></i><span class="lbl">Réglages</span>
+                </button>
+                <div class="user">
+                  <span class="avatar" aria-hidden="true">CM</span
+                  ><span class="lbl"
+                    ><span class="user-name">Camille Martin</span><br /><span class="user-ws"
+                      >Mon garage</span
+                    ></span
+                  >
+                </div>
+              </div>
+            </nav>
+
+            <header class="topbar">
+              <div class="tb-group tb-dash">
+                <button type="button" class="ws-btn" data-todo>
+                  Mon garage<i data-lucide="chevrons-up-down"></i>
+                </button>
+              </div>
+              <div class="tb-group tb-bike crumb" hidden>
+                <button type="button" class="back" data-go="dash">
+                  <i data-lucide="chevron-left"></i>Vélos
+                </button>
+                <span class="sep" aria-hidden="true">/</span>
+                <span class="here">Spectral</span>
+              </div>
+              <div class="tb-group tb-ai crumb" hidden>
+                <button type="button" class="back" data-go="dash">
+                  <i data-lucide="chevron-left"></i>Accueil
+                </button>
+                <span class="sep" aria-hidden="true">/</span>
+                <span class="here">Analyses</span>
+              </div>
+              <div class="tb-group tb-actions">
+                <button
+                  type="button"
+                  class="icon-btn tb-bike-only"
+                  data-todo
+                  aria-label="Modifier le vélo"
+                  hidden
+                >
+                  <i data-lucide="pencil"></i>
+                </button>
+                <button
+                  type="button"
+                  class="icon-btn"
+                  data-theme-cycle
+                  aria-label="Changer de thème"
+                >
+                  <i data-lucide="sun-moon"></i>
+                </button>
+                <button type="button" class="icon-btn" data-todo aria-label="Mon compte">
+                  <span class="avatar" aria-hidden="true">CM</span>
+                </button>
+              </div>
+            </header>
+
+            <div class="main" id="main">
+              <div class="main-inner">
+                <section class="screen" data-screen="dash" aria-labelledby="dash-title">
+                  <div class="page-head">
+                    <p class="eyebrow">Dimanche 25 octobre</p>
+                    <h1 class="page-title" id="dash-title">Bonjour Camille</h1>
+                  </div>
+                  <div class="summary">
+                    <button
+                      type="button"
+                      class="sum late"
+                      data-toast="Filtre : entretiens en retard"
+                    >
+                      <span class="sum-ico"><i data-lucide="octagon-alert"></i></span
+                      ><strong class="num">1</strong><span class="l">en retard</span>
+                    </button>
+                    <button
+                      type="button"
+                      class="sum soon"
+                      data-toast="Filtre : entretiens à prévoir bientôt"
+                    >
+                      <span class="sum-ico"><i data-lucide="clock"></i></span
+                      ><strong class="num">3</strong><span class="l">bientôt</span>
+                    </button>
+                    <button
+                      type="button"
+                      class="sum parts"
+                      data-toast="Filtre : pièces à commander"
+                    >
+                      <span class="sum-ico"><i data-lucide="package"></i></span
+                      ><strong class="num">2</strong><span class="l">pièces à commander</span>
+                    </button>
+                  </div>
+                  <div class="dash">
+                    <section class="area-plan">
+                      <div class="sec-head">
+                        <h2 class="sec-title">À prévoir</h2>
+                        <button type="button" class="link" data-todo>Tout voir</button>
+                      </div>
+                      <ul class="card list" id="dash-rules"></ul>
+                    </section>
+                    <section class="area-bikes">
+                      <div class="sec-head">
+                        <h2 class="sec-title">Mes vélos</h2>
+                        <button type="button" class="link" data-todo>Gérer</button>
+                      </div>
+                      <div class="bike-cards" id="dash-bikes"></div>
+                    </section>
+                    <section class="area-parts">
+                      <div class="sec-head"><h2 class="sec-title">Pièces à commander</h2></div>
+                      <ul class="card list" id="dash-parts"></ul>
+                    </section>
+                    <section class="area-activity">
+                      <div class="sec-head">
+                        <h2 class="sec-title">Dernières activités</h2>
+                        <button type="button" class="link" data-todo>Tout l'historique</button>
+                      </div>
+                      <div class="card pad"><ol class="tl" id="dash-activity"></ol></div>
+                    </section>
+                  </div>
+                </section>
+
+                <section class="screen" data-screen="bike" aria-labelledby="bike-title" hidden>
+                  <div class="bike-hero" id="bike-hero"></div>
+                  <div class="bike-actions">
+                    <button type="button" class="btn primary" data-open-sheet>
+                      <i data-lucide="plus"></i>Ajouter une sortie
+                    </button>
+                    <button type="button" class="btn secondary" data-todo>
+                      <i data-lucide="wrench"></i>Entretien
+                    </button>
+                    <button type="button" class="btn secondary" data-todo>
+                      <i data-lucide="replace"></i>Remplacer une pièce
+                    </button>
+                  </div>
+                  <div class="stats">
+                    <div class="stat">
+                      <div class="stat-v num">2&#8239;846<small>km</small></div>
+                      <div class="stat-l">Distance totale</div>
+                    </div>
+                    <div class="stat">
+                      <div class="stat-v num">198<small>h</small></div>
+                      <div class="stat-l">
+                        Heures d'usure<button
+                          type="button"
+                          class="info-btn"
+                          aria-label="Comment sont calculées les heures d'usure"
+                          data-toast="En bike park, seul le temps de descente use le vélo"
+                        >
+                          <i data-lucide="info"></i>
+                        </button>
+                      </div>
+                    </div>
+                    <div class="stat">
+                      <div class="stat-v num">64</div>
+                      <div class="stat-l">Sorties</div>
+                    </div>
+                    <div class="stat">
+                      <div class="stat-v num">13<small>j</small></div>
+                      <div class="stat-l">Depuis le dernier entretien</div>
+                    </div>
+                  </div>
+                  <p class="trust">
+                    Calculé sur 64 sorties depuis le 14 mars 2024.
+                    <button type="button" class="link" data-todo>Voir le détail</button>
+                  </p>
+                  <div class="tabs" role="tablist" aria-label="Sections du vélo">
+                    <button
+                      type="button"
+                      class="tab"
+                      role="tab"
+                      aria-selected="true"
+                      data-tab="overview"
+                    >
+                      À prévoir
+                    </button>
+                    <button
+                      type="button"
+                      class="tab"
+                      role="tab"
+                      aria-selected="false"
+                      data-tab="components"
+                    >
+                      Composants
+                    </button>
+                    <button
+                      type="button"
+                      class="tab"
+                      role="tab"
+                      aria-selected="false"
+                      data-tab="history"
+                    >
+                      Historique
+                    </button>
+                  </div>
+                  <div class="bike-grid" id="bike-grid" data-tab="overview">
+                    <section class="sec-plan">
+                      <div class="sec-head">
+                        <h2 class="sec-title">À prévoir</h2>
+                        <button type="button" class="link" data-todo>Règles</button>
+                      </div>
+                      <ul class="card list" id="bike-rules"></ul>
+                    </section>
+                    <section class="sec-components">
+                      <div class="sec-head">
+                        <h2 class="sec-title">Composants montés</h2>
+                        <button type="button" class="link" data-todo>Historique des pièces</button>
+                      </div>
+                      <div class="card" id="bike-components"></div>
+                    </section>
+                    <section class="sec-history">
+                      <div class="sec-head">
+                        <h2 class="sec-title">Historique</h2>
+                        <span class="hint">Sorties et entretiens</span>
+                      </div>
+                      <div class="card pad" id="bike-history"></div>
+                    </section>
+                  </div>
+                </section>
+
+                <section class="screen" data-screen="ai" aria-labelledby="ai-title" hidden>
+                  <div class="page-head">
+                    <p class="eyebrow">Aperçu · phase 3</p>
+                    <h1 class="page-title" id="ai-title">Analyses et suggestions</h1>
+                    <p class="lead-muted">
+                      L'IA arrive après la phase 2. Cet écran fixe dès maintenant la façon de la
+                      présenter : on distingue toujours ce qui est calculé, estimé ou suggéré, et
+                      rien n'est enregistré sans ton accord.
+                    </p>
+                  </div>
+                  <ul class="levels" aria-label="Niveaux de certitude">
+                    <li>
+                      <span class="lv-ico"><i data-lucide="calculator"></i></span>
+                      <div>
+                        <p class="lv-name">Calculé</p>
+                        <p class="hint">Règles et compteurs. Affichage normal.</p>
+                      </div>
+                    </li>
+                    <li>
+                      <span class="lv-ico"><i data-lucide="trending-up"></i></span>
+                      <div>
+                        <p class="lv-name">Estimé</p>
+                        <p class="hint">Projection ou statistique. Signe ≈ et « Pourquoi ? ».</p>
+                      </div>
+                    </li>
+                    <li class="lv-suggest">
+                      <span class="lv-ico"><i data-lucide="sparkles"></i></span>
+                      <div>
+                        <p class="lv-name">Suggéré</p>
+                        <p class="hint">
+                          Proposé par un modèle de langage. Cadre en pointillés, à valider.
+                        </p>
+                      </div>
+                    </li>
+                  </ul>
+                  <div class="ai-grid">
+                    <section>
+                      <div class="sec-head">
+                        <h2 class="sec-title">Suggestion sur l'accueil</h2>
+                      </div>
+                      <article class="suggest">
+                        <p class="ai-label">
+                          <i data-lucide="sparkles"></i>Suggestion · à vérifier
+                        </p>
+                        <p class="suggest-text">
+                          Plaquettes avant du Lourd : 1,4&nbsp;mm mesurés le 20&nbsp;octobre, puis
+                          deux sorties sous la pluie. Vérifie-les avant ta prochaine sortie.
+                        </p>
+                        <p class="hint">D'après 1 mesure et 2 sorties (Humide, Boue).</p>
+                        <div class="row-wrap">
+                          <button
+                            type="button"
+                            class="btn primary sm"
+                            data-toast="Tâche créée : vérifier les plaquettes avant du Lourd"
+                          >
+                            <i data-lucide="list-plus"></i>Créer une tâche
+                          </button>
+                          <button
+                            type="button"
+                            class="btn ghost sm"
+                            data-toast="Suggestion ignorée"
+                          >
+                            Ignorer
+                          </button>
+                        </div>
+                      </article>
+                    </section>
+                    <section>
+                      <div class="sec-head">
+                        <h2 class="sec-title">Échéance ajustée à ton usage</h2>
+                      </div>
+                      <ul class="card list">
+                        <li class="rule" data-status="soon">
+                          <span class="rule-ico"><i data-lucide="link"></i></span>
+                          <div class="rule-body">
+                            <div class="rule-top">
+                              <span class="rule-ctx">Gravel alu · Chaîne</span
+                              ><span class="badge soon"><i data-lucide="clock"></i>Bientôt</span>
+                            </div>
+                            <h3 class="rule-title">Remplacement de la chaîne</h3>
+                            <div
+                              class="wear"
+                              role="img"
+                              aria-label="2 390 km sur environ 2 600 km, 92 %"
+                            >
+                              <span class="wear-fill" style="--p: 92%"></span
+                              ><span class="wear-tick"></span>
+                            </div>
+                            <div class="rule-meta">
+                              <span
+                                ><span class="num">2&#8239;390&nbsp;km</span> /
+                                ≈&nbsp;2&#8239;600&nbsp;km</span
+                              ><span>≈ dans 3 semaines</span>
+                            </div>
+                            <details class="why">
+                              <summary>
+                                <span class="badge outline"
+                                  ><i data-lucide="trending-up"></i>Estimation</span
+                                >Pourquoi cette échéance ?
+                              </summary>
+                              <ul>
+                                <li>Intervalle du fabricant : 3&#8239;000&nbsp;km.</li>
+                                <li>
+                                  Tes 3 dernières chaînes ont duré 2&#8239;450, 2&#8239;600 et
+                                  2&#8239;700&nbsp;km : médiane 2&#8239;600&nbsp;km.
+                                </li>
+                                <li>
+                                  4 sorties sous la pluie ou dans la boue comptées ×1,3 (facteur
+                                  modifiable).
+                                </li>
+                                <li>Confiance moyenne : seulement 3 remplacements connus.</li>
+                              </ul>
+                            </details>
+                          </div>
+                        </li>
+                      </ul>
+                    </section>
+                    <section>
+                      <div class="sec-head">
+                        <h2 class="sec-title">Fiche technique proposée</h2>
+                        <span class="hint">Orbea Wild H20 · 2025</span>
+                      </div>
+                      <div class="suggest flush">
+                        <p class="ai-label">
+                          <i data-lucide="sparkles"></i>Proposée par l'assistant · coche ce que tu
+                          gardes
+                        </p>
+                        <ul class="list review" id="review">
+                          <li class="rv">
+                            <input type="checkbox" id="rv1" checked /><label
+                              for="rv1"
+                              class="rv-main"
+                              ><span class="comp-type">Moteur</span
+                              ><span class="comp-model">Bosch Performance Line CX</span></label
+                            ><span class="src"><i data-lucide="link-2"></i>Site du fabricant</span>
+                          </li>
+                          <li class="rv">
+                            <input type="checkbox" id="rv2" checked /><label
+                              for="rv2"
+                              class="rv-main"
+                              ><span class="comp-type">Batterie</span
+                              ><span class="comp-model">Bosch PowerTube 750&nbsp;Wh</span></label
+                            ><span class="src"><i data-lucide="link-2"></i>Site du fabricant</span>
+                          </li>
+                          <li class="rv">
+                            <input type="checkbox" id="rv3" checked /><label
+                              for="rv3"
+                              class="rv-main"
+                              ><span class="comp-type">Fourche</span
+                              ><span class="comp-model">Fox 38 · 170&nbsp;mm</span></label
+                            ><span class="src"><i data-lucide="link-2"></i>Site du fabricant</span>
+                          </li>
+                          <li class="rv">
+                            <input type="checkbox" id="rv4" /><label for="rv4" class="rv-main"
+                              ><span class="comp-type">Amortisseur</span
+                              ><span class="comp-model">Fox Float X</span></label
+                            ><span class="badge outline"
+                              ><i data-lucide="triangle-alert"></i>Sans source</span
+                            >
+                          </li>
+                        </ul>
+                        <div class="review-foot">
+                          <button
+                            type="button"
+                            class="btn primary sm"
+                            id="rv-import"
+                            data-toast="Composants importés ; les règles d'entretien seront proposées ensuite"
+                          >
+                            Importer 3 lignes
+                          </button>
+                          <button type="button" class="btn ghost sm" data-toast="Fiche refusée">
+                            Tout refuser
+                          </button>
+                        </div>
+                      </div>
+                    </section>
+                    <section>
+                      <div class="sec-head">
+                        <h2 class="sec-title">Question sur tes données</h2>
+                      </div>
+                      <form class="ask" id="ask-form">
+                        <div class="field">
+                          <label for="ai-q">Pose une question</label>
+                          <div class="input-wrap">
+                            <input
+                              id="ai-q"
+                              autocomplete="off"
+                              value="Combien m'a coûté le Spectral depuis l'achat ?"
+                            /><button
+                              type="submit"
+                              class="icon-btn"
+                              aria-label="Envoyer la question"
+                            >
+                              <i data-lucide="send"></i>
+                            </button>
+                          </div>
+                        </div>
+                      </form>
+                      <div class="card pad answer">
+                        <p class="ai-label">
+                          <i data-lucide="sparkles"></i>Réponse générée à partir de tes données
+                        </p>
+                        <p class="answer-text">
+                          Entretien et pièces :
+                          <strong class="num">1&#8239;284&nbsp;€</strong> depuis mars 2024, soit
+                          <strong class="num">45&nbsp;€</strong> pour 100&nbsp;km.
+                        </p>
+                        <p class="hint">
+                          Calculé sur 9 entretiens et 64 sorties. Les montants viennent de tes
+                          saisies, pas du modèle.
+                        </p>
+                        <div>
+                          <button type="button" class="link" data-todo>
+                            Voir les 9 entretiens
+                          </button>
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                </section>
+
+                <div class="sk-screen" aria-hidden="true">
+                  <span class="sk" style="width: 40%; height: 14px"></span>
+                  <span class="sk" style="width: 62%; height: 30px"></span>
+                  <div class="card">
+                    <div class="sk-row">
+                      <span class="sk" style="height: 44px"></span>
+                      <div style="display: grid; gap: 8px">
+                        <span class="sk" style="width: 50%; height: 12px"></span
+                        ><span class="sk" style="width: 80%; height: 16px"></span
+                        ><span class="sk" style="height: 8px"></span>
+                      </div>
+                    </div>
+                    <div class="sk-row">
+                      <span class="sk" style="height: 44px"></span>
+                      <div style="display: grid; gap: 8px">
+                        <span class="sk" style="width: 40%; height: 12px"></span
+                        ><span class="sk" style="width: 70%; height: 16px"></span
+                        ><span class="sk" style="height: 8px"></span>
+                      </div>
+                    </div>
+                  </div>
+                  <span class="sk" style="height: 160px; border-radius: 14px"></span>
+                </div>
+              </div>
+            </div>
+
+            <nav class="bottomnav" aria-label="Navigation principale">
+              <button type="button" class="bn-item" data-go="dash">
+                <i data-lucide="house"></i><span>Accueil</span>
+              </button>
+              <button type="button" class="bn-item" data-go="bike">
+                <i data-lucide="bike"></i><span>Vélos</span>
+              </button>
+              <button type="button" class="bn-fab" data-open-sheet aria-label="Ajouter une sortie">
+                <i data-lucide="plus"></i>
+              </button>
+              <button type="button" class="bn-item" data-todo>
+                <i data-lucide="activity"></i><span>Activité</span>
+              </button>
+              <button type="button" class="bn-item" data-todo>
+                <i data-lucide="list-checks"></i><span>Tâches</span>
+              </button>
+            </nav>
+
+            <div class="scrim" data-close-sheet></div>
+            <div
+              class="sheet"
+              id="sheet"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="qa-title"
+              inert
+            >
+              <div class="grabber" aria-hidden="true"></div>
+              <div class="sheet-head">
+                <div>
+                  <h2 class="sheet-title" id="qa-title">Nouvelle sortie</h2>
+                  <p class="hint">Obligatoire : le vélo, la date et une durée.</p>
+                </div>
+                <button type="button" class="icon-btn" data-close-sheet aria-label="Fermer">
+                  <i data-lucide="x"></i>
+                </button>
+              </div>
+              <form id="qa-form" novalidate>
+                <div class="sheet-body">
+                  <fieldset class="fs">
+                    <legend class="legend">Vélo</legend>
+                    <div class="chips scroll" id="qa-bikes"></div>
+                  </fieldset>
+                  <fieldset class="fs">
+                    <legend class="legend">Date</legend>
+                    <div class="chips">
+                      <label class="chip"
+                        ><input type="radio" name="qa-when" value="today" checked /><span
+                          >Aujourd'hui</span
+                        ></label
+                      >
+                      <label class="chip"
+                        ><input type="radio" name="qa-when" value="yesterday" /><span
+                          >Hier</span
+                        ></label
+                      >
+                      <label class="chip"
+                        ><input type="radio" name="qa-when" value="other" /><span
+                          ><i data-lucide="calendar"></i>Autre date</span
+                        ></label
+                      >
+                    </div>
+                    <div class="field" id="qa-date-field" hidden>
+                      <label for="qa-date">Date de la sortie</label>
+                      <div class="input-wrap">
+                        <input id="qa-date" type="date" value="2026-10-23" max="2026-10-25" />
+                      </div>
+                    </div>
+                  </fieldset>
+                  <fieldset class="fs">
+                    <legend class="legend">
+                      Type <span class="hint">· proposé d'après tes sorties avec ce vélo</span>
+                    </legend>
+                    <div class="chips scroll" id="qa-types"></div>
+                  </fieldset>
+                  <fieldset class="fs" id="qa-duration-fs">
+                    <legend class="legend">Durée</legend>
+                    <div class="field" id="qa-duration">
+                      <div class="duo">
+                        <div class="input-wrap">
+                          <input
+                            id="qa-h"
+                            inputmode="numeric"
+                            pattern="[0-9]*"
+                            maxlength="2"
+                            autocomplete="off"
+                            aria-label="Heures"
+                            aria-describedby="qa-duration-err"
+                          /><span class="suffix">h</span>
+                        </div>
+                        <div class="input-wrap">
+                          <input
+                            id="qa-min"
+                            inputmode="numeric"
+                            pattern="[0-9]*"
+                            maxlength="2"
+                            autocomplete="off"
+                            aria-label="Minutes"
+                            aria-describedby="qa-duration-err"
+                          /><span class="suffix">min</span>
+                        </div>
+                      </div>
+                      <p class="err" id="qa-duration-err" hidden>
+                        <i data-lucide="circle-alert"></i>Indique une durée, même approximative.
+                      </p>
+                    </div>
+                  </fieldset>
+                  <div class="liftbox" id="qa-lift" hidden>
+                    <div class="lift-head">
+                      <i data-lucide="cable-car"></i>
+                      <p>
+                        Avec remontées mécaniques, seul le temps de descente use le vélo. Sans lui,
+                        l'usure se calcule sur le temps total.
+                      </p>
+                    </div>
+                    <div class="lift-grid">
+                      <div class="field" id="qa-total">
+                        <label for="qa-total-h">Temps total</label>
+                        <div class="duo">
+                          <div class="input-wrap">
+                            <input
+                              id="qa-total-h"
+                              inputmode="numeric"
+                              pattern="[0-9]*"
+                              maxlength="2"
+                              autocomplete="off"
+                              aria-describedby="qa-total-err"
+                            /><span class="suffix">h</span>
+                          </div>
+                          <div class="input-wrap">
+                            <input
+                              id="qa-total-min"
+                              inputmode="numeric"
+                              pattern="[0-9]*"
+                              maxlength="2"
+                              autocomplete="off"
+                              aria-label="Temps total, minutes"
+                              aria-describedby="qa-total-err"
+                            /><span class="suffix">min</span>
+                          </div>
+                        </div>
+                        <p class="err" id="qa-total-err" hidden>
+                          <i data-lucide="circle-alert"></i>Indique le temps total de la journée.
+                        </p>
+                      </div>
+                      <div class="field">
+                        <label for="qa-desc-h">Temps de descente</label>
+                        <div class="duo">
+                          <div class="input-wrap">
+                            <input
+                              id="qa-desc-h"
+                              inputmode="numeric"
+                              pattern="[0-9]*"
+                              maxlength="2"
+                              autocomplete="off"
+                            /><span class="suffix">h</span>
+                          </div>
+                          <div class="input-wrap">
+                            <input
+                              id="qa-desc-min"
+                              inputmode="numeric"
+                              pattern="[0-9]*"
+                              maxlength="2"
+                              autocomplete="off"
+                              aria-label="Temps de descente, minutes"
+                            /><span class="suffix">min</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div class="field">
+                        <label for="qa-runs">Descentes</label>
+                        <div class="input-wrap">
+                          <input
+                            id="qa-runs"
+                            inputmode="numeric"
+                            pattern="[0-9]*"
+                            maxlength="3"
+                            autocomplete="off"
+                            placeholder="0"
+                          /><span class="suffix">runs</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="grid2">
+                    <div class="field">
+                      <label for="qa-dist">Distance</label>
+                      <div class="input-wrap">
+                        <input
+                          id="qa-dist"
+                          inputmode="decimal"
+                          autocomplete="off"
+                          placeholder="0,0"
+                        /><span class="suffix">km</span>
+                      </div>
+                    </div>
+                    <div class="field">
+                      <label for="qa-elev">Dénivelé +</label>
+                      <div class="input-wrap">
+                        <input
+                          id="qa-elev"
+                          inputmode="numeric"
+                          pattern="[0-9]*"
+                          autocomplete="off"
+                          placeholder="0"
+                        /><span class="suffix">m</span>
+                      </div>
+                    </div>
+                  </div>
+                  <fieldset class="fs">
+                    <legend class="legend">
+                      Conditions <span class="hint">· facultatif, affinera l'usure plus tard</span>
+                    </legend>
+                    <div class="chips scroll">
+                      <label class="chip"
+                        ><input type="radio" name="qa-cond" value="dry" /><span>Sec</span></label
+                      >
+                      <label class="chip"
+                        ><input type="radio" name="qa-cond" value="wet" /><span>Humide</span></label
+                      >
+                      <label class="chip"
+                        ><input type="radio" name="qa-cond" value="mud" /><span>Boue</span></label
+                      >
+                      <label class="chip"
+                        ><input type="radio" name="qa-cond" value="dust" /><span
+                          >Poussière</span
+                        ></label
+                      >
+                      <label class="chip"
+                        ><input type="radio" name="qa-cond" value="snow" /><span>Neige</span></label
+                      >
+                    </div>
+                  </fieldset>
+                  <details class="more">
+                    <summary>
+                      <i data-lucide="chevron-right"></i>Plus de détails<span class="hint"
+                        >lieu, notes</span
+                      >
+                    </summary>
+                    <div class="more-body">
+                      <div class="field">
+                        <label for="qa-place">Lieu</label>
+                        <div class="input-wrap">
+                          <input
+                            id="qa-place"
+                            autocomplete="off"
+                            placeholder="Ex. Massif des Bauges"
+                          />
+                        </div>
+                        <div class="row-wrap" style="gap: 6px">
+                          <button type="button" class="chip-btn" data-fill="Massif des Bauges">
+                            Massif des Bauges
+                          </button>
+                          <button type="button" class="chip-btn" data-fill="Salève">Salève</button>
+                          <button type="button" class="chip-btn" data-fill="Les Gets">
+                            Les Gets
+                          </button>
+                        </div>
+                      </div>
+                      <div class="field">
+                        <label for="qa-notes">Notes</label>
+                        <div class="input-wrap area">
+                          <textarea
+                            id="qa-notes"
+                            rows="2"
+                            placeholder="Réglages, sensations, incidents…"
+                          ></textarea>
+                        </div>
+                      </div>
+                    </div>
+                  </details>
+                </div>
+                <div class="sheet-foot">
+                  <button type="submit" class="btn primary lg block">
+                    <i data-lucide="check"></i>Enregistrer la sortie
+                  </button>
+                </div>
+              </form>
+            </div>
+
+            <div class="toast" id="toast" role="status" aria-live="polite" hidden>
+              <i data-lucide="circle-check"></i><span class="toast-msg"></span
+              ><button type="button" class="toast-undo" hidden>Annuler</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <p class="stage-note" id="stage-note">
+        Données fictives. « Vélos » ouvre directement la page d'un vélo ; Activité, Tâches et
+        Réglages ne sont pas maquettés.
+      </p>
+
+      <section class="foundation" id="foundation" hidden aria-label="Fondation du design">
+        <div class="card f-card f-wide">
+          <p class="f-kicker">Couleurs</p>
+          <h2>Palette du thème affiché</h2>
+          <p class="lead">
+            Un accent turquoise « anodisé », des gris légèrement bleutés, et trois couleurs de
+            statut réservées à l'usure. Bascule le thème en haut : les valeurs se mettent à jour.
+          </p>
+          <div class="swatches" id="swatches"></div>
+        </div>
+        <div class="card f-card">
+          <p class="f-kicker">Accessibilité</p>
+          <h2>Contrastes mesurés</h2>
+          <p class="lead">
+            Calculés en direct dans le thème affiché. Seuil AA : 4,5:1 pour le texte.
+          </p>
+          <div class="table-wrap">
+            <table class="ctable">
+              <thead>
+                <tr>
+                  <th>Usage</th>
+                  <th>Aperçu</th>
+                  <th class="r">Ratio</th>
+                </tr>
+              </thead>
+              <tbody id="contrast"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card f-card">
+          <p class="f-kicker">Typographie</p>
+          <h2>Deux familles, six tailles</h2>
+          <div class="type-row">
+            <span class="type-tag">Chiffres · Barlow Semi Condensed 700 · 40/44</span
+            ><span class="num" style="font-size: 40px; line-height: 44px; font-weight: 700"
+              >2&#8239;846&nbsp;km · 56&nbsp;h&nbsp;20</span
+            >
+          </div>
+          <div class="type-row">
+            <span class="type-tag">Titre de page · Geist 650 · 28/32</span
+            ><span style="font: 650 28px/32px var(--font-ui); letter-spacing: -0.02em"
+              >Bonjour Camille</span
+            >
+          </div>
+          <div class="type-row">
+            <span class="type-tag">Titre de section · Geist 600 · 17/22</span
+            ><span style="font: 600 17px/22px var(--font-ui)">À prévoir</span>
+          </div>
+          <div class="type-row">
+            <span class="type-tag">Corps · Geist 400 · 16/24</span
+            ><span style="font: 400 16px/24px var(--font-ui)"
+              >Entretien des bas de fourreaux toutes les 50&nbsp;h d'usure.</span
+            >
+          </div>
+          <div class="type-row">
+            <span class="type-tag">Secondaire · Geist 400 · 13/18</span
+            ><span style="font: 400 13px/18px var(--font-ui); color: var(--fg-muted)"
+              >Spectral · Fourche RockShox Lyrik · dernière fois le 2 mars</span
+            >
+          </div>
+          <div class="type-row">
+            <span class="type-tag">Étiquette · Geist 600 · 12/16 · capitales</span
+            ><span class="eyebrow">Suspension</span>
+          </div>
+        </div>
+        <div class="card f-card">
+          <p class="f-kicker">Formes</p>
+          <h2>Arrondis, ombres, espacements</h2>
+          <div class="row-wrap">
+            <div class="radius-demo" style="border-radius: 10px">10 · champ</div>
+            <div class="radius-demo" style="border-radius: 14px">14 · carte</div>
+            <div class="radius-demo" style="border-radius: 22px">22 · feuille</div>
+            <div class="radius-demo" style="border-radius: 999px">pastille</div>
+          </div>
+          <p class="f-sub">Ombres (atténuées en sombre)</p>
+          <div class="row-wrap">
+            <div class="shadow-demo" style="box-shadow: var(--shadow-sm)">sm</div>
+            <div class="shadow-demo" style="box-shadow: var(--shadow-md)">md</div>
+            <div class="shadow-demo" style="box-shadow: var(--shadow-lg)">lg</div>
+          </div>
+          <p class="f-sub">Espacements (pas de 4 px)</p>
+          <div class="space-demo">
+            <div><span style="width: 4px"></span>4</div>
+            <div><span style="width: 8px"></span>8</div>
+            <div><span style="width: 12px"></span>12</div>
+            <div><span style="width: 16px"></span>16 · marge mobile</div>
+            <div><span style="width: 24px"></span>24 · marge tablette</div>
+            <div><span style="width: 32px"></span>32 · marge PC</div>
+          </div>
+        </div>
+        <div class="card f-card">
+          <p class="f-kicker">Composants</p>
+          <h2>Boutons, champs, statuts</h2>
+          <div class="f-stack">
+            <div class="row-wrap">
+              <button type="button" class="btn primary"><i data-lucide="plus"></i>Ajouter</button>
+              <button type="button" class="btn secondary">
+                <i data-lucide="wrench"></i>Entretien
+              </button>
+              <button type="button" class="btn ghost">Annuler</button>
+              <button type="button" class="btn danger">
+                <i data-lucide="archive"></i>Retirer le vélo
+              </button>
+            </div>
+            <div class="grid2">
+              <div class="field">
+                <label for="f-dist">Distance</label>
+                <div class="input-wrap">
+                  <input id="f-dist" inputmode="decimal" value="42,5" /><span class="suffix"
+                    >km</span
+                  >
+                </div>
+              </div>
+              <div class="field invalid">
+                <label for="f-dur">Durée</label>
+                <div class="input-wrap">
+                  <input id="f-dur" aria-invalid="true" aria-describedby="f-dur-err" /><span
+                    class="suffix"
+                    >h</span
+                  >
+                </div>
+                <p class="err" id="f-dur-err">
+                  <i data-lucide="circle-alert"></i>Indique une durée.
+                </p>
+              </div>
+            </div>
+            <div class="row-wrap">
+              <span class="badge ok"><i data-lucide="circle-check"></i>À jour</span>
+              <span class="badge soon"><i data-lucide="clock"></i>Bientôt</span>
+              <span class="badge late"><i data-lucide="octagon-alert"></i>En retard</span>
+              <span class="badge"><i data-lucide="pause"></i>En pause</span>
+              <span class="badge brand">Commandée</span>
+              <span class="badge outline"><i data-lucide="trending-up"></i>Estimation</span>
+            </div>
+            <div style="display: grid; gap: 14px">
+              <div data-status="ok">
+                <div class="wear">
+                  <span class="wear-fill" style="--p: 45%"></span><span class="wear-tick"></span>
+                </div>
+              </div>
+              <div data-status="soon">
+                <div class="wear">
+                  <span class="wear-fill" style="--p: 92%"></span><span class="wear-tick"></span>
+                </div>
+              </div>
+              <div data-status="late">
+                <div class="wear">
+                  <span class="wear-fill" style="--p: 113%"></span><span class="wear-tick"></span>
+                </div>
+              </div>
+              <p class="hint">
+                Le trait marque le seuil « bientôt » (90 %). Au-delà de 100 %, la barre est hachurée
+                : le statut ne repose jamais sur la seule couleur.
+              </p>
+            </div>
+          </div>
+        </div>
+        <div class="card f-card">
+          <p class="f-kicker">États</p>
+          <h2>Vide, chargement, confirmation</h2>
+          <div class="f-stack">
+            <div class="card empty">
+              <div class="empty-art" id="empty-art"></div>
+              <h3>Aucun vélo pour l'instant</h3>
+              <p>Ajoute ton premier vélo pour suivre ses sorties, son entretien et ses pièces.</p>
+              <button type="button" class="btn primary">
+                <i data-lucide="plus"></i>Ajouter un vélo
+              </button>
+            </div>
+            <div class="card">
+              <div class="sk-row">
+                <span class="sk" style="height: 44px"></span>
+                <div style="display: grid; gap: 8px">
+                  <span class="sk" style="width: 45%; height: 12px"></span
+                  ><span class="sk" style="width: 75%; height: 16px"></span
+                  ><span class="sk" style="height: 8px"></span>
+                </div>
+              </div>
+            </div>
+            <div>
+              <div class="toast demo-toast">
+                <i data-lucide="circle-check"></i><span>Sortie ajoutée à Spectral · 2 h 30</span
+                ><button type="button" class="toast-undo">Annuler</button>
+              </div>
+            </div>
+            <p class="hint">
+              Transitions de 160 à 280 ms au survol, à l'appui et à l'ouverture des feuilles. Elles
+              sont coupées quand le système demande moins d'animations.
+            </p>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/lucide@0.469.0/dist/umd/lucide.min.js"></script>
+    <script>
+      (() => {
+        const $ = (s, r = document) => r.querySelector(s);
+        const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+        const root = document.documentElement;
+        const app = $("#app");
+        const main = $("#main");
+        const store = {
+          get(k) {
+            try {
+              return localStorage.getItem("bb-mock-" + k);
+            } catch {
+              return null;
+            }
+          },
+          set(k, v) {
+            try {
+              localStorage.setItem("bb-mock-" + k, v);
+            } catch {}
+          },
+        };
+        // French typography: narrow no-break space in thousands, no-break space before units.
+        const fr = (s) =>
+          String(s)
+            .replace(/(\d) (?=\d{3}\b)/g, "$1 ")
+            .replace(/(\d) (?=[A-Za-zé€%])/g, "$1 ");
+
+        const BIKES = {
+          spectral: {
+            name: "Spectral",
+            model: "Canyon Spectral 29 CF",
+            year: 2024,
+            size: "L",
+            disc: "Enduro",
+            ebike: false,
+            month: "182 km · 14 h",
+            type: "trail",
+            c: [
+              "oklch(0.72 0.08 250)",
+              "oklch(0.88 0.07 55)",
+              "oklch(0.48 0.06 265)",
+              "oklch(0.3 0.04 265)",
+            ],
+            alert: ["late", "1 en retard"],
+          },
+          lourd: {
+            name: "Le Lourd",
+            model: "Orbea Wild H20",
+            year: 2025,
+            size: "M",
+            disc: "Enduro",
+            ebike: true,
+            month: "96 km · 7 h",
+            type: "enduro",
+            c: [
+              "oklch(0.82 0.05 200)",
+              "oklch(0.92 0.04 120)",
+              "oklch(0.52 0.08 155)",
+              "oklch(0.33 0.06 160)",
+            ],
+            alert: ["soon", "1 bientôt"],
+          },
+          gravel: {
+            name: "Gravel alu",
+            model: "Specialized Diverge E5",
+            year: 2022,
+            size: "56",
+            disc: "Gravel",
+            ebike: false,
+            month: "248 km · 9 h",
+            type: "gravel",
+            c: [
+              "oklch(0.83 0.07 230)",
+              "oklch(0.93 0.06 90)",
+              "oklch(0.7 0.1 80)",
+              "oklch(0.52 0.09 60)",
+            ],
+            alert: ["soon", "1 bientôt"],
+          },
+        };
+        const STATUS = {
+          ok: ["circle-check", "À jour"],
+          soon: ["clock", "Bientôt"],
+          late: ["octagon-alert", "En retard"],
+        };
+        const RIDE_TYPES = [
+          ["trail", "Trail"],
+          ["enduro", "Enduro"],
+          ["bike_park", "Bike park", "cable-car"],
+          ["dh", "DH"],
+          ["xc", "XC"],
+          ["gravel", "Gravel"],
+          ["road", "Route"],
+          ["commute", "Vélotaf"],
+          ["other", "Autre"],
+        ];
+        const DASH_RULES = [
+          {
+            bike: "spectral",
+            comp: "Fourche RockShox Lyrik",
+            title: "Entretien des bas de fourreaux",
+            status: "late",
+            p: 113,
+            used: "56 h 20",
+            of: "50 h",
+            note: "Dépassé de 6 h 20",
+          },
+          {
+            bike: "gravel",
+            comp: "Chaîne",
+            title: "Contrôle d'usure de la chaîne",
+            status: "soon",
+            p: 92,
+            used: "462 km",
+            of: "500 km",
+            note: "≈ dans 5 jours",
+          },
+          {
+            bike: "spectral",
+            comp: "Pneus tubeless",
+            title: "Ajout de liquide préventif",
+            status: "soon",
+            p: 92,
+            used: "83 j",
+            of: "90 j",
+            note: "Le 1er novembre",
+          },
+          {
+            bike: "lourd",
+            comp: "Amortisseur Fox Float X",
+            title: "Entretien de la chambre à air",
+            status: "soon",
+            p: 91,
+            used: "45 h 30",
+            of: "50 h",
+            note: "≈ dans 2 semaines",
+          },
+        ];
+        const BIKE_RULES = [
+          {
+            icon: "chevrons-down-up",
+            comp: "Fourche · RockShox Lyrik",
+            title: "Entretien des bas de fourreaux",
+            status: "late",
+            p: 113,
+            used: "56 h 20",
+            of: "50 h",
+            note: "Dépassé de 6 h 20 · fait le 2 mars",
+          },
+          {
+            icon: "circle-dot",
+            comp: "Pneus tubeless",
+            title: "Ajout de liquide préventif",
+            status: "soon",
+            p: 92,
+            used: "83 j",
+            of: "90 j",
+            note: "Le 1er novembre",
+          },
+          {
+            icon: "link",
+            comp: "Chaîne · SRAM GX Eagle",
+            title: "Contrôle d'usure de la chaîne",
+            status: "ok",
+            p: 17,
+            used: "86 km",
+            of: "500 km",
+            note: "≈ dans 2 mois",
+          },
+          {
+            icon: "disc",
+            comp: "Freins · SRAM Maven",
+            title: "Purge des freins",
+            status: "ok",
+            p: 8,
+            used: "29 j",
+            of: "365 j",
+            note: "Le 26 septembre 2027",
+          },
+        ];
+        const PARTS = [
+          {
+            name: "Kit joints bas de fourreaux Lyrik",
+            meta: "Spectral · ≈ 35 €",
+            badge: ["outline", "À commander"],
+          },
+          {
+            name: "Chaîne Shimano CN-M8100",
+            meta: "Gravel alu · 29,90 €",
+            badge: ["brand", "Commandée"],
+          },
+        ];
+        const ACTIVITY = [
+          {
+            kind: "ride",
+            icon: "mountain",
+            date: "Hier",
+            bike: "Spectral",
+            type: "Enduro",
+            title: "Massif des Bauges",
+            meta: "38 km · 3 h 40 · 1 620 m D+",
+            tags: [["", "Boue"]],
+          },
+          {
+            kind: "ride",
+            icon: "route",
+            date: "Jeu. 22 oct.",
+            bike: "Gravel alu",
+            type: "Gravel",
+            title: "Boucle du plateau",
+            meta: "62 km · 2 h 45 · 640 m D+",
+          },
+          {
+            kind: "maint",
+            icon: "wrench",
+            date: "Mar. 20 oct.",
+            bike: "Le Lourd",
+            type: "Entretien",
+            title: "Plaquettes arrière remplacées",
+            meta: "38,00 € · fait maison",
+          },
+        ];
+        const HISTORY = [
+          {
+            month: "Octobre 2026",
+            items: [
+              {
+                kind: "ride",
+                icon: "mountain",
+                date: "Sam. 24 oct.",
+                type: "Enduro",
+                title: "Massif des Bauges",
+                meta: "38 km · 3 h 40 · 1 620 m D+",
+                tags: [["", "Boue"]],
+              },
+              {
+                kind: "ride",
+                icon: "trees",
+                date: "Dim. 18 oct.",
+                type: "Trail",
+                title: "Salève",
+                meta: "32 km · 2 h 30 · 1 050 m D+",
+              },
+              {
+                kind: "maint",
+                icon: "wrench",
+                date: "Lun. 12 oct.",
+                type: "Entretien maison",
+                title: "Chaîne et plaquettes avant remplacées",
+                meta: "68,90 €",
+                tags: [["", "facture.pdf", "paperclip"]],
+              },
+            ],
+          },
+          {
+            month: "Septembre 2026",
+            items: [
+              {
+                kind: "maint",
+                icon: "wrench",
+                date: "Sam. 26 sept.",
+                type: "Atelier Cycles du Lac",
+                title: "Purge des freins avant et arrière",
+                meta: "45,00 €",
+              },
+              {
+                kind: "ride",
+                icon: "cable-car",
+                date: "Sam. 12 sept.",
+                type: "Bike park",
+                title: "Les Gets",
+                meta: "14 descentes · 6 h au total",
+                tags: [["info", "Usure comptée : 2 h 10 de descente", "info"]],
+              },
+            ],
+          },
+        ];
+        const COMPONENTS = [
+          {
+            group: "Suspension",
+            icon: "chevrons-down-up",
+            items: [
+              {
+                type: "Fourche",
+                model: "RockShox Lyrik Ultimate · 160 mm",
+                value: "198 h",
+                since: "d'origine",
+                status: "late",
+              },
+              {
+                type: "Amortisseur",
+                model: "RockShox Super Deluxe Ultimate",
+                value: "198 h",
+                since: "d'origine",
+              },
+            ],
+          },
+          {
+            group: "Transmission",
+            icon: "link",
+            items: [
+              {
+                type: "Chaîne",
+                model: "SRAM GX Eagle T-Type",
+                value: "86 km",
+                since: "depuis le 12 oct.",
+              },
+              {
+                type: "Cassette",
+                model: "SRAM XS-1275 · 10-52",
+                value: "2 846 km",
+                since: "d'origine",
+              },
+            ],
+          },
+          {
+            group: "Freins",
+            icon: "disc",
+            items: [
+              {
+                type: "Freins",
+                model: "SRAM Maven Silver",
+                value: "29 j",
+                since: "depuis la purge",
+              },
+              {
+                type: "Plaquettes avant",
+                model: "SRAM organiques",
+                value: "86 km",
+                since: "depuis le 12 oct.",
+              },
+            ],
+          },
+          {
+            group: "Roues et pneus",
+            icon: "circle-dot",
+            items: [
+              {
+                type: "Pneu avant",
+                model: "Maxxis Assegai 2.5 · EXO+",
+                value: "83 j",
+                since: "de préventif",
+                status: "soon",
+              },
+              {
+                type: "Pneu arrière",
+                model: "Maxxis DHR II 2.4 · DoubleDown",
+                value: "83 j",
+                since: "de préventif",
+                status: "soon",
+              },
+            ],
+          },
+        ];
+
+        const BIKE_PATH =
+          "M26 48 L56 48 L46 20 Z M46 20 L82 18 M56 48 L84 26 M82 18 L84 26 L94 48 M82 18 L84 12 L91 11 M46 20 L44 12 M38 11 L50 11 M56 48 L61 54";
+        const bikeLine = (cls = "") =>
+          `<svg class="${cls}" viewBox="0 0 120 70" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="26" cy="48" r="17"/><circle cx="94" cy="48" r="17"/><path d="${BIKE_PATH}"/></g></svg>`;
+        const cover = (
+          b,
+          extra = "",
+        ) => `<div class="cover" style="--sky1:${b.c[0]};--sky2:${b.c[1]};--m1:${b.c[2]};--m2:${b.c[3]}">
+      <svg class="cover-land" viewBox="0 0 320 180" preserveAspectRatio="xMidYMax slice" aria-hidden="true">
+        <polygon class="m1" points="0,118 38,86 64,102 112,52 150,90 176,74 214,104 252,66 290,96 320,80 320,180 0,180"/>
+        <polygon class="m2" points="0,150 52,124 96,142 150,116 204,140 250,122 320,140 320,180 0,180"/>
+      </svg>${bikeLine("cover-bike")}${extra}</div>`;
+        const badge = (status) =>
+          `<span class="badge ${status}"><i data-lucide="${STATUS[status][0]}"></i>${STATUS[status][1]}</span>`;
+
+        function ruleRow(r, withBike) {
+          const b = BIKES[r.bike];
+          const lead = withBike
+            ? cover(b)
+            : `<span class="rule-ico"><i data-lucide="${r.icon}"></i></span>`;
+          const actions =
+            r.status === "ok"
+              ? ""
+              : `<div class="rule-actions">
+        <button type="button" class="btn secondary sm" data-toast="Saisie d'entretien préremplie (non maquettée)"><i data-lucide="check"></i>C'est fait</button>
+        <button type="button" class="btn ghost sm" data-toast="Rappel reporté de 2 semaines"><i data-lucide="calendar-clock"></i>Reporter</button></div>`;
+          return `<li class="rule" data-status="${r.status}">${lead}
+      <div class="rule-body">
+        <div class="rule-top"><span class="rule-ctx">${withBike ? b.name + " · " : ""}${r.comp}</span>${badge(r.status)}</div>
+        <h3 class="rule-title">${r.title}</h3>
+        <div class="wear" role="img" aria-label="${fr(r.used)} sur ${fr(r.of)}, ${r.p} %"><span class="wear-fill" style="--p:${r.p}%"></span><span class="wear-tick"></span></div>
+        <div class="rule-meta"><span><span class="num">${fr(r.used)}</span> / ${fr(r.of)}</span><span>${fr(r.note)}</span></div>
+      </div>${actions}</li>`;
+        }
+        function tlItem(it, withBike) {
+          const tags = it.tags
+            ? `<div class="tags">${it.tags.map(([cls, t, ic]) => `<span class="tag ${cls}">${ic ? `<i data-lucide="${ic}"></i>` : ""}${fr(t)}</span>`).join("")}</div>`
+            : "";
+          return `<li class="tl-item" data-kind="${it.kind}"><span class="tl-node"><i data-lucide="${it.icon}"></i></span>
+      <div><div class="tl-top"><b>${it.date}</b><span>· ${withBike ? it.bike + " · " : ""}${it.type}</span></div>
+      <h4 class="tl-title">${it.title}</h4><p class="tl-meta">${fr(it.meta)}</p>${tags}</div></li>`;
+        }
+
+        function render() {
+          $("#dash-rules").innerHTML = DASH_RULES.map((r) => ruleRow(r, true)).join("");
+          $("#bike-rules").innerHTML = BIKE_RULES.map((r) => ruleRow(r, false)).join("");
+          $("#dash-bikes").innerHTML = Object.values(BIKES)
+            .map(
+              (b) => `
+      <button type="button" class="bike-card" data-go="bike" aria-label="Ouvrir ${b.name}">
+        ${cover(b, `<div class="bc-shade"></div><div class="bc-label"><span class="bc-name">${b.name}</span><span class="photo-chip">${b.ebike ? '<i data-lucide="zap"></i>' : ""}${b.disc}</span></div>`)}
+        <div class="bc-foot"><span>Ce mois · <span class="num">${fr(b.month)}</span></span><span class="badge ${b.alert[0]}"><i data-lucide="${STATUS[b.alert[0]][0]}"></i>${b.alert[1]}</span></div>
+      </button>`,
+            )
+            .join("");
+          $("#dash-parts").innerHTML = PARTS.map(
+            (p) => `<li class="part"><span class="part-ico"><i data-lucide="package"></i></span>
+      <div class="part-main"><p class="part-name">${p.name}</p><p class="part-meta">${fr(p.meta)}</p></div><span class="badge ${p.badge[0]}">${p.badge[1]}</span></li>`,
+          ).join("");
+          $("#dash-activity").innerHTML = ACTIVITY.map((a) => tlItem(a, true)).join("");
+          $("#bike-history").innerHTML = HISTORY.map(
+            (m) =>
+              `<p class="tl-month">${m.month}</p><ol class="tl">${m.items.map((i) => tlItem(i, false)).join("")}</ol>`,
+          ).join("");
+          $("#bike-components").innerHTML = COMPONENTS.map(
+            (
+              g,
+            ) => `<div class="comp-group"><p class="group-head"><i data-lucide="${g.icon}"></i>${g.group}</p><ul class="comp-list">
+      ${g.items
+        .map(
+          (
+            c,
+          ) => `<li class="comp"><div class="comp-main"><p class="comp-type">${c.type}${c.status ? `<span class="status-mark ${c.status}" role="img" aria-label="${STATUS[c.status][1]}"><i data-lucide="${STATUS[c.status][0]}"></i></span>` : ""}</p><p class="comp-model">${fr(c.model)}</p></div>
+      <div class="comp-side"><span class="num">${fr(c.value)}</span><span class="comp-since">${c.since}</span></div></li>`,
+        )
+        .join("")}</ul></div>`,
+          ).join("");
+          const s = BIKES.spectral;
+          $("#bike-hero").innerHTML = cover(
+            s,
+            `<div class="hero-shade"></div>
+      <button type="button" class="photo-btn" data-toast="Envoi d'une photo (iPhone : appareil photo ou photothèque)"><i data-lucide="camera"></i>Changer la photo</button>
+      <div class="hero-text"><div class="hero-chips"><span class="photo-chip">${s.disc}</span><span class="photo-chip"><i data-lucide="circle-check"></i>Actif</span></div>
+      <h1 class="hero-name" id="bike-title">${s.name}</h1><p class="hero-sub">${s.model} · ${s.year} · taille ${s.size}</p></div>`,
+          );
+          $("#qa-bikes").innerHTML = Object.entries(BIKES)
+            .map(
+              ([id, b], i) =>
+                `<label class="chip"><input type="radio" name="qa-bike" value="${id}"${i === 0 ? " checked" : ""}><span><span class="mini">${cover(b)}</span>${b.name}</span></label>`,
+            )
+            .join("");
+          $("#qa-types").innerHTML = RIDE_TYPES.map(
+            ([v, l, ic]) =>
+              `<label class="chip"><input type="radio" name="qa-type" value="${v}"${v === "trail" ? " checked" : ""}><span>${ic ? `<i data-lucide="${ic}"></i>` : ""}${l}</span></label>`,
+          ).join("");
+          $("#empty-art").innerHTML = bikeLine();
+        }
+
+        function icons() {
+          window.lucide?.createIcons({ attrs: { "aria-hidden": "true" } });
+        }
+
+        /* ---------- Mockup controls ---------- */
+        function syncSeg(name, value) {
+          $$(`.seg[data-control="${name}"] button`).forEach((b) =>
+            b.setAttribute("aria-pressed", String(b.dataset.value === value)),
+          );
+        }
+        let screen = "dash";
+        function setScreen(value, { flash = false } = {}) {
+          screen = value;
+          const foundation = value === "foundation";
+          $("#stage").hidden = foundation;
+          $("#stage-note").hidden = foundation;
+          $("#foundation").hidden = !foundation;
+          if (!foundation) {
+            const visible = value === "quick" ? "dash" : value;
+            $$(".screen").forEach((el) => {
+              el.hidden = el.dataset.screen !== visible;
+            });
+            $$(".nav-item[data-go], .bn-item[data-go]").forEach((el) => {
+              if (el.dataset.go === visible) el.setAttribute("aria-current", "page");
+              else el.removeAttribute("aria-current");
+            });
+            $(".tb-dash").hidden = visible !== "dash";
+            $(".tb-bike").hidden = visible !== "bike";
+            $(".tb-ai").hidden = visible !== "ai";
+            $(".tb-bike-only").hidden = visible !== "bike";
+            main.scrollTop = 0;
+            if (flash) {
+              main.classList.add("loading");
+              setTimeout(() => main.classList.remove("loading"), 420);
+            }
+            if (value === "quick") openSheet();
+            else closeSheet({ keepScreen: true });
+          } else {
+            updateFoundation();
+          }
+          syncSeg("screen", value);
+          store.set("screen", value);
+          try {
+            history.replaceState(null, "", "#" + value);
+          } catch {}
+        }
+        function setFrame(value) {
+          $("#frame").dataset.frame = value;
+          const coarse = window.matchMedia("(pointer: coarse)").matches;
+          app.classList.toggle("touch", coarse || value === "mobile" || value === "tablet");
+          syncSeg("frame", value);
+          store.set("frame", value);
+        }
+        function setTheme(value) {
+          if (value === "system") root.removeAttribute("data-theme");
+          else root.setAttribute("data-theme", value);
+          syncSeg("theme", value);
+          store.set("theme", value);
+          updateFoundation();
+        }
+        const setters = { screen: (v) => setScreen(v), frame: setFrame, theme: setTheme };
+        $$(".seg[data-control]").forEach((seg) =>
+          seg.addEventListener("click", (e) => {
+            const b = e.target.closest("button[data-value]");
+            if (b) setters[seg.dataset.control](b.dataset.value);
+          }),
+        );
+
+        /* ---------- Sheet ---------- */
+        const sheet = $("#sheet");
+        let lastFocus = null;
+        function openSheet({ focus = false } = {}) {
+          lastFocus = document.activeElement;
+          sheet.removeAttribute("inert");
+          app.classList.add("sheet-open");
+          if (focus)
+            setTimeout(
+              () => $("#sheet input[name='qa-bike']:checked")?.focus({ preventScroll: true }),
+              60,
+            );
+        }
+        function closeSheet({ keepScreen = false } = {}) {
+          if (!app.classList.contains("sheet-open")) return;
+          app.classList.remove("sheet-open");
+          sheet.setAttribute("inert", "");
+          if (!keepScreen && screen === "quick") {
+            screen = "dash";
+            syncSeg("screen", "dash");
+            store.set("screen", "dash");
+            try {
+              history.replaceState(null, "", "#dash");
+            } catch {}
+          }
+          if (lastFocus && document.contains(lastFocus)) lastFocus.focus({ preventScroll: true });
+        }
+
+        /* ---------- Toast ---------- */
+        const toastEl = $("#toast");
+        let toastTimer;
+        function toast(message, { undo = false } = {}) {
+          $(".toast-msg", toastEl).textContent = message;
+          $(".toast-undo", toastEl).hidden = !undo;
+          toastEl.hidden = true;
+          void toastEl.offsetWidth;
+          toastEl.hidden = false;
+          clearTimeout(toastTimer);
+          toastTimer = setTimeout(() => {
+            toastEl.hidden = true;
+          }, 4500);
+        }
+        $(".toast-undo", toastEl).addEventListener("click", () => toast("Sortie supprimée"));
+
+        /* ---------- Delegated clicks ---------- */
+        document.addEventListener("click", (e) => {
+          const t = e.target;
+          const go = t.closest("[data-go]");
+          if (go && app.contains(go)) {
+            setScreen(go.dataset.go, { flash: true });
+            return;
+          }
+          if (t.closest("[data-open-sheet]")) {
+            openSheet({ focus: true });
+            return;
+          }
+          if (t.closest("[data-close-sheet]")) {
+            closeSheet();
+            return;
+          }
+          const tt = t.closest("[data-toast]");
+          if (tt && app.contains(tt)) {
+            toast(tt.dataset.toast);
+            return;
+          }
+          if (t.closest("[data-todo]")) {
+            toast("Écran non maquetté dans cette version");
+            return;
+          }
+          if (t.closest("[data-theme-cycle]")) {
+            const order = ["system", "light", "dark"];
+            const cur = store.get("theme") || "system";
+            setTheme(order[(order.indexOf(cur) + 1) % order.length]);
+            return;
+          }
+          const tab = t.closest(".tab");
+          if (tab) {
+            $$(".tab").forEach((x) => x.setAttribute("aria-selected", String(x === tab)));
+            $("#bike-grid").dataset.tab = tab.dataset.tab;
+            return;
+          }
+          const fill = t.closest("[data-fill]");
+          if (fill) {
+            $("#qa-place").value = fill.dataset.fill;
+            return;
+          }
+        });
+        document.addEventListener("keydown", (e) => {
+          if (e.key === "Escape") closeSheet();
+        });
+
+        /* ---------- Quick add form ---------- */
+        const form = $("#qa-form");
+        const val = (name) => form.querySelector(`input[name="${name}"]:checked`)?.value;
+        function syncForm() {
+          const park = val("qa-type") === "bike_park";
+          $("#qa-lift").hidden = !park;
+          $("#qa-duration-fs").hidden = park;
+          $("#qa-date-field").hidden = val("qa-when") !== "other";
+        }
+        function clearErrors() {
+          $$(".field.invalid", form).forEach((f) => f.classList.remove("invalid"));
+          $$(".err", form).forEach((p) => {
+            p.hidden = true;
+          });
+          $$("[aria-invalid]", form).forEach((i) => i.removeAttribute("aria-invalid"));
+        }
+        form.addEventListener("change", (e) => {
+          if (e.target.name === "qa-bike") {
+            const type = BIKES[e.target.value].type;
+            const radio = form.querySelector(`input[name="qa-type"][value="${type}"]`);
+            if (radio) radio.checked = true;
+          }
+          syncForm();
+        });
+        form.addEventListener("input", (e) => {
+          if (e.target.closest(".field.invalid")) clearErrors();
+        });
+        form.addEventListener("submit", (e) => {
+          e.preventDefault();
+          clearErrors();
+          const park = val("qa-type") === "bike_park";
+          const [hId, mId, fieldId, errId] = park
+            ? ["qa-total-h", "qa-total-min", "qa-total", "qa-total-err"]
+            : ["qa-h", "qa-min", "qa-duration", "qa-duration-err"];
+          const h = parseInt($("#" + hId).value, 10) || 0;
+          const m = parseInt($("#" + mId).value, 10) || 0;
+          if (h * 60 + m <= 0) {
+            $("#" + fieldId).classList.add("invalid");
+            $("#" + errId).hidden = false;
+            $("#" + hId).setAttribute("aria-invalid", "true");
+            $("#" + mId).setAttribute("aria-invalid", "true");
+            $("#" + hId).focus();
+            return;
+          }
+          const bike = BIKES[val("qa-bike")];
+          closeSheet();
+          toast(`Sortie ajoutée à ${bike.name} · ${h} h ${String(m).padStart(2, "0")}`, {
+            undo: true,
+          });
+          form.reset();
+          syncForm();
+        });
+
+        /* ---------- Phase 3 preview ---------- */
+        const review = $("#review");
+        review.addEventListener("change", () => {
+          const n = $$("input:checked", review).length;
+          const button = $("#rv-import");
+          button.textContent = n ? `Importer ${n} ligne${n > 1 ? "s" : ""}` : "Rien à importer";
+          button.disabled = n === 0;
+        });
+        $("#ask-form").addEventListener("submit", (e) => {
+          e.preventDefault();
+          toast("Exemple de réponse affiché ci-dessous");
+        });
+
+        /* ---------- Foundation: swatches and live contrast ---------- */
+        const probe = document.createElement("span");
+        probe.style.display = "none";
+        document.body.append(probe);
+        const canvas = document.createElement("canvas");
+        canvas.width = canvas.height = 1;
+        const ctx = canvas.getContext("2d", { willReadFrequently: true });
+        function rgbOf(token) {
+          probe.style.color = `var(${token})`;
+          const c = getComputedStyle(probe).color;
+          ctx.clearRect(0, 0, 1, 1);
+          ctx.fillStyle = "#000";
+          ctx.fillStyle = c;
+          ctx.fillRect(0, 0, 1, 1);
+          const d = ctx.getImageData(0, 0, 1, 1).data;
+          return [d[0], d[1], d[2]];
+        }
+        const lum = (rgb) => {
+          const f = (v) => {
+            v /= 255;
+            return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+          };
+          return 0.2126 * f(rgb[0]) + 0.7152 * f(rgb[1]) + 0.0722 * f(rgb[2]);
+        };
+        const ratio = (a, b) => {
+          const [x, y] = [lum(rgbOf(a)), lum(rgbOf(b))].sort((p, q) => q - p);
+          return (x + 0.05) / (y + 0.05);
+        };
+        const hex = (rgb) => "#" + rgb.map((v) => v.toString(16).padStart(2, "0")).join("");
+        const SWATCHES = [
+          ["--brand", "Accent", "Boutons, liens, focus"],
+          ["--brand-soft", "Accent doux", "Sélection, entretien"],
+          ["--bg", "Fond", "Arrière-plan"],
+          ["--surface", "Surface", "Cartes, feuilles"],
+          ["--surface-2", "Surface 2", "Pistes, puces"],
+          ["--border", "Bordure", "Séparateurs"],
+          ["--fg", "Texte", "Texte principal"],
+          ["--fg-muted", "Texte secondaire", "Légendes"],
+          ["--ok", "À jour", "Barre d'usure"],
+          ["--soon", "Bientôt", "Barre d'usure"],
+          ["--late", "En retard", "Barre d'usure"],
+        ];
+        const PAIRS = [
+          ["Texte sur fond", "--fg", "--bg"],
+          ["Texte secondaire sur carte", "--fg-muted", "--surface"],
+          ["Texte secondaire sur puce", "--fg-muted", "--surface-2"],
+          ["Bouton principal", "--brand-fg", "--brand"],
+          ["Lien sur carte", "--brand-ink", "--surface"],
+          ["Sélection", "--brand-ink", "--brand-soft"],
+          ["Badge « À jour »", "--ok-ink", "--ok-soft"],
+          ["Badge « Bientôt »", "--soon-ink", "--soon-soft"],
+          ["Badge « En retard »", "--late-ink", "--late-soft"],
+        ];
+        function updateFoundation() {
+          if ($("#foundation").hidden) return;
+          $("#swatches").innerHTML = SWATCHES.map(
+            ([tok, name, use]) =>
+              `<div class="sw"><div class="sw-chip" style="--c: var(${tok})"></div><p class="sw-name">${name}</p><p class="sw-meta">${tok} · ${hex(rgbOf(tok))}<br>${use}</p></div>`,
+          ).join("");
+          $("#contrast").innerHTML = PAIRS.map(([label, fg, bg]) => {
+            const r = ratio(fg, bg);
+            return `<tr><td>${label}</td><td><span class="sample" style="color: var(${fg}); background: var(${bg})">Aa 2&#8239;846</span></td><td class="r">${r.toFixed(1).replace(".", ",")}:1 ${r >= 4.5 ? "✓ AA" : "✗"}</td></tr>`;
+          }).join("");
+        }
+        window
+          .matchMedia("(prefers-color-scheme: dark)")
+          .addEventListener?.("change", updateFoundation);
+
+        /* ---------- Init ---------- */
+        render();
+        icons();
+        const fromHash = (location.hash || "").slice(1);
+        const valid = ["dash", "bike", "quick", "ai", "foundation"];
+        setFrame(store.get("frame") || "auto");
+        setTheme(store.get("theme") || "system");
+        setScreen(valid.includes(fromHash) ? fromHash : store.get("screen") || "dash");
+        syncForm();
+      })();
+    </script>
+  </body>
+</html>

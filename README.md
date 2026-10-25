@@ -66,6 +66,7 @@ The full list, with assumptions and open questions, is in
 | [06-integrations.md](docs/06-integrations.md) | Garmin, Komoot, Strava, Apple Health, Bosch…: public API, access rules, limits, what is still uncertain |
 | [07-ai.md](docs/07-ai.md) | Phase 3: maintenance prediction and manufacturer data retrieval |
 | [ideas-backlog.md](docs/ideas-backlog.md) | Ideas not scheduled yet |
+| [design/](docs/design/README.md) | Design direction and HTML mockups of the main screens (proposed, awaiting validation) |
 
 ## Labels used in these docs
 
