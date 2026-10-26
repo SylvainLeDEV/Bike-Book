@@ -17,3 +17,9 @@ export {
   type BikeData,
   type SaveBikeOutcome,
 } from "./bikes";
+export {
+  listComponentTypes,
+  listRuleTemplates,
+  type ComponentType,
+  type RuleTemplate,
+} from "./reference";

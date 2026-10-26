@@ -56,7 +56,7 @@ pure tested domain logic, its screens, and its tables described in the data dict
 | # | Feature | Notes | Done |
 |---|---------|-------|------|
 | 1 | Bikes | Create/edit, full record: identity, purchase, security (frame number masked), status with its effect (D-43) | ✓ 2026-10-26 (D-54 to D-58) |
-| 2 | Reference data | Seed component types and rule templates ([03](03-data-model.md#rule_templates-reference-data-seeded-editable)) | |
+| 2 | Reference data | Component types and rule templates, by data migration ([03](03-data-model.md#rule_templates-reference-data-editable)) | ✓ 2026-10-26 (D-59) |
 | 3 | Components | Original spec sheet, replacements with reason and detail, history per slot, "replace a part" flow (from the workshop once item 8 exists) | |
 | 4 | Rides | Manual entry, quick-add form for tablet and phone, bike park fields (total time, descent time, runs) | |
 | 5 | Maintenance | Events with items, costs, shop or self | |

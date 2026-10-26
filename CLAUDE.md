@@ -3,7 +3,8 @@
 Self-hosted web app to track bikes: rides, maintenance, components, and what is coming up
 (services due by hours, kilometres or date, parts to rebuy from the workshop).
 
-**Status:** Phase 1 step B in progress: feature 1 (bikes) done on 2026-10-26; the other
+**Status:** Phase 1 step B in progress: features 1 (bikes) and 2 (reference data) done on
+2026-10-26; the other
 features follow the order of `docs/05-roadmap.md`. Phase 0 items still open are deployment-side
 (backups with a tested restore, a 10 MB upload through the proxy), planned before real data.
 

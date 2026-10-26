@@ -15,6 +15,20 @@
       "when": 1793016222506,
       "tag": "0001_bikes_and_shops",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1793020760858,
+      "tag": "0002_reference_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1793020761198,
+      "tag": "0003_reference_data",
+      "breakpoints": true
     }
   ]
 }

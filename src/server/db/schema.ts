@@ -15,7 +15,15 @@ import {
   uniqueIndex,
 } from "drizzle-orm/sqlite-core";
 // Relative path: drizzle-kit loads this file without the "@" alias.
-import { BIKE_STATUSES, DISCIPLINES, SHOP_KINDS, WHEEL_SIZES } from "../../lib/enums";
+import {
+  BIKE_STATUSES,
+  COMPONENT_GROUPS,
+  DISCIPLINES,
+  EVIDENCE_LEVELS,
+  SHOP_KINDS,
+  TEMPLATE_SOURCES,
+  WHEEL_SIZES,
+} from "../../lib/enums";
 
 const now = () => new Date();
 
@@ -211,6 +219,70 @@ export const bikes = sqliteTable(
     check(
       "bikes_amounts_check",
       sql`(${table.purchasePriceCents} is null or ${table.purchasePriceCents} >= 0) and (${table.weightG} is null or ${table.weightG} > 0) and ${table.initialDistanceM} >= 0 and ${table.initialWearS} >= 0`,
+    ),
+  ],
+);
+
+// --- Reference data (feature 2) -----------------------------------------------------------------
+
+/**
+ * Kinds of parts, shared by every workspace. Rows come from a data migration (0003); French
+ * labels live in the UI only (D-50, src/lib/labels.ts).
+ */
+export const componentTypes = sqliteTable(
+  "component_types",
+  {
+    /** English code: `fork`, `brake_pads`… */
+    code: text("code").primaryKey(),
+    /** Where it is shown on the bike page ("group" is a reserved SQL word). */
+    componentGroup: text("component_group", { enum: COMPONENT_GROUPS }).notNull(),
+    /** True for parts fitted front and rear (tyres, wheels, brakes, pads, rotors). */
+    hasPosition: integer("has_position", { mode: "boolean" }).notNull(),
+    /** At most one fitted part per bike and position (checked by the app). */
+    singleSlot: integer("single_slot", { mode: "boolean" }).notNull(),
+  },
+  (table) => [
+    enumCheck("component_types_component_group_check", table.componentGroup, COMPONENT_GROUPS),
+  ],
+);
+
+/**
+ * Default service intervals offered when a component is created: suggestions to adjust to each
+ * part's manual. `workspace_id` null = built-in (with a `code`), else the workspace's own.
+ */
+export const ruleTemplates = sqliteTable(
+  "rule_templates",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    workspaceId: integer("workspace_id").references(() => workspaces.id, { onDelete: "cascade" }),
+    /** Stable key of a built-in template, for later data migrations; null for custom ones. */
+    code: text("code").unique(),
+    /** The slot type it applies to; null = a bike-level rule (yearly check). */
+    componentTypeCode: text("component_type_code").references(() => componentTypes.code),
+    title: text("title").notNull(),
+    intervalDistanceM: integer("interval_distance_m"),
+    intervalWearS: integer("interval_wear_s"),
+    intervalDays: integer("interval_days"),
+    source: text("source", { enum: TEMPLATE_SOURCES }).notNull(),
+    evidenceLevel: text("evidence_level", { enum: EVIDENCE_LEVELS }).notNull(),
+    sourceUrl: text("source_url"),
+    /** Where the number comes from, what to check: shown to the person. */
+    notes: text("notes"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    index("rule_templates_workspace_id_idx").on(table.workspaceId),
+    index("rule_templates_component_type_code_idx").on(table.componentTypeCode),
+    enumCheck("rule_templates_source_check", table.source, TEMPLATE_SOURCES),
+    enumCheck("rule_templates_evidence_level_check", table.evidenceLevel, EVIDENCE_LEVELS),
+    check(
+      "rule_templates_interval_check",
+      sql`(${table.intervalDistanceM} is not null or ${table.intervalWearS} is not null or ${table.intervalDays} is not null) and (${table.intervalDistanceM} is null or ${table.intervalDistanceM} > 0) and (${table.intervalWearS} is null or ${table.intervalWearS} > 0) and (${table.intervalDays} is null or ${table.intervalDays} > 0)`,
+    ),
+    check(
+      "rule_templates_code_check",
+      sql`(${table.workspaceId} is null and ${table.code} is not null) or (${table.workspaceId} is not null and ${table.code} is null)`,
     ),
   ],
 );

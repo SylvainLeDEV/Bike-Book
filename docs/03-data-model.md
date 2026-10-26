@@ -147,42 +147,79 @@ weight > 0, initial distance and wear ≥ 0.
 The bike record (D-43) needs no other column: identity, purchase and security are these fields,
 and the total cost is computed (see [Total cost](#total-cost-d-44)).
 
-### `component_types` (reference data, seeded)
+### `component_types` (reference data)
+
+Status: **Built** in phase 1 feature 2 (2026-10-26): table in migration `0002_reference_tables`,
+rows in the data migration `0003_reference_data` (D-59). Shared by every workspace; a new type
+needs a data migration and an entry in `COMPONENT_TYPE_CODES` (`src/lib/enums.ts`).
 
 | Field | Type | Notes |
 |-------|------|-------|
-| `code` | text PK | `fork`, `rear_shock`, `dropper_post`, `chain`, `cassette`, `chainring`, `crankset`, `bottom_bracket`, `rear_derailleur`, `shifter`, `brake`, `brake_pads`, `rotor`, `wheel`, `tire`, `headset`, `pedals`, `saddle`, `handlebar`, `stem`, `grips`, `motor`, `battery`, `display`, `frame`, `other`… |
-| `label` | text | UI label, in French (H-01) |
-| `group` | enum: `suspension`, `drivetrain`, `brakes`, `wheels`, `cockpit`, `frame`, `electric`, `other` | Grouping on the bike page |
-| `has_position` | boolean | `true` for tyres, wheels, brakes, pads, rotors (front/rear) |
-| `single_slot` | boolean | At most one fitted part per bike and position (checked by the app) |
+| `code` | text PK | English code, see the list below. French labels live in the UI only (D-50, D-59) |
+| `component_group` | enum, required | Where the part is shown on the bike page: `suspension`, `drivetrain`, `brakes`, `wheels`, `cockpit`, `frame`, `electric`, `other` (`group` is a reserved SQL word) |
+| `has_position` | boolean, required | `true` when the part exists front and rear (tyres, wheels, brakes, pads, rotors) |
+| `single_slot` | boolean, required | At most one fitted part per bike and position (checked by the app); `false` for `other` only |
 
-### `rule_templates` (reference data, seeded, editable)
+| Code | Group | Position | Meaning |
+|------|-------|----------|---------|
+| `fork` | suspension | | Suspension or rigid fork |
+| `rear_shock` | suspension | | Rear shock |
+| `chain` | drivetrain | | Chain |
+| `cassette` | drivetrain | | Cassette or freewheel |
+| `chainring` | drivetrain | | Chainring(s) |
+| `crankset` | drivetrain | | Crank arms |
+| `bottom_bracket` | drivetrain | | Bottom bracket bearings |
+| `rear_derailleur` | drivetrain | | Rear derailleur |
+| `shifter` | drivetrain | | Shift lever |
+| `pedals` | drivetrain | | Pedals |
+| `brake` | brakes | front/rear | Brake (lever and caliper), the slot of the bleed rule |
+| `brake_pads` | brakes | front/rear | Brake pads |
+| `rotor` | brakes | front/rear | Brake rotor |
+| `wheel` | wheels | front/rear | Wheel (rim, hub, spokes) |
+| `tire` | wheels | front/rear | Tyre |
+| `handlebar` | cockpit | | Handlebar |
+| `stem` | cockpit | | Stem |
+| `grips` | cockpit | | Grips or bar tape |
+| `saddle` | cockpit | | Saddle |
+| `dropper_post` | cockpit | | Dropper seatpost |
+| `frame` | frame | | Frame (and rear triangle bearings) |
+| `headset` | frame | | Headset |
+| `motor` | electric | | E-bike motor |
+| `battery` | electric | | E-bike battery |
+| `display` | electric | | E-bike display or remote |
+| `other` | other | | Anything else; several can be fitted |
 
-Default intervals offered when a component is created. They are only suggestions, to be
-adjusted to each part's manual.
+### `rule_templates` (reference data, editable)
+
+Status: **Built** in phase 1 feature 2 (2026-10-26), same migrations (D-59). Default intervals
+offered when a component is created. They are only suggestions, to be adjusted to each part's
+manual. No editing screen in phase 1: a workspace's own templates come later.
 
 | Field | Type | Notes |
 |-------|------|-------|
 | `id` | integer PK | |
 | `workspace_id` | FK, nullable | `null` = built-in template; otherwise a custom one (D-25) |
-| `component_type_code` | FK, nullable | `null` = bike-level template (e.g. yearly check) |
-| `title` | text | "Lower leg service" |
-| `interval_distance_m`, `interval_wear_s`, `interval_days` | integer, nullable | At least one is set; whichever comes first |
-| `source` | enum: `manufacturer`, `common_practice`, `personal` | |
-| `source_url`, `notes` | text | Where the number comes from |
+| `code` | text, unique, nullable | Stable key of a built-in template, e.g. `chain_wear_check`, so a later migration can correct it. CHECK: set for built-in templates only (D-59) |
+| `component_type_code` | FK `component_types`, nullable | `null` = bike-level template (e.g. yearly check) |
+| `title` | text, required | "Contrôle d'usure de la chaîne" (shown to the person, so in French) |
+| `interval_distance_m`, `interval_wear_s`, `interval_days` | integer, nullable | Metres, seconds of wear time, days. At least one is set, each > 0 (CHECK); whichever comes first |
+| `source` | enum, required | `manufacturer`: given by the part's maker; `common_practice`: usual advice, not a maker's figure; `personal`: the owner's own choice |
+| `evidence_level` | enum, required | How far the interval can be trusted (D-59): `verified` (checked in the source, with a date in the notes), `secondary` (read in a secondary source), `unverified` (quoted without a checked source), `estimate` (an order of magnitude) |
+| `source_url` | text, nullable | Where the number comes from, when there is a page |
+| `notes` | text | What to check, in French |
+| `created_at`, `updated_at` | timestamp | |
 
-Seed examples:
+Built-in templates (rows of `0003_reference_data`):
 
-| Component | Rule | Interval | Basis |
-|-----------|------|----------|-------|
-| Fork (RockShox) | Lower leg service | 50 h | RockShox support page: 50 ride hours for the lower legs, 100/200 h services depending on model year. Read through a search summary because the page blocks direct fetching; re-check in the part's manual |
-| Rear shock (RockShox) | Air can service | 50 h | Same source |
-| Fork or shock (Fox) | Full service | 125 h or yearly | **Unverified**: quoted by retailers, others say 100 h. Check the manual |
-| Chain | Wear check | 500 km | **Estimate** (common practice) |
-| Hydraulic brakes | Bleed | 365 days | **Estimate** |
-| Tubeless tyres | Sealant top-up | 90 days | **Estimate** |
-| Bike | General check | 365 days | **Estimate** |
+| Code | Slot | Interval | Source · evidence | Basis |
+|------|------|----------|-------------------|-------|
+| `rockshox_fork_lower_leg_service` | fork | 50 h | manufacturer · secondary | RockShox support page: 50 ride hours for the lower legs, 100/200 h services depending on model year. Read through a search summary because the page blocks direct fetching; re-check in the part's manual |
+| `rockshox_rear_shock_air_can_service` | rear_shock | 50 h | manufacturer · secondary | Same source |
+| `fox_fork_full_service`, `fox_rear_shock_full_service` | fork, rear_shock | 125 h or 365 days | manufacturer · unverified | Quoted by retailers, others say 100 h. Check the manual |
+| `chain_wear_check` | chain | 500 km | common_practice · estimate | Common practice |
+| `brake_bleed` | brake | 365 days | common_practice · estimate | Hydraulic brakes |
+| `tubeless_sealant_top_up` | tire | 90 days | common_practice · estimate | Tubeless tyres |
+| `bike_general_check` | — | 365 days | common_practice · estimate | Whole bike |
 
 ### `components`
 

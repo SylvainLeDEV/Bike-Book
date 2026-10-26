@@ -63,6 +63,49 @@ export type ComponentGroup = (typeof COMPONENT_GROUPS)[number];
 export const INVENTORY_CATEGORIES = [...COMPONENT_GROUPS, "care"] as const;
 export type InventoryCategory = (typeof INVENTORY_CATEGORIES)[number];
 
+/**
+ * Codes of the built-in component types (reference data, rows of `component_types` created by
+ * migration 0003). Listed here so that every code has a French label (labels.ts); a new type
+ * needs a data migration and an entry here.
+ */
+export const COMPONENT_TYPE_CODES = [
+  "fork",
+  "rear_shock",
+  "chain",
+  "cassette",
+  "chainring",
+  "crankset",
+  "bottom_bracket",
+  "rear_derailleur",
+  "shifter",
+  "pedals",
+  "brake",
+  "brake_pads",
+  "rotor",
+  "wheel",
+  "tire",
+  "handlebar",
+  "stem",
+  "grips",
+  "saddle",
+  "dropper_post",
+  "frame",
+  "headset",
+  "motor",
+  "battery",
+  "display",
+  "other",
+] as const;
+export type ComponentTypeCode = (typeof COMPONENT_TYPE_CODES)[number];
+
+/** Where a rule template's interval comes from. */
+export const TEMPLATE_SOURCES = ["manufacturer", "common_practice", "personal"] as const;
+export type TemplateSource = (typeof TEMPLATE_SOURCES)[number];
+
+/** How far the interval can be trusted (labels of the docs: Verified, Secondary…). */
+export const EVIDENCE_LEVELS = ["verified", "secondary", "unverified", "estimate"] as const;
+export type EvidenceLevel = (typeof EVIDENCE_LEVELS)[number];
+
 export const COMPONENT_POSITIONS = ["front", "rear", "none"] as const;
 export type ComponentPosition = (typeof COMPONENT_POSITIONS)[number];
 

@@ -5,7 +5,9 @@
 import type {
   BikeStatus,
   ComponentGroup,
+  ComponentTypeCode,
   Discipline,
+  EvidenceLevel,
   InventoryCategory,
   InventoryUnit,
   MovementKind,
@@ -14,6 +16,7 @@ import type {
   RideType,
   RuleStatus,
   ShopKind,
+  TemplateSource,
   WheelSize,
 } from "./enums";
 import type { RebuyState } from "./view-models";
@@ -127,6 +130,48 @@ export const COMPONENT_GROUP_LABELS: Record<ComponentGroup, string> = {
   frame: "Cadre",
   electric: "Assistance électrique",
   other: "Autre",
+};
+
+export const COMPONENT_TYPE_LABELS: Record<ComponentTypeCode, string> = {
+  fork: "Fourche",
+  rear_shock: "Amortisseur",
+  chain: "Chaîne",
+  cassette: "Cassette",
+  chainring: "Plateau",
+  crankset: "Pédalier",
+  bottom_bracket: "Boîtier de pédalier",
+  rear_derailleur: "Dérailleur arrière",
+  shifter: "Commande de vitesses",
+  pedals: "Pédales",
+  brake: "Frein",
+  brake_pads: "Plaquettes",
+  rotor: "Disque",
+  wheel: "Roue",
+  tire: "Pneu",
+  handlebar: "Cintre",
+  stem: "Potence",
+  grips: "Poignées",
+  saddle: "Selle",
+  dropper_post: "Tige de selle télescopique",
+  frame: "Cadre",
+  headset: "Jeu de direction",
+  motor: "Moteur",
+  battery: "Batterie",
+  display: "Écran",
+  other: "Autre",
+};
+
+export const TEMPLATE_SOURCE_LABELS: Record<TemplateSource, string> = {
+  manufacturer: "Constructeur",
+  common_practice: "Usage courant",
+  personal: "Personnel",
+};
+
+export const EVIDENCE_LEVEL_LABELS: Record<EvidenceLevel, string> = {
+  verified: "Vérifié",
+  secondary: "Source secondaire",
+  unverified: "Non vérifié",
+  estimate: "Estimation",
 };
 
 export const INVENTORY_CATEGORY_LABELS: Record<InventoryCategory, string> = {
