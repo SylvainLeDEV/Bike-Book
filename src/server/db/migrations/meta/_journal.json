@@ -8,6 +8,13 @@
       "when": 1792867829903,
       "tag": "0000_init",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1793016222506,
+      "tag": "0001_bikes_and_shops",
+      "breakpoints": true
     }
   ]
 }

@@ -5,7 +5,17 @@
  * with CHECK constraints, defaults computed in the application rather than in SQLite-only SQL.
  */
 import { sql, type AnyColumn } from "drizzle-orm";
-import { check, index, integer, primaryKey, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import {
+  check,
+  index,
+  integer,
+  primaryKey,
+  sqliteTable,
+  text,
+  uniqueIndex,
+} from "drizzle-orm/sqlite-core";
+// Relative path: drizzle-kit loads this file without the "@" alias.
+import { BIKE_STATUSES, DISCIPLINES, SHOP_KINDS, WHEEL_SIZES } from "../../lib/enums";
 
 const now = () => new Date();
 
@@ -113,6 +123,95 @@ export const memberships = sqliteTable(
     primaryKey({ columns: [table.userId, table.workspaceId] }),
     index("memberships_workspace_id_idx").on(table.workspaceId),
     enumCheck("memberships_role_check", table.role, MEMBERSHIP_ROLES),
+  ],
+);
+
+// --- Shops (D-37) --------------------------------------------------------------------------------
+
+/** Where bikes and parts are bought or serviced: a physical shop or an online one. */
+export const shops = sqliteTable(
+  "shops",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    workspaceId: integer("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    kind: text("kind", { enum: SHOP_KINDS }).notNull(),
+    /** Unique per workspace, ignoring case, accents and spaces (checked by the app). */
+    name: text("name").notNull(),
+    city: text("city"),
+    phone: text("phone"),
+    website: text("website"),
+    notes: text("notes"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    uniqueIndex("shops_workspace_id_name_unique").on(table.workspaceId, table.name),
+    enumCheck("shops_kind_check", table.kind, SHOP_KINDS),
+  ],
+);
+
+// --- Bikes (D-43) ---------------------------------------------------------------------------------
+
+/**
+ * A bike of the workspace. Never deleted: its status changes instead. Counters and the total cost
+ * are computed from rides and maintenance events, never stored (D-50).
+ */
+export const bikes = sqliteTable(
+  "bikes",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    workspaceId: integer("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    /** Unique per workspace, ignoring case, accents and spaces (checked by the app). */
+    name: text("name").notNull(),
+    discipline: text("discipline", { enum: DISCIPLINES }).notNull(),
+    isElectric: integer("is_electric", { mode: "boolean" }).notNull().default(false),
+    brand: text("brand"),
+    model: text("model"),
+    modelYear: integer("model_year"),
+    /** As the maker writes it: "L", "56". */
+    frameSize: text("frame_size"),
+    wheelSize: text("wheel_size", { enum: WHEEL_SIZES }),
+    color: text("color"),
+    /** For a theft or insurance file. Shown masked except its last group. */
+    frameSerial: text("frame_serial"),
+    weightG: integer("weight_g"),
+    purchasedOn: text("purchased_on"),
+    purchasePriceCents: integer("purchase_price_cents"),
+    purchaseShopId: integer("purchase_shop_id").references(() => shops.id, {
+      onDelete: "set null",
+    }),
+    boughtUsed: integer("bought_used", { mode: "boolean" }).notNull().default(false),
+    /** Distance ridden before tracking started (second-hand bike); 0 when none. */
+    initialDistanceM: integer("initial_distance_m").notNull().default(0),
+    /** Wear time before tracking started; 0 when none. */
+    initialWearS: integer("initial_wear_s").notNull().default(0),
+    status: text("status", { enum: BIKE_STATUSES }).notNull().default("active"),
+    /** The day the current status began: the sale date for a sold bike. */
+    statusChangedOn: text("status_changed_on"),
+    /** Only for a sold bike; deducted from the total cost (D-44). */
+    salePriceCents: integer("sale_price_cents"),
+    notes: text("notes"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    uniqueIndex("bikes_workspace_id_name_unique").on(table.workspaceId, table.name),
+    index("bikes_purchase_shop_id_idx").on(table.purchaseShopId),
+    enumCheck("bikes_discipline_check", table.discipline, DISCIPLINES),
+    enumCheck("bikes_wheel_size_check", table.wheelSize, WHEEL_SIZES),
+    enumCheck("bikes_status_check", table.status, BIKE_STATUSES),
+    check(
+      "bikes_sale_price_check",
+      sql`${table.salePriceCents} is null or (${table.status} = 'sold' and ${table.salePriceCents} >= 0)`,
+    ),
+    check(
+      "bikes_amounts_check",
+      sql`(${table.purchasePriceCents} is null or ${table.purchasePriceCents} >= 0) and (${table.weightG} is null or ${table.weightG} > 0) and ${table.initialDistanceM} >= 0 and ${table.initialWearS} >= 0`,
+    ),
   ],
 );
 

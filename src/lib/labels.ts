@@ -9,12 +9,27 @@ import type {
   InventoryCategory,
   InventoryUnit,
   MovementKind,
-  RebuyState,
   RemovalReason,
   RideConditions,
   RideType,
   RuleStatus,
-} from "./view-models";
+  ShopKind,
+  WheelSize,
+} from "./enums";
+import type { RebuyState } from "./view-models";
+
+/** Disciplines in the order of the bike sheet's list. */
+export const DISCIPLINE_ORDER: Discipline[] = [
+  "trail",
+  "enduro",
+  "dh",
+  "xc",
+  "gravel",
+  "road",
+  "dirt",
+  "city",
+  "other",
+];
 
 export const DISCIPLINE_LABELS: Record<Discipline, string> = {
   road: "Route",
@@ -86,6 +101,21 @@ export const BIKE_STATUS_EFFECTS: Record<BikeStatus, string> = {
   sold: "Le prix de vente est déduit du coût total ; le vélo quitte les listes.",
   stolen: "Le vélo quitte les listes ; son dossier reste prêt pour la déclaration.",
   retired: "Le vélo quitte les listes ; son historique reste consultable.",
+};
+
+export const WHEEL_SIZE_LABELS: Record<WheelSize, string> = {
+  "29": "29 pouces",
+  "27.5": "27,5 pouces",
+  "26": "26 pouces",
+  mullet: "Mulet (29 / 27,5)",
+  "700c": "700c",
+  "650b": "650b",
+  other: "Autre",
+};
+
+export const SHOP_KIND_LABELS: Record<ShopKind, string> = {
+  physical: "En magasin",
+  online: "En ligne",
 };
 
 export const COMPONENT_GROUP_LABELS: Record<ComponentGroup, string> = {

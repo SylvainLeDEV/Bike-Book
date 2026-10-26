@@ -48,25 +48,25 @@ reference of the 1.5 and 3 screens until they are ported (D-53).
   shell, building blocks, dashboard, bike page, quick ride entry, workshop (parts), Foundation
   board with live contrast.
 - [x] Owner validation of `/design` (2026-10-26); the mockup is kept for the 1.5 and 3 screens (D-53)
-- [ ] Routes of step B validated ([04](04-architecture.md#routes), **Proposed**)
+- [x] Routes of step B validated ([04](04-architecture.md#routes), D-54, 2026-10-26)
 
 **Then, one feature at a time**, each with its migration, its scoped data access (D-25), its
 pure tested domain logic, its screens, and its tables described in the data dictionary (D-50):
 
-| # | Feature | Notes |
-|---|---------|-------|
-| 1 | Bikes | Create/edit, full record: identity, purchase, security (frame number masked), status with its effect (D-43) |
-| 2 | Reference data | Seed component types and rule templates ([03](03-data-model.md#rule_templates-reference-data-seeded-editable)) |
-| 3 | Components | Original spec sheet, replacements with reason and detail, history per slot, "replace a part" flow (from the workshop once item 8 exists) |
-| 4 | Rides | Manual entry, quick-add form for tablet and phone, bike park fields (total time, descent time, runs) |
-| 5 | Maintenance | Events with items, costs, shop or self |
-| 6 | Rule engine | Wear counters with their sources ("Voir le détail"), rule status (ok / due soon / overdue), ETA projection. Unit-tested |
-| 7 | Tasks | One-off to-dos under "À prévoir", "Fait" with undo (D-34) |
-| 8 | Workshop: parts and restocking | Items, movements, purchase links, online shops (D-37), "À racheter", "En stock pour ce vélo", replace a part from stock, search and bike filter (D-33 to D-42) |
-| 9 | "À prévoir" dashboard | Overdue, due soon, open tasks, "À racheter" |
-| 10 | Attachments | Photos and PDFs: upload (iPhone through Safari first, D-46), thumbnails, viewer, gallery per bike, cover photo, invoices on maintenance events. No labels (D-45) |
-| 11 | Bike page | Counters, tabs below 1024 px and two columns above (D-48), components today / original spec, timeline, total cost per 100 km (D-44) |
-| 12 | Export | One ZIP with CSV/JSON of every table, the uploads and the data dictionary (D-50) |
+| # | Feature | Notes | Done |
+|---|---------|-------|------|
+| 1 | Bikes | Create/edit, full record: identity, purchase, security (frame number masked), status with its effect (D-43) | ✓ 2026-10-26 (D-54 to D-58) |
+| 2 | Reference data | Seed component types and rule templates ([03](03-data-model.md#rule_templates-reference-data-seeded-editable)) | |
+| 3 | Components | Original spec sheet, replacements with reason and detail, history per slot, "replace a part" flow (from the workshop once item 8 exists) | |
+| 4 | Rides | Manual entry, quick-add form for tablet and phone, bike park fields (total time, descent time, runs) | |
+| 5 | Maintenance | Events with items, costs, shop or self | |
+| 6 | Rule engine | Wear counters with their sources ("Voir le détail"), rule status (ok / due soon / overdue), ETA projection. Unit-tested | |
+| 7 | Tasks | One-off to-dos under "À prévoir", "Fait" with undo (D-34) | |
+| 8 | Workshop: parts and restocking | Items, movements, purchase links, online shops (D-37), "À racheter", "En stock pour ce vélo", replace a part from stock, search and bike filter (D-33 to D-42) | |
+| 9 | "À prévoir" dashboard | Overdue, due soon, open tasks, "À racheter" | |
+| 10 | Attachments | Photos and PDFs: upload (iPhone through Safari first, D-46), thumbnails, viewer, gallery per bike, cover photo, invoices on maintenance events. No labels (D-45) | |
+| 11 | Bike page | Counters, tabs below 1024 px and two columns above (D-48), components today / original spec, timeline, total cost per 100 km (D-44) | |
+| 12 | Export | One ZIP with CSV/JSON of every table, the uploads and the data dictionary (D-50) | |
 
 **Exit:** the success criteria in [01](01-vision-and-scope.md#mvp-success-criteria), after 2–4
 weeks of real use.

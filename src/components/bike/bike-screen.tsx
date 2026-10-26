@@ -14,7 +14,7 @@ import { Card } from "@/components/ui/card";
 import { InfoPopover } from "@/components/ui/info-popover";
 import { ReplacePartSheet } from "@/components/workshop/replace-part-sheet";
 import { InventoryRowContent, inventoryRowClasses } from "@/components/workshop/inventory-row";
-import { formatDate, formatInteger, formatKilometres } from "@/lib/format";
+import { formatCount, formatDate, formatInteger, formatKilometres } from "@/lib/format";
 import { BIKE_STATUS_LABELS, DISCIPLINE_LABELS } from "@/lib/labels";
 import type {
   BikePageVM,
@@ -212,7 +212,11 @@ function BikeScreenContent({
           <Wrench />
           Entretien
         </Button>
-        <Button variant="secondary" onClick={() => setReplaceOpen(true)}>
+        <Button
+          variant="secondary"
+          onClick={() => setReplaceOpen(true)}
+          disabled={!replace.slots.length}
+        >
           <Replace />
           Remplacer une pièce
         </Button>
@@ -243,11 +247,13 @@ function BikeScreenContent({
         />
       </div>
       <p className="mt-2 text-[13px] text-fg-muted">
-        Calculé sur {stats.rideCount} sorties depuis le{" "}
+        Calculé sur {formatCount(stats.rideCount, "sortie", "sorties")} depuis le{" "}
         {formatDate(stats.trackedSince, { year: "always" })}.{" "}
-        <Button variant="link" className="text-[13px]" onClick={actions.onShowWearDetail}>
-          Voir le détail
-        </Button>
+        {actions.onShowWearDetail ? (
+          <Button variant="link" className="text-[13px]" onClick={actions.onShowWearDetail}>
+            Voir le détail
+          </Button>
+        ) : null}
       </p>
 
       <BikeTabList />
@@ -288,9 +294,11 @@ function BikeScreenContent({
                 id="bike-stock-title"
                 title="En stock pour ce vélo"
                 side={
-                  <Button variant="link" asChild>
-                    <Link href={links.workshopForBike}>Tout voir ({vm.stock.total})</Link>
-                  </Button>
+                  vm.stock.total ? (
+                    <Button variant="link" asChild>
+                      <Link href={links.workshopForBike}>Tout voir ({vm.stock.total})</Link>
+                    </Button>
+                  ) : null
                 }
               />
               <Card asChild className="overflow-hidden">
@@ -302,6 +310,11 @@ function BikeScreenContent({
                       </Link>
                     </li>
                   ))}
+                  {vm.stock.rows.length ? null : (
+                    <li className="px-4 py-3 text-[13px] text-fg-muted">
+                      Rien en stock pour ce vélo.
+                    </li>
+                  )}
                   {vm.stock.toRebuy ? (
                     <li className="px-2 py-1.5">
                       <Button variant="ghost" size="sm" asChild>

@@ -27,7 +27,12 @@ import {
   formatMoney,
   type LocalDate,
 } from "@/lib/format";
-import { BIKE_STATUS_EFFECTS, BIKE_STATUS_LABELS, DISCIPLINE_LABELS } from "@/lib/labels";
+import {
+  BIKE_STATUS_EFFECTS,
+  BIKE_STATUS_LABELS,
+  DISCIPLINE_LABELS,
+  WHEEL_SIZE_LABELS,
+} from "@/lib/labels";
 import type { BikeRecordVM, BikeStatus } from "@/lib/view-models";
 import { SerialNumber } from "./serial-number";
 
@@ -129,7 +134,10 @@ export function BikeRecord({
             },
             { label: "Discipline", value: DISCIPLINE_LABELS[identity.discipline] },
             { label: "Taille", value: identity.frameSize },
-            { label: "Roues", value: identity.wheelSize ? `${identity.wheelSize} pouces` : null },
+            {
+              label: "Roues",
+              value: identity.wheelSize ? WHEEL_SIZE_LABELS[identity.wheelSize] : null,
+            },
             { label: "Couleur", value: identity.color },
             {
               label: "Poids",
@@ -207,12 +215,13 @@ export function BikeRecord({
               </li>
             ))}
           </ul>
-          {documentAction ?? (
-            <p className="mt-1 flex items-center gap-1.5 hint">
-              <Paperclip className="size-3.5" aria-hidden />
-              PDF ou photo, 25 Mo au maximum.
-            </p>
-          )}
+          {documentAction ??
+            (record.documents.length ? null : (
+              <p className="mt-1 flex items-center gap-1.5 hint">
+                <Paperclip className="size-3.5" aria-hidden />
+                Aucun document pour l&apos;instant.
+              </p>
+            ))}
         </Block>
         <Block label="Statut">
           <div className="flex flex-wrap items-center gap-2.5">
@@ -307,6 +316,26 @@ function TotalCost({
       ) : (
         <p className="mt-3 hint">Le coût pour 100 km s&apos;affiche dès la première sortie.</p>
       )}
+      {cost.events.length || cost.rideCount ? (
+        <CostDetail cost={cost} parts={parts} sale={sale} today={today} />
+      ) : null}
+    </>
+  );
+}
+
+function CostDetail({
+  cost,
+  parts,
+  sale,
+  today,
+}: {
+  cost: BikeRecordVM["cost"];
+  parts: string;
+  sale: string;
+  today: LocalDate;
+}) {
+  return (
+    <>
       <details className="group mt-3">
         <summary className="flex min-h-8 list-none flex-wrap items-center gap-2 text-[13.5px] font-medium text-brand-ink pointer-coarse:min-h-11 [&::-webkit-details-marker]:hidden">
           <Calculator className="size-4" aria-hidden />

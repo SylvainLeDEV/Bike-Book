@@ -15,12 +15,27 @@ const httpUrl = z
   .url({ protocol: /^https?$/, error: "Expected an http(s) URL, e.g. http://bikes.lan" })
   .transform((value) => new URL(value).origin);
 
+/** True when the runtime knows this IANA time zone ("Europe/Paris"). */
+function isTimeZone(value: string): boolean {
+  try {
+    new Intl.DateTimeFormat("en", { timeZone: value });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 const envSchema = z.object({
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
   DATA_DIR: z.string().trim().min(1).default("./data"),
   AUTH_SECRET: z.string().min(32, "AUTH_SECRET must be at least 32 characters").optional(),
   PUBLIC_URL: httpUrl.optional(),
   ALLOW_SIGNUP: booleanString.default(false),
+  TZ: z
+    .string()
+    .trim()
+    .refine(isTimeZone, { error: "Expected an IANA time zone, e.g. Europe/Paris" })
+    .optional(),
 });
 
 export type Env = {
@@ -29,6 +44,8 @@ export type Env = {
   authSecret: string;
   publicUrl: string;
   allowSignup: boolean;
+  /** Display time zone (H-02): instants are shown, and "today" is computed, in this zone. */
+  timeZone: string;
 };
 
 /**
@@ -68,6 +85,8 @@ export function parseEnv(source: Record<string, string | undefined>): Env {
     authSecret: env.AUTH_SECRET ?? DEV_AUTH_SECRET,
     publicUrl: env.PUBLIC_URL ?? DEV_PUBLIC_URL,
     allowSignup: env.ALLOW_SIGNUP,
+    // Without TZ, the zone of the process (UTC in most containers).
+    timeZone: env.TZ ?? Intl.DateTimeFormat().resolvedOptions().timeZone,
   };
 }
 

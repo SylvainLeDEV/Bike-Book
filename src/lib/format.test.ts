@@ -16,6 +16,7 @@ import {
   formatMonthYear,
   formatPercent,
   formatSignedInteger,
+  isLocalDate,
   localDateOf,
   MINUS,
   NBSP,
@@ -155,5 +156,16 @@ describe("localDateOf", () => {
     expect(localDateOf(Date.UTC(2026, 9, 24, 22, 30), paris)).toBe("2026-10-25");
     expect(localDateOf(Date.UTC(2026, 9, 25, 22, 30), paris)).toBe("2026-10-25");
     expect(localDateOf(Date.UTC(2026, 9, 25, 23, 30), paris)).toBe("2026-10-26");
+  });
+});
+
+describe("isLocalDate", () => {
+  it("accepts real calendar dates only", () => {
+    expect(isLocalDate("2026-10-25")).toBe(true);
+    expect(isLocalDate("2024-02-29")).toBe(true);
+    expect(isLocalDate("2026-02-29")).toBe(false);
+    expect(isLocalDate("2026-13-01")).toBe(false);
+    expect(isLocalDate("2026-10-5")).toBe(false);
+    expect(isLocalDate("25/10/2026")).toBe(false);
   });
 });

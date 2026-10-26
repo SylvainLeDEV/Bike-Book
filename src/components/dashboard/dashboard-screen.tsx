@@ -1,22 +1,17 @@
 import Link from "next/link";
 import { cn } from "cn";
-import { Clock, OctagonAlert, Package, ShoppingCart, Zap } from "lucide-react";
-import { BikeCover } from "@/components/bike-cover";
+import { Clock, OctagonAlert, Package, Plus, ShoppingCart } from "lucide-react";
+import { BikeLine } from "@/components/bike-cover";
+import { BikeCard } from "@/components/bike/bike-card";
+import { EmptyState } from "@/components/empty-state";
 import { PlanList, type PlanActions } from "@/components/plan/plan-list";
-import { RebuyBadge, RuleStatusBadge } from "@/components/status";
+import { RebuyBadge } from "@/components/status";
 import { Timeline } from "@/components/timeline";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { bikesText, formatStock } from "@/lib/display";
-import {
-  formatDate,
-  formatDistance,
-  formatDuration,
-  formatMoney,
-  type LocalDate,
-} from "@/lib/format";
-import { DISCIPLINE_LABELS } from "@/lib/labels";
-import type { BikeCardVM, DashboardVM, RebuyRowVM } from "@/lib/view-models";
+import { formatDate, formatMoney, type LocalDate } from "@/lib/format";
+import type { DashboardVM, RebuyRowVM } from "@/lib/view-models";
 
 export type DashboardLinks = {
   bike: (bikeId: number) => string;
@@ -79,44 +74,6 @@ function SummaryPill({
       </span>
       <strong className="num text-2xl leading-none font-bold">{count}</strong>
       <span className="text-[13.5px] text-fg-muted">{label}</span>
-    </Link>
-  );
-}
-
-function BikeCard({ card, href }: { card: BikeCardVM; href: string }) {
-  return (
-    <Link
-      href={href}
-      className="block shrink-0 grow-0 basis-[80%] snap-start overflow-hidden rounded-card border border-border bg-surface text-inherit shadow-(--shadow-sm) transition-[transform,box-shadow] hover:-translate-y-0.5 hover:shadow-(--shadow-md) md:basis-auto"
-    >
-      <BikeCover cover={card.bike.cover} className="aspect-video lg:aspect-[2.7/1]">
-        <span className="absolute inset-0 bg-[linear-gradient(to_top,var(--photo-shade),transparent_55%)]" />
-        <span className="absolute inset-x-3.5 bottom-[11px] flex items-end justify-between gap-2 text-on-photo">
-          <span className="num text-2xl leading-none font-bold tracking-[0.01em]">
-            {card.bike.name}
-          </span>
-          <span className="inline-flex h-6 items-center gap-1 rounded-full bg-photo-glass px-[9px] text-xs leading-none font-semibold whitespace-nowrap backdrop-blur-md [&_svg]:size-[13px]">
-            {card.isElectric ? <Zap aria-label="Assistance électrique" /> : null}
-            {DISCIPLINE_LABELS[card.discipline]}
-          </span>
-        </span>
-      </BikeCover>
-      <span className="flex items-center justify-between gap-2 px-3.5 py-2.5 text-[13px] text-fg-muted">
-        <span>
-          Ce mois ·{" "}
-          <span className="num text-[15px] font-semibold text-fg">
-            {formatDistance(card.monthDistanceM)} · {formatDuration(card.monthDurationS)}
-          </span>
-        </span>
-        {card.alert ? (
-          <RuleStatusBadge
-            status={card.alert.status}
-            label={`${card.alert.count} ${card.alert.status === "overdue" ? "en retard" : "bientôt"}`}
-          />
-        ) : (
-          <RuleStatusBadge status="ok" />
-        )}
-      </span>
     </Link>
   );
 }
@@ -190,10 +147,13 @@ export function DashboardScreen({
   vm,
   actions,
   links,
+  onAddBike,
 }: {
   vm: DashboardVM;
   actions: PlanActions;
   links: DashboardLinks;
+  /** "Ajouter un vélo", offered when there is no bike yet. */
+  onAddBike?: () => void;
 }) {
   const { counts } = vm;
   return (
@@ -253,11 +213,29 @@ export function DashboardScreen({
               </Button>
             }
           />
-          <div className="-mx-4 no-scrollbar flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pt-0.5 pb-1.5 md:mx-0 md:grid md:grid-cols-3 md:overflow-visible md:p-0 lg:grid-cols-1">
-            {vm.bikes.map((card) => (
-              <BikeCard key={card.bike.id} card={card} href={links.bike(card.bike.id)} />
-            ))}
-          </div>
+          {vm.bikes.length ? (
+            <div className="-mx-4 no-scrollbar flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pt-0.5 pb-1.5 md:mx-0 md:grid md:grid-cols-3 md:overflow-visible md:p-0 lg:grid-cols-1">
+              {vm.bikes.map((card) => (
+                <BikeCard key={card.bike.id} card={card} href={links.bike(card.bike.id)} />
+              ))}
+            </div>
+          ) : (
+            <EmptyState
+              compact
+              art={<BikeLine />}
+              title="Aucun vélo pour l'instant"
+              action={
+                onAddBike ? (
+                  <Button onClick={onAddBike}>
+                    <Plus />
+                    Ajouter un vélo
+                  </Button>
+                ) : null
+              }
+            >
+              Ajoute ton premier vélo : ses sorties, son entretien et ses pièces suivront.
+            </EmptyState>
+          )}
         </section>
 
         <section aria-labelledby="a-racheter" className="[grid-area:parts]">

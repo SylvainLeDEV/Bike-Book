@@ -2,8 +2,9 @@
 
 Track all your bikes in one place — rides, maintenance, parts and upcoming service.
 
-> **Status (2026-10-24): Phase 0 — foundations.** An empty app with accounts (first-launch
-> setup, sign-in), a Docker image and CI. Bikes, rides and maintenance come with Phase 1.
+> **Status (2026-10-26): Phase 1 — MVP, in progress.** Accounts, the app shell (light and dark
+> themes) and bikes with their full record. Components, rides, maintenance, rules, the workshop,
+> photos and the export come next, one feature at a time.
 
 ## Quick start
 
@@ -15,7 +16,8 @@ pnpm dev            # http://localhost:3000, data in ./data
 ```
 
 The first visit opens a setup screen that creates your account and your garage. To try the app
-with fictitious data instead, run `pnpm db:seed` before the first visit.
+with fictitious data instead, run `pnpm db:seed` before the first visit (`--reset` recreates the
+demo).
 
 With Docker, using the production image:
 

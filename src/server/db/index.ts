@@ -7,3 +7,13 @@ export { checkDatabase, countUsers, createWorkspaceWithOwner, findAccessContext 
 export { createAuthAdapter } from "./auth-adapter";
 export { initDatabase } from "./client";
 export { getWorkspaceOverview, type WorkspaceOverview } from "./workspaces";
+export {
+  createBike,
+  getBike,
+  listBikes,
+  listShops,
+  updateBike,
+  type Bike,
+  type BikeData,
+  type SaveBikeOutcome,
+} from "./bikes";

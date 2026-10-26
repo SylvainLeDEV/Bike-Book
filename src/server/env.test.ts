@@ -47,4 +47,10 @@ describe("parseEnv", () => {
     expect(parseEnv({ ALLOW_SIGNUP: "" }).allowSignup).toBe(false);
     expect(() => parseEnv({ ALLOW_SIGNUP: "yes" })).toThrow(/true or false/);
   });
+
+  it("reads the display time zone and rejects unknown ones", () => {
+    expect(parseEnv({ TZ: "Europe/Paris" }).timeZone).toBe("Europe/Paris");
+    expect(parseEnv({}).timeZone).toBe(Intl.DateTimeFormat().resolvedOptions().timeZone);
+    expect(() => parseEnv({ TZ: "Europe/Nowhere" })).toThrow(/IANA time zone/);
+  });
 });

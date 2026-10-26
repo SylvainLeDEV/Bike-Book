@@ -161,6 +161,13 @@ export function Timeline({
       addPhotos={addPhotos}
     />
   );
+  if (!items.length) {
+    return (
+      <p className="text-[13px] text-fg-muted">
+        Aucune sortie ni aucun entretien pour l&apos;instant.
+      </p>
+    );
+  }
   if (!groupByMonth) return <ol className="m-0 list-none p-0">{items.map(entry)}</ol>;
 
   const months: { key: string; items: TimelineItemVM[] }[] = [];

@@ -222,6 +222,11 @@ export function PlanList({
             actions={actions}
           />
         ))}
+        {rules.length + tasks.length === 0 ? (
+          <li className="px-4 py-3 text-[13px] text-fg-muted">
+            Rien à prévoir pour l&apos;instant.
+          </li>
+        ) : null}
         {actions.onAddTask ? (
           <li className="px-2 py-1.5">
             <ActionButton

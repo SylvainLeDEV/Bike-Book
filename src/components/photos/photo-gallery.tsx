@@ -62,6 +62,14 @@ export function PhotoGallery({
   const [origin, setOrigin] = React.useState<PhotoOrigin | "">("");
   const [order, setOrder] = React.useState<"desc" | "asc">("desc");
 
+  if (!photos.length && !onAddPhotos) {
+    return (
+      <EmptyState compact art={CAMERA_ART} title={`Aucune photo pour ${bikeName}`}>
+        L&apos;ajout de photos et de documents arrive dans une prochaine version.
+      </EmptyState>
+    );
+  }
+
   if (!photos.length) {
     return (
       <EmptyState

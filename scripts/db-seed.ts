@@ -1,4 +1,6 @@
 // Fills a development database with fictitious data. Refuses to run in production.
+//   pnpm db:seed            creates the demo account if it does not exist
+//   pnpm db:seed --reset    deletes the demo account and its workspace, then creates them again
 import { loadEnvConfig } from "@next/env";
 import { closeDb } from "@/server/db/client";
 import { DEMO_ACCOUNT, seedDemoData } from "@/server/db/seed";
@@ -10,11 +12,12 @@ async function main() {
   if (getEnv().nodeEnv === "production") {
     throw new Error("Refusing to seed a production database (NODE_ENV=production).");
   }
-  const result = await seedDemoData();
+  const reset = process.argv.includes("--reset");
+  const result = await seedDemoData({ reset });
   console.log(
     result.created
       ? `Demo account created: ${DEMO_ACCOUNT.email} / ${DEMO_ACCOUNT.password}`
-      : `Demo account already exists: ${DEMO_ACCOUNT.email}`,
+      : `Demo account already exists: ${DEMO_ACCOUNT.email} (pnpm db:seed --reset to recreate it)`,
   );
 }
 

@@ -3,9 +3,9 @@
 Self-hosted web app to track bikes: rides, maintenance, components, and what is coming up
 (services due by hours, kilometres or date, parts to rebuy from the workshop).
 
-**Status:** Phase 0 application scaffold done (auth, data-access layer, Docker image, CI).
-Remaining Phase 0 items are deployment-side (target host, backups, proxy checks): see
-`docs/05-roadmap.md`. Next: Phase 1 — MVP.
+**Status:** Phase 1 step B in progress: feature 1 (bikes) done on 2026-10-26; the other
+features follow the order of `docs/05-roadmap.md`. Phase 0 items still open are deployment-side
+(backups with a tested restore, a 10 MB upload through the proxy), planned before real data.
 
 ## Read first
 
@@ -42,6 +42,8 @@ Remaining Phase 0 items are deployment-side (target host, backups, proxy checks)
   100 km. Phase 1.5: labels, products and tools, maintenance procedures.
 - **Data readable by an AI (D-50):** names carry their unit, enums defined in 03, inputs
   validated, derived values computed, `docs/03-data-model.md` kept as the data dictionary.
+- **Step B working rules (D-54):** build screens directly in the app (no `/design` detour when
+  the mockup covers them); the owner commits and pushes; never `git add`/`commit`/`push`/`tag`.
 
 ## Rules
 
@@ -74,17 +76,21 @@ Remaining Phase 0 items are deployment-side (target host, backups, proxy checks)
 src/
 ├── app/            # App Router: (app)/ signed-in pages, (auth)/ login + setup,
 │                   # design/ (development-only design system, D-32),
-│                   # api/auth/[...all] (Better Auth), api/healthz; api/uploads in phase 1
+│                   # api/auth/[...all] (Better Auth), api/healthz; api/uploads in phase 1.
+│                   # Routes: /, /bikes, /bikes/[bikeId], /activity, /workshop (D-54)
 │                   # globals.css = the design tokens (D-30, D-31)
 ├── server/         # server-only
 │   ├── db/         # schema, migrations/, seed, data-access layer (index.ts = public API)
 │   ├── auth/       # Better Auth instance, sign-up policy, current user + workspace
-│   ├── actions/    # Server Actions
-│   ├── env.ts      # configuration, validated with Zod
-│   └── (domain/, files/, jobs/, integrations/ come with phases 1–2)
+│   ├── actions/    # Server Actions, their Zod input schemas in *-input.ts
+│   ├── domain/     # pure, tested logic (bike status, total cost; wear, rules… next)
+│   ├── views/      # view models of the real pages (data-access layer + domain)
+│   ├── env.ts      # configuration, validated with Zod (TZ included); time.ts: today in TZ
+│   └── (files/, jobs/, integrations/ come with features 10, 1.5 and phase 2)
 ├── components/     # Screens and building blocks, fed by view models (props);
 │                   # primitives in components/ui (shadcn/ui style, Radix), shell/ = app shell
-├── lib/            # client-safe: format.ts (French formats), labels.ts (enum labels),
+├── lib/            # client-safe: enums.ts (enum values, shared with the schema),
+│                   # format.ts / parse.ts (French formats), labels.ts (enum labels), names.ts,
 │                   # view-models.ts, display.ts, theme.ts, auth client
 ├── test/           # Vitest setup
 └── instrumentation.ts  # opens the database (migrations) at startup; scheduler later
@@ -115,7 +121,7 @@ Toolchain: Node.js ≥ 24 (the image uses Node 24 LTS) and pnpm 12 (pinned in `p
 | `pnpm test` / `pnpm test:watch` | Vitest; each test file gets its own temporary database |
 | `pnpm db:generate` | Generate a migration from `src/server/db/schema.ts` (drizzle-kit) |
 | `pnpm db:migrate` | Apply migrations to `DATA_DIR` (the app also does it at startup) |
-| `pnpm db:seed` | Create the fictitious demo account (`demo@example.com`, see `src/server/db/seed.ts`); refuses to run in production |
+| `pnpm db:seed` | Create the fictitious demo account and garage of `/design` (`demo@example.com`, see `src/server/db/seed.ts`), dates moved to the current week; `--reset` recreates it; refuses to run in production |
 | `pnpm db:studio` | Drizzle Studio on the dev database |
 | `docker compose up --build` | Build and run the production image locally (needs `.env`, see `docker-compose.yml`) |
 

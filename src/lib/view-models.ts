@@ -6,36 +6,43 @@
  * metres, durations in seconds, money in cents, calendar dates as `YYYY-MM-DD` (instants are
  * turned into local dates on the server, in TZ). Labels and formats are the screens' job.
  */
+import type {
+  BikeStatus,
+  ComponentGroup,
+  Discipline,
+  InventoryCategory,
+  InventoryUnit,
+  MaintenancePerformer,
+  MovementKind,
+  RemovalReason,
+  RestockStatus,
+  RideConditions,
+  RideType,
+  RuleStatus,
+  ShopKind,
+  WheelSize,
+} from "./enums";
 import type { LocalDate } from "./format";
 
-// --- Enums (values defined in docs/03-data-model.md) ------------------------------------------
+// --- Enums (values in enums.ts, defined in docs/03-data-model.md) ------------------------------
 
-export type Discipline =
-  "road" | "gravel" | "xc" | "trail" | "enduro" | "dh" | "dirt" | "city" | "other";
-export type BikeStatus = "active" | "stored" | "sold" | "stolen" | "retired";
-export type RideType =
-  | "road"
-  | "gravel"
-  | "xc"
-  | "trail"
-  | "enduro"
-  | "dh"
-  | "bike_park"
-  | "commute"
-  | "indoor"
-  | "other";
-export type RideConditions = "dry" | "wet" | "mud" | "dust" | "snow" | "mixed";
-export type ComponentGroup =
-  "suspension" | "drivetrain" | "brakes" | "wheels" | "cockpit" | "frame" | "electric" | "other";
-export type InventoryCategory = ComponentGroup | "care";
-export type ComponentPosition = "front" | "rear" | "none";
-export type RemovalReason = "worn" | "broken" | "crash" | "upgrade" | "sold_with_bike" | "other";
-export type RuleStatus = "ok" | "due_soon" | "overdue" | "snoozed";
-export type InventoryUnit = "piece" | "pair" | "set";
-export type RestockStatus = "none" | "to_order" | "ordered";
-export type MovementKind = "initial" | "purchase" | "use" | "adjustment";
-export type MaintenancePerformer = "self" | "shop";
-export type ShopKind = "physical" | "online";
+export type {
+  BikeStatus,
+  ComponentGroup,
+  ComponentPosition,
+  Discipline,
+  InventoryCategory,
+  InventoryUnit,
+  MaintenancePerformer,
+  MovementKind,
+  RemovalReason,
+  RestockStatus,
+  RideConditions,
+  RideType,
+  RuleStatus,
+  ShopKind,
+  WheelSize,
+} from "./enums";
 
 /** What the workshop shows for an item: restocking first, else low stock (computed, D-35). */
 export type RebuyState = "to_order" | "ordered" | "low_stock";
@@ -151,6 +158,9 @@ export type BikeCardVM = {
   bike: BikeRef;
   discipline: Discipline;
   isElectric: boolean;
+  /** Shown on the card, with its date, when it is not `active`. */
+  status: BikeStatus;
+  statusChangedOn: LocalDate | null;
   monthDistanceM: number;
   monthDurationS: number;
   /** The most urgent rule status and how many rules have it; null when all is up to date. */
@@ -237,7 +247,7 @@ export type BikeRecordVM = {
     modelYear: number | null;
     discipline: Discipline;
     frameSize: string | null;
-    wheelSize: string | null;
+    wheelSize: WheelSize | null;
     color: string | null;
     weightG: number | null;
     isElectric: boolean;
@@ -294,6 +304,55 @@ export type BikePageVM = {
   record: BikeRecordVM;
   photos: PhotoVM[];
 };
+
+// --- Bikes list and bike sheet ----------------------------------------------------------------------
+
+export type BikesPageVM = {
+  /** Active bikes, in the order they were added. */
+  active: BikeCardVM[];
+  /** Stored, sold, stolen and retired bikes: folded on the list (docs/04). */
+  others: BikeCardVM[];
+};
+
+/** A shop already known to the workspace, offered as a suggestion (D-37). */
+export type ShopOption = { id: number; name: string; kind: ShopKind };
+
+/**
+ * What "Ajouter un vélo" / "Modifier le vélo" sends. Raw units like the data (D-50); the server
+ * validates it again with Zod. `shop`: a known shop is matched by name, a new name creates it.
+ */
+export type BikeInput = {
+  name: string;
+  brand: string | null;
+  model: string | null;
+  modelYear: number | null;
+  discipline: Discipline;
+  isElectric: boolean;
+  status: BikeStatus;
+  /** Sale date, `sold` only; becomes `status_changed_on`. */
+  soldOn: LocalDate | null;
+  salePriceCents: number | null;
+  frameSize: string | null;
+  wheelSize: WheelSize | null;
+  color: string | null;
+  weightG: number | null;
+  frameSerial: string | null;
+  notes: string | null;
+  purchasedOn: LocalDate | null;
+  purchasePriceCents: number | null;
+  shop: { name: string; kind: ShopKind } | null;
+  boughtUsed: boolean;
+  initialDistanceM: number;
+  initialWearS: number;
+};
+
+/** The bike sheet in edit mode: the current values. */
+export type BikeFormVM = BikeInput & { id: number; statusChangedOn: LocalDate | null };
+
+/** Answer of the save action: field errors are keyed like `BikeInput` ("shop" for the shop). */
+export type SaveBikeResult =
+  | { ok: true; bikeId: number; name: string }
+  | { ok: false; error?: string; fieldErrors?: Partial<Record<keyof BikeInput, string>> };
 
 // --- Workshop ------------------------------------------------------------------------------------
 

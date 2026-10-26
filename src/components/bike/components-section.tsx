@@ -15,7 +15,7 @@ import {
   SegmentedTabsTrigger,
 } from "@/components/ui/segmented-tabs";
 import { formatQuantity } from "@/lib/display";
-import { formatDate, type LocalDate } from "@/lib/format";
+import { formatCount, formatDate, type LocalDate } from "@/lib/format";
 import { COMPONENT_GROUP_LABELS, REMOVAL_REASON_LABELS } from "@/lib/labels";
 import type { ComponentGroupVM, ComponentVM } from "@/lib/view-models";
 
@@ -133,11 +133,16 @@ export function ComponentsSection({
   const replacements = all.reduce((n, c) => n + c.lineage.length, 0);
   const hint =
     view === "fitted"
-      ? `${all.length} pièces suivies`
-      : `${purchasedOn ? `À l'achat le ${formatDate(purchasedOn, { month: "short" })} · ` : ""}${replacements} remplacements`;
+      ? formatCount(all.length, "pièce suivie", "pièces suivies")
+      : `${purchasedOn ? `À l'achat le ${formatDate(purchasedOn, { month: "short" })} · ` : ""}${formatCount(replacements, "remplacement", "remplacements")}`;
 
   const list = (Row: typeof FittedRow) => (
     <Card className="overflow-hidden">
+      {groups.length ? null : (
+        <p className="px-4 py-3 text-[13px] text-fg-muted">
+          Aucun composant noté pour l&apos;instant.
+        </p>
+      )}
       {groups.map((group, index) => (
         <div key={group.group} className={cn(index > 0 && "border-t border-border")}>
           <GroupHead group={group.group} />

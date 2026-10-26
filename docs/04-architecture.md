@@ -72,14 +72,18 @@ src/
 │   ├── shell/             # App shell: sidebar / rail / bottom bar, top bar, theme, account
 │   ├── dashboard/ bike/ workshop/ rides/ plan/ photos/
 │   └── …                  # Shared: wear bar and badges, timeline, bike cover, empty state
-├── lib/                   # Client-safe: French formatting, enum labels, view-model types, theme
+├── lib/                   # Client-safe: enum values (enums.ts), French formatting and parsing,
+│                          # enum labels, name comparison, view-model types, theme
 ├── server/                # Server-only code (`import "server-only"`)
 │   ├── db/                # Drizzle schema, migrations, seed, scoped data-access layer
 │   ├── auth/              # Better Auth setup, current user and workspace
-│   ├── actions/           # Server Actions (forms)
+│   ├── actions/           # Server Actions (forms) and their Zod input schemas (*-input.ts)
+│   ├── domain/            # Pure, tested logic: bike status, total cost, (wear, rules, stock…)
+│   ├── views/             # View models of the real pages, from the data-access layer + domain
 │   ├── theme.ts           # Reads the theme cookie
+│   ├── time.ts            # "Today" in the configured TZ
 │   └── env.ts             # Configuration, validated with Zod
-│   # Phase 1+: domain/ (pure, tested), files/ (uploads), jobs/ (1.5), integrations/ (2)
+│   # Later: files/ (uploads, feature 10), jobs/ (1.5), integrations/ (2)
 └── instrumentation.ts     # Opens the database (migrations) at startup; scheduler later
 ```
 
@@ -110,13 +114,14 @@ src/
 
 ### Routes
 
-Status: **Proposed** (end of phase 1 step A), to validate before step B. URLs in English, like
-the folder names they come from (code in English, H-01); every visible label stays French.
+Status: **Decided** (D-54, 2026-10-26). URLs in English, like the folder names they come from
+(code in English, H-01); every visible label stays French. Until its feature is built, a route
+of the navigation shows a "Bientôt ici" page rather than a 404.
 
 | URL | Screen | Notes |
 |-----|--------|-------|
 | `/` | Accueil | "À prévoir", "À racheter", bikes, latest activity |
-| `/bikes` | Vélos | The list, with stored, sold and retired bikes folded; "Ajouter un vélo" (sheet) |
+| `/bikes` | Vélos | Active bikes as cards; stored, sold, stolen and retired bikes folded; "Ajouter un vélo" (sheet) |
 | `/bikes/[bikeId]` | Page vélo | `?tab=` selects the tab below 1024 px (deep links from the viewer) |
 | `/activity` | Activité | Rides and maintenance log (features 4 and 5) |
 | `/workshop` | Atelier | `?tab=rebuy`, `?bike=`, `?q=` keep the filters in the URL |
@@ -151,7 +156,7 @@ baked into the image or the repository.
 | Variable | Required | Purpose |
 |----------|----------|---------|
 | `DATA_DIR` | No (default `./data`; the image sets `/data`) | Where the database and files live |
-| `TZ` | Recommended | Display timezone (e.g. `Europe/Paris`) |
+| `TZ` | Recommended | Display timezone (e.g. `Europe/Paris`): instants are shown and "today" is computed in it. An unknown zone stops the app at startup; without `TZ`, the process zone is used (UTC in most containers) (D-57) |
 | `AUTH_SECRET` | Yes in production (D-28) | Signs session cookies. At least 32 characters (`openssl rand -base64 32`); the `.env.example` placeholder is refused. Development uses a built-in insecure default |
 | `ALLOW_SIGNUP` | No (default `false`) | `false`: only the first-launch setup screen creates an account. `true`: anyone who reaches the app can create an account with its own workspace (D-27). Later, new users come by invitation |
 | `PUBLIC_URL` | Yes in production (D-28) | Origin users type, e.g. `http://bikes.lan`. Better Auth's base URL: origin check on sign-in, and session cookies get `Secure` only when it starts with `https://`. Open the app at exactly this origin, or sign-in is refused |
@@ -278,8 +283,8 @@ Backing up is the operator's job (D-12); the app makes it easy:
 ## Local development
 
 - `pnpm dev`, with the SQLite file in `./data/` (git-ignored) and a seed script (`pnpm db:seed`)
-  that creates fictitious data: a demo account and workspace for now, bikes and rides from
-  phase 1.
+  that creates the fictitious data of `/design`, its dates moved to the current week (D-58);
+  `pnpm db:seed --reset` recreates it.
 - `docker compose up --build` to test the production image with the same variables
   (`docker-compose.yml` at the repository root; its database lives in `./data/compose`).
 - All commands: see the Commands section of `CLAUDE.md`.

@@ -89,31 +89,60 @@ Scoping rules:
 
 ### `bikes`
 
+Status: **Built** in phase 1 feature 1 (2026-10-26, migration `0001_bikes_and_shops`), except
+`cover_attachment_id`, added with the attachments (feature 10, D-57).
+
 | Field | Type | Notes |
 |-------|------|-------|
 | `id` | integer PK | |
-| `workspace_id` | FK `workspaces`, required | D-25 |
-| `name` | text, required, unique per workspace | "Spectral", "Gravel alu" |
-| `discipline` | enum: `road`, `gravel`, `xc`, `trail`, `enduro`, `dh`, `dirt`, `city`, `other` | |
-| `is_electric` | boolean | e-MTB, e-gravel… (an e-bike can be any discipline) |
-| `brand`, `model` | text | |
-| `model_year` | integer | |
-| `frame_size` | text | "L", "56" |
-| `wheel_size` | text | "29", "27.5", "mullet", "700c" |
+| `workspace_id` | FK `workspaces`, required | D-25. Deleting a workspace deletes its bikes (only the dev seed does it) |
+| `name` | text, required | "Spectral", "Gravel alu". Unique per workspace, compared without case, accents or extra spaces by the app (D-55); unique index on (`workspace_id`, `name`) as the last line |
+| `discipline` | enum, required | See [values](#bike-values) |
+| `is_electric` | boolean, required, default `false` | e-MTB, e-gravel… (an e-bike can be any discipline) |
+| `brand`, `model` | text | "Canyon", "Spectral 29 CF" |
+| `model_year` | integer | Model year given by the maker, 1900–2100 |
+| `frame_size` | text | As the maker writes it: "L", "56" |
+| `wheel_size` | enum, nullable | See [values](#bike-values) (D-56) |
 | `color` | text | |
-| `frame_serial` | text | For the theft or insurance file |
-| `weight_g` | integer | Optional |
-| `purchased_on` | date | |
-| `purchase_price_cents` | integer | Optional (Q-08) |
-| `purchase_shop_id` | FK `shops` | Optional |
-| `bought_used` | boolean | |
-| `initial_distance_m`, `initial_wear_s` | integer | Usage before tracking started (second-hand bike, history not entered) |
-| `status` | enum: `active`, `stored`, `sold`, `stolen`, `retired` | Bikes are never deleted, only retired |
-| `status_changed_on` | date | |
-| `sale_price_cents` | integer | |
-| `cover_attachment_id` | FK `attachments` | Main photo |
+| `frame_serial` | text | Frame number, for the theft or insurance file. Shown masked except its last group |
+| `weight_g` | integer, nullable | Grams, > 0 |
+| `purchased_on` | date | Calendar date of the purchase |
+| `purchase_price_cents` | integer, nullable | Euro cents, ≥ 0 (Q-08) |
+| `purchase_shop_id` | FK `shops`, nullable | Where it was bought; `null` for a private sale or unknown |
+| `bought_used` | boolean, required, default `false` | `true`: second-hand |
+| `initial_distance_m`, `initial_wear_s` | integer, required, default 0 | Distance (metres) and wear time (seconds) ridden before tracking started (second-hand bike, history not entered); 0 when none. Added to the bike's counters, never to the cost per 100 km (D-44) |
+| `status` | enum, required, default `active` | See [values](#bike-values). Bikes are never deleted, only given another status |
+| `status_changed_on` | date, nullable | The day the current status began: the sale date for a sold bike, the purchase date (else the creation day) for a new active bike (D-56) |
+| `sale_price_cents` | integer, nullable | Euro cents, ≥ 0. Only on a sold bike (CHECK), deducted from the total cost (D-44) |
+| `cover_attachment_id` | FK `attachments`, nullable | Main photo. Added with feature 10 (D-57) |
 | `notes` | text | |
-| `created_at`, `updated_at` | timestamp | |
+| `created_at`, `updated_at` | timestamp | Instants, UTC epoch milliseconds |
+
+CHECK constraints: the three enums; `sale_price_cents` null unless `status = 'sold'`; prices ≥ 0,
+weight > 0, initial distance and wear ≥ 0.
+
+<a id="bike-values"></a>**Values**
+
+| Column | Value | Meaning |
+|--------|-------|---------|
+| `discipline` | `road` | Road bike |
+| | `gravel` | Gravel or all-road bike |
+| | `xc` | Cross-country mountain bike |
+| | `trail` | Trail mountain bike |
+| | `enduro` | Enduro mountain bike |
+| | `dh` | Downhill bike |
+| | `dirt` | Dirt jump or pump track bike |
+| | `city` | City, commuting or touring bike |
+| | `other` | Anything else |
+| `wheel_size` | `29`, `27.5`, `26` | Both wheels of that diameter, in inches |
+| | `mullet` | 29 in front, 27.5 in the rear |
+| | `700c`, `650b` | Road and gravel wheel sizes (ETRTO 622 and 584 mm) |
+| | `other` | Another size (kids' bikes, fat bikes…) |
+| `status` | `active` | Ridden: shown everywhere, its rules run |
+| | `stored` | Put away: still shown, offered in the quick ride entry, its distance and hour rules do not move |
+| | `sold` | Sold: folded on the list; the sale price is deducted from the total cost |
+| | `stolen` | Stolen: folded on the list; its record stays ready for the declaration |
+| | `retired` | No longer used: folded on the list; its history stays readable |
 
 The bike record (D-43) needs no other column: identity, purchase and security are these fields,
 and the total cost is computed (see [Total cost](#total-cost-d-44)).
@@ -210,12 +239,19 @@ Validation: at least one of `total_time_s` and `moving_time_s` is set.
 
 ### `shops`
 
-| Field | Type |
-|-------|------|
-| `id` | integer PK |
-| `workspace_id` | FK `workspaces` |
-| `kind` | enum: `physical`, `online` (D-37) |
-| `name`, `city`, `phone`, `website`, `notes` | text |
+Status: **Built** in phase 1 feature 1 (2026-10-26, migration `0001_bikes_and_shops`).
+
+Where bikes and parts are bought or serviced. In phase 1 a shop is created by typing a new name
+in a bike's purchase (D-55); there is no shop screen yet.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `id` | integer PK | |
+| `workspace_id` | FK `workspaces`, required | D-25 |
+| `kind` | enum, required | `physical`: a shop with an address; `online`: a web shop (D-37) |
+| `name` | text, required | Unique per workspace, compared without case, accents or extra spaces by the app (D-55); unique index on (`workspace_id`, `name`) |
+| `city`, `phone`, `website`, `notes` | text, nullable | Not entered in phase 1 |
+| `created_at`, `updated_at` | timestamp | Instants, UTC epoch milliseconds |
 
 ### `maintenance_events`
 
