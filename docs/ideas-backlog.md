@@ -10,7 +10,7 @@ and effort are rough guesses (**Estimates**): S = an evening or two, M = a few e
 | Telegram "log a ride" command | Medium | M | The digest and alerts are planned (D-18) |
 | Season mode: a bike stored for the winter pauses its day-based rules | Medium | S | Snooze already exists |
 | Sale or insurance file: one PDF with the bike, serial number, photos, invoices and maintenance history | Medium | M | Helps resale value |
-| Warranty expiry reminders | Low | S | `warranty_until` is already in the model |
+| Warranty expiry reminders | Low | S | `components.warranty_ends_on` is already in the model |
 | QR code sticker on the frame linking to the bike page | Low | S | Only reachable on the private network or VPN |
 | Automatic Bosch readings | Medium | M | D-19. Only if an official owner access appears (EU Data Act); community tools are unofficial |
 | Weather auto-fill for ride conditions, from date and place | Low | M | Needs a weather API (not checked) |

@@ -32,6 +32,9 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
+# Local tool configuration (dev server launchers)
+.claude/launch.json
+
 # OS and editors
 .DS_Store
 Thumbs.db

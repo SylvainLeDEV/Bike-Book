@@ -34,8 +34,8 @@ export default async function SetupPage() {
         <CardTitle>{firstLaunch ? "Bienvenue sur Bike-Book" : "Créer un compte"}</CardTitle>
         <CardDescription>
           {firstLaunch
-            ? "Créez votre compte et votre garage. Cet écran n'apparaît qu'au premier lancement."
-            : "Créez votre compte et votre garage."}
+            ? "Crée ton compte et ton garage. Cet écran n'apparaît qu'au premier lancement."
+            : "Crée ton compte et ton garage."}
         </CardDescription>
       </CardHeader>
       <CardContent>

@@ -73,15 +73,19 @@ Remaining Phase 0 items are deployment-side (target host, backups, proxy checks)
 ```text
 src/
 ├── app/            # App Router: (app)/ signed-in pages, (auth)/ login + setup,
+│                   # design/ (development-only design system, D-32),
 │                   # api/auth/[...all] (Better Auth), api/healthz; api/uploads in phase 1
+│                   # globals.css = the design tokens (D-30, D-31)
 ├── server/         # server-only
 │   ├── db/         # schema, migrations/, seed, data-access layer (index.ts = public API)
 │   ├── auth/       # Better Auth instance, sign-up policy, current user + workspace
 │   ├── actions/    # Server Actions
 │   ├── env.ts      # configuration, validated with Zod
 │   └── (domain/, files/, jobs/, integrations/ come with phases 1–2)
-├── components/     # UI (shadcn/ui in components/ui)
-├── lib/            # client-safe helpers (auth client)
+├── components/     # Screens and building blocks, fed by view models (props);
+│                   # primitives in components/ui (shadcn/ui style, Radix), shell/ = app shell
+├── lib/            # client-safe: format.ts (French formats), labels.ts (enum labels),
+│                   # view-models.ts, display.ts, theme.ts, auth client
 ├── test/           # Vitest setup
 └── instrumentation.ts  # opens the database (migrations) at startup; scheduler later
 scripts/            # db-migrate.ts, db-seed.ts (run with tsx)
@@ -91,6 +95,10 @@ scripts/            # db-migrate.ts, db-seed.ts (run with tsx)
   `better-sqlite3`. ESLint enforces it (`no-restricted-imports`); tests are exempt.
 - Code under `src/server` imports `server-only`. Scripts run with `tsx --conditions=react-server`
   and Vitest aliases `server-only` to an empty module.
+- UI: tokens only (Tailwind colours are reset to them), Tailwind breakpoints `md` = 700 px and
+  `lg` = 1024 px, `pointer-coarse:` for 44 px touch targets, French formats through
+  `src/lib/format.ts`. Screens take view models with raw units and `YYYY-MM-DD` dates; `/design`
+  shows them with fixtures (`pnpm dev`, then http://localhost:3000/design).
 
 ## Commands
 

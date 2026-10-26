@@ -41,8 +41,14 @@ components and fictitious data, on a development-only `/design` route (D-32): to
 and dark themes (D-31), Geist and Barlow Semi Condensed through `next/font`, lucide icons, the
 responsive shell (bottom bar, rail, sidebar), the building blocks (buttons, badges, chips, cards,
 lists, fields, wear bar, timeline, sheet, toast with undo, empty states, skeletons), then the
-dashboard, bike page, quick ride entry and workshop screens. Then `docs/design/mockups.html` is
-deleted.
+dashboard, bike page, quick ride entry and workshop screens. `docs/design/mockups.html` stays the
+reference of the 1.5 and 3 screens until they are ported (D-53).
+
+- [x] Built on 2026-10-26 at `/design` (development only): tokens, light and dark themes (D-52),
+  shell, building blocks, dashboard, bike page, quick ride entry, workshop (parts), Foundation
+  board with live contrast.
+- [x] Owner validation of `/design` (2026-10-26); the mockup is kept for the 1.5 and 3 screens (D-53)
+- [ ] Routes of step B validated ([04](04-architecture.md#routes), **Proposed**)
 
 **Then, one feature at a time**, each with its migration, its scoped data access (D-25), its
 pure tested domain logic, its screens, and its tables described in the data dictionary (D-50):
@@ -71,13 +77,14 @@ weeks of real use.
 - [ ] Setup log per bike (D-24): current setup, dated changes, "restore this setup" view
 - [ ] E-bike readings (D-19): typed from the Bosch eBike Flow app, battery capacity and cycles charts
 - [ ] Photo labels and the photo search across bikes, in Activité › Photos (D-45)
-- [ ] Workshop: products (four levels plus containers, D-36) and tools (D-33)
+- [ ] Workshop: products (four levels plus containers, D-36) and tools (D-33): rebuild their screens in `/design` first, from the mockup
 - [ ] Maintenance procedures: list, detail, editor, rule → procedure link (D-47; ≈ 3–4 evenings, **Estimate**)
 - [ ] Workshop mode: one step at a time, summary, save with undo (D-47; ≈ 2–3 evenings, **Estimate**)
 - [ ] Statistics: km and hours per bike per month, cost per bike per year, cost per 100 km over time (D-23, D-44)
 - [ ] Search and filters beyond the workshop
 - [ ] CSV import (only if H-06 turns out wrong)
 - [ ] HTTPS + PWA (only if a domain is bought, see [04](04-architecture.md#behind-a-reverse-proxy))
+- [ ] Delete `docs/design/mockups.html` once every 1.5 screen is rebuilt in `/design` (D-53)
 
 ## Phase 2 — Garmin (≈ 8–12 evenings, after the spike)
 

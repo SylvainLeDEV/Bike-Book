@@ -103,7 +103,7 @@ Scoping rules:
 | `color` | text | |
 | `frame_serial` | text | For the theft or insurance file |
 | `weight_g` | integer | Optional |
-| `purchase_date` | date | |
+| `purchased_on` | date | |
 | `purchase_price_cents` | integer | Optional (Q-08) |
 | `purchase_shop_id` | FK `shops` | Optional |
 | `bought_used` | boolean | |
@@ -173,9 +173,9 @@ Seed examples:
 | `removed_at` | timestamp, nullable | `null` = currently fitted |
 | `removal_reason` | enum: `worn`, `broken`, `crash`, `upgrade`, `sold_with_bike`, `other` | Feeds phase 3 |
 | `removal_note` | text, nullable | Detail shown after the reason: "chape tordue aux Gets" (D-43). `notes` stays for the part itself |
-| `purchase_date`, `purchase_price_cents`, `shop_id` | | Optional |
+| `purchased_on`, `purchase_price_cents`, `shop_id` | | Optional |
 | `inventory_item_id` | FK `inventory_items`, nullable | The workshop item the part came from (D-33) |
-| `warranty_until` | date | |
+| `warranty_ends_on` | date, nullable | Last day covered by the warranty |
 | `notes` | text | |
 
 **Original spec (D-43):** the components with `origin = stock`, each followed through
@@ -271,9 +271,9 @@ four together. Rules on that slot restart if `reset_on_replacement` is set.
 | `interval_distance_m`, `interval_wear_s`, `interval_days` | integer, nullable | At least one is set; whichever comes first |
 | `warn_ratio` | real, default `0.9` | "Due soon" from 90 % of any interval (**Proposed**) |
 | `reset_on_replacement` | boolean, default `true` | Replacing the slot's part restarts the counter |
-| `start_from` | timestamp | Counter start when the rule has never been done |
+| `counter_start_at` | timestamp | Counter start when the rule has never been done |
 | `active` | boolean | |
-| `snoozed_until` | date, nullable | |
+| `snooze_ends_on` | date, nullable | Snoozed until this date: the rule shows its real status again from that day |
 | `notes` | text | |
 
 ### `tasks` — "what's coming", one-off
@@ -358,7 +358,7 @@ erDiagram
 | `component_type_code` | FK `component_types`, nullable | The slot type it fits or serves: feeds the stock picker of "replace a part" and the rules shown on the item |
 | `all_bikes` | boolean | `true`: every bike of the workspace, future ones included; `inventory_item_bikes` is then empty |
 | `unit` | enum: `piece`, `pair`, `set`, nullable | Parts only |
-| `low_stock_at` | integer, nullable | Parts only: "Stock bas" at or below it. A suggestion, never an order by itself (D-35) |
+| `low_stock_threshold` | integer, nullable | Parts only, in the item's `unit`: "Stock bas" at or below it. A suggestion, never an order by itself (D-35) |
 | `container_label` | text, nullable | Products only: "flacon", "tube", "bidon" |
 | `restock_status` | enum: `none`, `to_order`, `ordered` | Received is an event (a purchase movement), not a status |
 | `restock_quantity` | integer, nullable | Set when ordering; prefilled at reception and correctable, then added to the stock (D-42) |
@@ -405,7 +405,7 @@ recorded per job (D-40).
 | `url` | text, nullable | `null`: bought in a shop, no page. Displayed and opened in a new tab (`rel="noopener noreferrer"`), never fetched (D-09) |
 | `price_cents` | integer, nullable | Typed by hand |
 | `price_noted_on` | date, nullable | |
-| `position` | integer | Display order |
+| `sort_order` | integer | Display order |
 | `notes` | text | |
 
 The last purchase date and the last price paid come from the movements, not from the link. A
@@ -436,8 +436,8 @@ from these readings.
 | `bike_id` | FK `bikes` | |
 | `component_id` | FK `components`, nullable | The battery or motor concerned |
 | `read_on` | date | |
-| `kind` | enum: `odometer`, `motor_hours`, `charge_cycles`, `battery_capacity_pct`, `firmware_version` | |
-| `value_num` | real, nullable | |
+| `kind` | enum: `odometer`, `motor_hours`, `charge_cycles`, `battery_capacity_percent`, `firmware_version` | |
+| `value_number` | real, nullable | Unit given by `kind`: kilometres for `odometer`, hours for `motor_hours`, a count for `charge_cycles`, percent for `battery_capacity_percent` |
 | `value_text` | text, nullable | Firmware version |
 | `source` | enum: `manual`, `import` | `import` kept for a future official access |
 | `notes` | text | |
@@ -452,10 +452,10 @@ One row per change; the latest row of a bike is its current setup. Per bike, not
 | `bike_id` | FK `bikes` | |
 | `set_on` | date | |
 | `fork_pressure_psi`, `shock_pressure_psi` | real, nullable | |
-| `fork_rebound_clicks`, `fork_lsc_clicks`, `fork_hsc_clicks` | integer, nullable | Counted from fully closed (convention shown in the UI) |
-| `shock_rebound_clicks`, `shock_lsc_clicks`, `shock_hsc_clicks` | integer, nullable | |
-| `fork_tokens`, `shock_tokens` | integer, nullable | Volume spacers |
-| `sag_front_pct`, `sag_rear_pct` | real, nullable | |
+| `fork_rebound_clicks`, `fork_low_speed_compression_clicks`, `fork_high_speed_compression_clicks` | integer, nullable | Counted from fully closed (convention shown in the UI) |
+| `shock_rebound_clicks`, `shock_low_speed_compression_clicks`, `shock_high_speed_compression_clicks` | integer, nullable | |
+| `fork_volume_spacers`, `shock_volume_spacers` | integer, nullable | Number of volume spacers ("tokens") |
+| `sag_front_percent`, `sag_rear_percent` | real, nullable | |
 | `tire_front_bar`, `tire_rear_bar` | real, nullable | |
 | `extra` | JSON | Anything else (coil spring rate, inserts…) |
 | `label` | text | E.g. "bike park", "winter" |
@@ -527,7 +527,7 @@ procedure ships with the app: the examples are demo data.
 | `component_type_code` | FK `component_types`, nullable | The kind of part it is about |
 | `model_hint` | text | Free text, "SRAM Maven": shown and searched, not matched against components |
 | `all_bikes` | boolean | `true`: every bike, future ones included; `procedure_bikes` is then empty |
-| `estimated_minutes` | integer, nullable | |
+| `estimated_duration_s` | integer, nullable | Seconds, like every duration; the UI shows minutes |
 | `difficulty` | enum: `easy`, `medium`, `hard` | |
 | `duplicated_from_id` | FK `procedures`, nullable | "Dupliquée de …" |
 | `archived_at` | timestamp, nullable | Archived, not deleted: past events keep their link |
@@ -541,7 +541,7 @@ procedure ships with the app: the examples are demo data.
 |-------|------|-------|
 | `id` | integer PK | |
 | `procedure_id` | FK, required | |
-| `position` | integer | Rewritten on reorder |
+| `sort_order` | integer | Rewritten on reorder |
 | `instruction` | text, required | |
 | `note` | text | |
 | `torque_nm` | real, nullable | Like `measurement_value`: torques have decimals (6.8 N·m) |
@@ -556,7 +556,7 @@ procedure ships with the app: the examples are demo data.
 | `component_type_code` | FK, nullable | Or "a part of this type for the chosen bike": resolved at run time among the workshop's parts of that slot type serving the bike |
 | `label` | text, nullable | Or something not in the workshop yet ("Huile de fourche 15 WT"), with "Ajouter à l'atelier" |
 | `quantity` | integer, nullable | Parts: units used per job |
-| `position` | integer | |
+| `sort_order` | integer | Display order |
 
 CHECK: exactly one of `inventory_item_id`, `component_type_code`, `label`.
 
@@ -572,7 +572,7 @@ CHECK: exactly one of `inventory_item_id`, `component_type_code`, `label`.
 | `duration_s` | integer, nullable | Videos, typed by hand |
 | `attachment_id` | FK `attachments`, nullable | PDF |
 | `body` | text, nullable | Note |
-| `position` | integer | |
+| `sort_order` | integer | Display order |
 
 **Columns added to existing tables in 1.5**
 
@@ -650,7 +650,7 @@ Counters:
   18:00 does not count that morning's ride.
 - **Rule status**:
   - *last reset* = the latest of: the last `maintenance_item` linked to the rule; the
-    installation of the slot's current part (if `reset_on_replacement`); `start_from`.
+    installation of the slot's current part (if `reset_on_replacement`); `counter_start_at`.
   - *usage since reset* = wear distance and wear time of the bike's rides since then, plus the
     days elapsed.
   - *ratio* = the highest of `distance / interval_distance`, `time / interval_wear`,
@@ -738,7 +738,7 @@ the app. The data therefore has to explain itself. **Decided** on 2026-10-25.
 - **Units**: distances in metres, durations in seconds, money in euro cents, all as integers.
   The UI converts.
 - **Time**: instants (`*_at`) stored in UTC as epoch milliseconds (integer) and displayed in
-  the configured `TZ`; calendar dates (`*_on`, `*_date`) stored as `YYYY-MM-DD`.
+  the configured `TZ`; calendar dates (`*_on`) stored as `YYYY-MM-DD`.
 - **Defaults**: computed by the application (Drizzle `$defaultFn`), not by SQLite-only SQL.
 - **Enums**: text columns with CHECK constraints.
 - **Deletion**: bikes and components are retired (`status`, `removed_at`), not deleted. Hard

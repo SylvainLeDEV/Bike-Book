@@ -16,7 +16,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <div className="flex items-center gap-3">
             <span className="hidden text-sm text-muted-foreground sm:inline">{user.name}</span>
             <form action={signOutAction}>
-              <Button type="submit" variant="outline" size="sm">
+              <Button type="submit" variant="secondary" size="sm">
                 Se déconnecter
               </Button>
             </form>

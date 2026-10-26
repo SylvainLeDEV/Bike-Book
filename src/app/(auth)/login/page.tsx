@@ -26,7 +26,7 @@ export default async function LoginPage() {
     <Card className="w-full max-w-sm">
       <CardHeader>
         <CardTitle>Connexion</CardTitle>
-        <CardDescription>Accédez à votre garage.</CardDescription>
+        <CardDescription>Accède à ton garage.</CardDescription>
       </CardHeader>
       <CardContent>
         <LoginForm />

@@ -44,34 +44,91 @@ you have backed up everything.
 | Runtime image | Node.js LTS on a Debian `slim` base | `better-sqlite3` and `sharp` ship prebuilt glibc binaries | Alpine (musl): possible, more friction |
 
 Versions are not fixed here on purpose: the versions picked at scaffold time, and why, are in
-D-29 (`package.json` and `pnpm-lock.yaml` are the source of truth).
+D-29 (`package.json` and `pnpm-lock.yaml` are the source of truth). React Hook Form, Recharts,
+Motion, sharp and Playwright are not installed yet: each one comes with the feature that needs
+it, once approved. The step A forms use React state and native validation attributes; the
+Server Actions validate with Zod.
 
 ### Application structure
+
+The actual tree (the first draft, before the scaffold, used `app/bikes`, `app/plan`…; the
+routes of phase 1 step B are listed in [Routes](#routes)).
 
 ```text
 src/
 ├── app/                   # Next.js App Router
-│   ├── page.tsx           # "To plan" dashboard
-│   ├── bikes/[id]/        # Bike page: counters, components, timeline
-│   ├── rides/             # List + quick add
-│   ├── maintenance/       # Maintenance events
-│   ├── plan/              # Rules and tasks
-│   ├── settings/
-│   ├── login/
+│   ├── layout.tsx         # Fonts (next/font), theme cookie → <html data-theme> (D-52)
+│   ├── globals.css        # Design tokens (D-30, D-31), Tailwind theme, base styles
+│   ├── not-found.tsx      # French 404 page
+│   ├── (auth)/            # /login, /setup (first launch)
+│   ├── (app)/             # Signed-in pages (step B moves them into the app shell)
+│   ├── design/            # Development-only design system (D-32): 404 in production
 │   └── api/
-│       ├── uploads/       # Route Handler streaming files to disk
-│       └── healthz/       # Health check for Docker and monitoring
+│       ├── auth/[...all]/ # Better Auth endpoints
+│       ├── healthz/       # Health check for Docker and monitoring
+│       └── uploads/       # Phase 1: Route Handler streaming files to disk
+├── components/            # Screens and building blocks, data received as view models (props)
+│   ├── ui/                # Primitives (shadcn/ui style, Radix): button, field, chip, sheet, toast…
+│   ├── shell/             # App shell: sidebar / rail / bottom bar, top bar, theme, account
+│   ├── dashboard/ bike/ workshop/ rides/ plan/ photos/
+│   └── …                  # Shared: wear bar and badges, timeline, bike cover, empty state
+├── lib/                   # Client-safe: French formatting, enum labels, view-model types, theme
 ├── server/                # Server-only code (`import "server-only"`)
-│   ├── db/                # Drizzle schema, migrations, seed (component types, rule templates)
-│   ├── domain/            # Pure functions: wear counters, rule status, ETA (unit-tested)
-│   ├── actions/           # Server Actions (forms)
-│   ├── files/             # Upload storage, sharp, content-type checks
+│   ├── db/                # Drizzle schema, migrations, seed, scoped data-access layer
 │   ├── auth/              # Better Auth setup, current user and workspace
-│   ├── jobs/              # Scheduler: reminders (1.5), Garmin sync (2)
-│   └── integrations/      # garmin/ (phase 2)
-├── components/            # UI components (shadcn/ui in components/ui)
-└── instrumentation.ts     # Starts the scheduler on the Node runtime
+│   ├── actions/           # Server Actions (forms)
+│   ├── theme.ts           # Reads the theme cookie
+│   └── env.ts             # Configuration, validated with Zod
+│   # Phase 1+: domain/ (pure, tested), files/ (uploads), jobs/ (1.5), integrations/ (2)
+└── instrumentation.ts     # Opens the database (migrations) at startup; scheduler later
 ```
+
+### Design system (phase 1 step A)
+
+- **Tokens** are the validated mockup's CSS variables, unchanged, in `src/app/globals.css`: the
+  light theme in `:root`, the dark theme twice (system setting, explicit choice). Tailwind's
+  colours are reset to these tokens only (`bg-surface`, `text-fg-muted`, `bg-brand-soft`…), and the
+  shadcn/ui variables (`--primary`, `--background`…) point to them. No literal colour in a
+  component, except the bike cover and simulated photo illustrations.
+- **Theme (D-31, D-52):** a `theme` cookie per device (`system`, `light`, `dark`); the root layout
+  sets `data-theme` on `<html>`, so the first byte has the right theme. Tailwind's `dark:` variant
+  follows the same rule.
+- **Layout:** media queries with the mockup's thresholds as Tailwind breakpoints: `md` = 700 px
+  (icon rail), `lg` = 1024 px (full sidebar, two-column bike page, workshop list and item side
+  by side). Touch targets grow to 44 px with `pointer-coarse:`; inputs use 16 px text.
+- **Fonts:** Geist (interface) and Barlow Semi Condensed 500/600/700 (figures, `num` utility),
+  both through `next/font`, downloaded at build time.
+- **Primitives:** Radix (already in `radix-ui`) for the sheet (bottom sheet under 700 px, dialog
+  above), toast, tabs, menu and popover: focus trap, Escape, focus return and announcements
+  come with them.
+- **View models** (`src/lib/view-models.ts`) carry raw values in the data's units (metres,
+  seconds, cents, `YYYY-MM-DD` dates already converted to `TZ` on the server); formatting is
+  done by `src/lib/format.ts` (French, written by hand so server and browsers print the same
+  characters) and `src/lib/display.ts`, both tested.
+- **`/design`** renders the real screens with fictitious fixtures (`src/app/design/fixtures.ts`)
+  and demo actions (toasts with "Annuler"); it answers 404 when `NODE_ENV=production`.
+
+### Routes
+
+Status: **Proposed** (end of phase 1 step A), to validate before step B. URLs in English, like
+the folder names they come from (code in English, H-01); every visible label stays French.
+
+| URL | Screen | Notes |
+|-----|--------|-------|
+| `/` | Accueil | "À prévoir", "À racheter", bikes, latest activity |
+| `/bikes` | Vélos | The list, with stored, sold and retired bikes folded; "Ajouter un vélo" (sheet) |
+| `/bikes/[bikeId]` | Page vélo | `?tab=` selects the tab below 1024 px (deep links from the viewer) |
+| `/activity` | Activité | Rides and maintenance log (features 4 and 5) |
+| `/workshop` | Atelier | `?tab=rebuy`, `?bike=`, `?q=` keep the filters in the URL |
+| `/workshop/[itemId]` | Fiche d'un objet | Under 1024 px it replaces the list; from 1024 px the list stays beside it |
+| `/settings` | Réglages | Theme, account, ZIP export (feature 12) |
+| `/login`, `/setup` | Connexion, premier lancement | Unchanged |
+| `/api/uploads`, `/api/uploads/[id]` | Pièces jointes | Streaming upload (POST); scoped download with `nosniff` (GET) |
+| `/api/export` | Export ZIP | Current workspace only, auth tables never included |
+| `/design` | Design system | Development only |
+
+Quick ride entry, maintenance entry, "Remplacer une pièce" and the edit sheets are sheets, not
+routes: they open from any screen and keep it underneath.
 
 ## Running it
 

@@ -16,7 +16,7 @@ export default async function DashboardPage() {
         <CardHeader>
           <CardTitle>{workspace?.name ?? context.workspace.name}</CardTitle>
           <CardDescription>
-            Votre garage est prêt. Les vélos, les sorties et l&apos;entretien arrivent dans la
+            Ton garage est prêt. Les vélos, les sorties et l&apos;entretien arrivent dans la
             prochaine version.
           </CardDescription>
         </CardHeader>

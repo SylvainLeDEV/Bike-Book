@@ -27,10 +27,24 @@ To try it on a phone, serve this folder on the local network, then open
 python3 -m http.server 8000 --directory docs/design
 ```
 
-This file is a reference for validation, not code to maintain. At step A of phase 1 the same
-screens are rebuilt in the app, with the real components and fixture data, on a
-development-only `/design` route. This file is then deleted (git history keeps it), so the
-design has a single source of truth.
+This file is a reference for validation, not code to maintain. The screens of phase 1 are
+rebuilt in the app (step A, 2026-10-26), with the real components and fixture data, on a
+development-only `/design` route: `pnpm dev`, then http://localhost:3000/design. Where the two
+differ, `/design` and the decisions win (tabs below 1024 px D-48, parts only in the workshop D-33,
+no labels D-45, no procedures D-47).
+
+**The mockup is kept (D-53)** until the screens below, which `/design` does not contain yet, are
+rebuilt when their phase starts. It is then deleted (git history keeps it).
+
+| Screen | Where it lives today | Rebuilt in `/design` |
+|--------|----------------------|----------------------|
+| Dashboard, bike page (record, components, original spec, stock, history, photo gallery and viewer), quick ride entry, workshop (parts, restocking, add and replace sheets), Foundation board | `/design` (and the mockup) | Done (step A) |
+| Bike edit sheet, "Joindre un document", "Ajouter des photos" (upload rows with progress) | Mockup only (sketches) | With features 1 and 10 |
+| Maintenance entry and "C'est fait" without a procedure | Not mocked: the toast stands in | With features 5 and 6 |
+| Workshop products (four levels, containers) and tools (owned or not) | Mockup only | Phase 1.5 |
+| Photo labels, photos across all bikes (Activité › Photos) | Mockup only | Phase 1.5 |
+| Maintenance procedures (list, detail, editor, rule link) and workshop mode (run, summary) | Mockup only | Phase 1.5 |
+| Phase 3 preview: certainty levels, suggestions, questions on the data | Mockup only | Phase 3 |
 
 **Why HTML rather than draw.io:** the mockup shows real behaviour (responsive layout, dark mode,
 touch sizes, the quick-entry sheet) and opens on a phone. draw.io suits flows and architecture

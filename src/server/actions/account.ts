@@ -15,7 +15,7 @@ import { getEnv } from "@/server/env";
 
 const createAccountSchema = z
   .object({
-    name: z.string().trim().min(1, "Indiquez votre nom.").max(100, "100 caractères au maximum."),
+    name: z.string().trim().min(1, "Indique ton nom.").max(100, "100 caractères au maximum."),
     email: z
       .string()
       .trim()
@@ -29,7 +29,7 @@ const createAccountSchema = z
     workspaceName: z
       .string()
       .trim()
-      .min(1, "Donnez un nom à votre garage.")
+      .min(1, "Donne un nom à ton garage.")
       .max(100, "100 caractères au maximum."),
   })
   .refine((data) => data.password === data.passwordConfirmation, {
@@ -52,7 +52,7 @@ const SIGN_UP_ERRORS: Record<string, string> = {
   PASSWORD_TOO_SHORT: `Le mot de passe doit faire au moins ${MIN_PASSWORD_LENGTH} caractères.`,
   PASSWORD_TOO_LONG: `Le mot de passe doit faire au plus ${MAX_PASSWORD_LENGTH} caractères.`,
   SIGN_UP_DISABLED: "La création de compte est désactivée.",
-  INVALID_ORIGIN: "Origine refusée : ouvrez l'application à l'adresse configurée dans PUBLIC_URL.",
+  INVALID_ORIGIN: "Origine refusée : ouvre l'application à l'adresse configurée dans PUBLIC_URL.",
 };
 
 /**

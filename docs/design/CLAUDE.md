@@ -11,9 +11,12 @@ This file says how to work on [mockups.html](mockups.html) without breaking it.
   (D-30 to D-48). The mockup was not updated for the decisions taken at validation (tablet tabs
   D-48, HEIC D-46, run kept in `localStorage` D-47): where they differ, the decisions win.
   New ideas still start as **Proposed** and reach 02 only after the owner validates them.
-- Lifecycle: at step A of phase 1 the screens are rebuilt in the app (real components, fixture
-  data, a development-only `/design` route). The HTML file is then deleted. Until then, keep it
-  coherent and runnable after every change.
+- Lifecycle (D-53): the phase 1 screens were rebuilt in the app at step A (real components,
+  fixture data, a development-only `/design` route). The mockup is **kept** as the reference of
+  the screens `/design` does not contain yet (see the table in README.md): rebuild each one in
+  `/design` when its phase starts, and delete the HTML file once the last one is ported (end of
+  phase 1.5). Until then, keep it coherent and runnable; do not edit it for phase 1 screens
+  (`/design` is their source of truth now).
 
 ## Rules
 

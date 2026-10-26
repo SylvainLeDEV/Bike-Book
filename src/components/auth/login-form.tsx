@@ -12,9 +12,9 @@ function loginErrorMessage(status: number): string {
     case 401:
       return "E-mail ou mot de passe incorrect.";
     case 403:
-      return "Connexion refusée. Ouvrez l'application à l'adresse configurée dans PUBLIC_URL.";
+      return "Connexion refusée. Ouvre l'application à l'adresse configurée dans PUBLIC_URL.";
     case 429:
-      return "Trop de tentatives. Réessayez dans quelques secondes.";
+      return "Trop de tentatives. Réessaie dans quelques secondes.";
     default:
       return "Connexion impossible pour le moment.";
   }

@@ -21,7 +21,7 @@ export function CreateAccountForm({ minPasswordLength }: { minPasswordLength: nu
       ) : null}
       <FormField
         name="name"
-        label="Votre nom"
+        label="Ton nom"
         autoComplete="name"
         required
         defaultValue={state.values?.name}
@@ -56,10 +56,10 @@ export function CreateAccountForm({ minPasswordLength }: { minPasswordLength: nu
       />
       <FormField
         name="workspaceName"
-        label="Nom de votre garage"
+        label="Nom de ton garage"
         required
         defaultValue={state.values?.workspaceName ?? "Mon garage"}
-        hint="L'espace qui regroupe vos vélos."
+        hint="L'espace qui regroupe tes vélos."
         error={errors.workspaceName}
       />
       <Button type="submit" disabled={pending} className="w-full">
