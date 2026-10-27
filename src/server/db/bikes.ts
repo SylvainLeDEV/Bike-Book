@@ -4,13 +4,12 @@ import type { BikeStatus, Discipline, ShopKind, WheelSize } from "@/lib/enums";
 import type { LocalDate } from "@/lib/format";
 import { cleanName, nameKey } from "@/lib/names";
 import type { AccessContext } from "./access-context";
-import { getDb, type Db } from "./client";
+import { getDb, type Tx } from "./client";
+import { resolveShopId } from "./shops";
 import { bikes, shops } from "./schema";
 
 // Bikes and shops of the current workspace (D-25). Every function filters on ctx.workspace.id:
 // a bike or shop of another workspace is invisible and cannot be changed.
-
-type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
 
 export type Bike = {
   id: number;
@@ -113,35 +112,6 @@ export function listBikes(ctx: AccessContext): Bike[] {
 export function getBike(ctx: AccessContext, bikeId: number): Bike | null {
   const row = selectBikes(ctx, bikeId).get();
   return row ? toBike(row) : null;
-}
-
-/** Shops of the workspace, by name: the suggestions of the shop field. */
-export function listShops(ctx: AccessContext): { id: number; name: string; kind: ShopKind }[] {
-  return getDb()
-    .select({ id: shops.id, name: shops.name, kind: shops.kind })
-    .from(shops)
-    .where(eq(shops.workspaceId, ctx.workspace.id))
-    .all()
-    .sort((a, b) => a.name.localeCompare(b.name, "fr"));
-}
-
-/** The id of the workspace's shop with that name (case and accents ignored), created if new. */
-function resolveShopId(tx: Tx, ctx: AccessContext, shop: BikeData["purchaseShop"]): number | null {
-  if (!shop) return null;
-  const name = cleanName(shop.name);
-  const key = nameKey(name);
-  const existing = tx
-    .select({ id: shops.id, name: shops.name })
-    .from(shops)
-    .where(eq(shops.workspaceId, ctx.workspace.id))
-    .all()
-    .find((row) => nameKey(row.name) === key);
-  if (existing) return existing.id;
-  return tx
-    .insert(shops)
-    .values({ workspaceId: ctx.workspace.id, name, kind: shop.kind })
-    .returning({ id: shops.id })
-    .get().id;
 }
 
 /** The other bike of the workspace that already has this name (case and accents ignored). */

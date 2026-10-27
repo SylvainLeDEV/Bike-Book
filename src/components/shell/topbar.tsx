@@ -13,16 +13,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  applyThemePreference,
-  nextThemePreference,
-  THEME_LABELS,
-  type ThemePreference,
-} from "@/lib/theme";
+import { nextThemePreference, THEME_LABELS, type ThemePreference } from "@/lib/theme";
 import { Avatar } from "./nav";
 import { useShell } from "./shell-context";
 
-const THEME_ICONS: Record<ThemePreference, typeof Sun> = {
+export const THEME_ICONS: Record<ThemePreference, typeof Sun> = {
   system: SunMoon,
   light: Sun,
   dark: Moon,
@@ -30,8 +25,7 @@ const THEME_ICONS: Record<ThemePreference, typeof Sun> = {
 
 /** Cycles system → light → dark (D-31). The choice is kept per device in a cookie (D-52). */
 export function ThemeToggle() {
-  const { theme: initial } = useShell();
-  const [theme, setTheme] = React.useState(initial);
+  const { theme, setTheme } = useShell();
   const Icon = THEME_ICONS[theme];
   const next = nextThemePreference(theme);
   return (
@@ -39,10 +33,7 @@ export function ThemeToggle() {
       variant="ghost"
       size="icon"
       aria-label={`${THEME_LABELS[theme]}. Passer au ${THEME_LABELS[next].toLowerCase()}`}
-      onClick={() => {
-        applyThemePreference(next);
-        setTheme(next);
-      }}
+      onClick={() => setTheme(next)}
     >
       <Icon />
     </Button>

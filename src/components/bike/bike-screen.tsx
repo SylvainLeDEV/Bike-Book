@@ -29,7 +29,12 @@ import { ComponentsSection } from "./components-section";
 
 export type BikeScreenActions = PlanActions &
   Omit<PhotoViewerActions, "onShowOrigin"> & {
-    onReplacePart?: (input: ReplacePartInput, item: InventoryItemVM | null) => void | Promise<void>;
+    onReplacePart?: (
+      input: ReplacePartInput,
+      item: InventoryItemVM | null,
+    ) => void | Promise<void | { ok: false; error: string }>;
+    onAddComponent?: () => void;
+    onEditComponent?: (componentId: number) => void;
     onChangeCover?: () => void;
     onAddMaintenance?: () => void;
     onEditBike?: (focus?: "status") => void;
@@ -103,15 +108,24 @@ export function BikeScreen({
   replace,
   actions,
   links,
+  initialReplaceItemId,
 }: {
   vm: BikePageVM;
   replace: ReplacePartVM;
   actions: BikeScreenActions;
   links: BikeScreenLinks;
+  /** "Monter sur …" from the workshop: the replace sheet opens with this item chosen. */
+  initialReplaceItemId?: number | null;
 }) {
   return (
     <BikeTabs>
-      <BikeScreenContent vm={vm} replace={replace} actions={actions} links={links} />
+      <BikeScreenContent
+        vm={vm}
+        replace={replace}
+        actions={actions}
+        links={links}
+        initialReplaceItemId={initialReplaceItemId ?? null}
+      />
     </BikeTabs>
   );
 }
@@ -121,15 +135,17 @@ function BikeScreenContent({
   replace,
   actions,
   links,
+  initialReplaceItemId,
 }: {
   vm: BikePageVM;
   replace: ReplacePartVM;
   actions: BikeScreenActions;
   links: BikeScreenLinks;
+  initialReplaceItemId: number | null;
 }) {
   const tabs = useBikeTabs();
   const { open: openQuickRide } = useQuickRide();
-  const [replaceOpen, setReplaceOpen] = React.useState(false);
+  const [replaceOpen, setReplaceOpen] = React.useState(initialReplaceItemId != null);
   const { bike, stats } = vm;
   const StatusIcon = BIKE_STATUS_ICONS[bike.status];
 
@@ -288,6 +304,8 @@ function BikeScreenContent({
               groups={vm.components.groups}
               purchasedOn={vm.components.purchasedOn}
               today={vm.today}
+              onAdd={actions.onAddComponent}
+              onEdit={actions.onEditComponent}
             />
             <section aria-labelledby="bike-stock-title">
               <SectionHead
@@ -439,6 +457,7 @@ function BikeScreenContent({
         vm={replace}
         open={replaceOpen}
         onOpenChange={setReplaceOpen}
+        initialItemId={initialReplaceItemId}
         onSubmit={async (input, item) => actions.onReplacePart?.(input, item)}
       />
     </PhotoViewerProvider>

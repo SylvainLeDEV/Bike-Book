@@ -5,11 +5,13 @@
 import type {
   BikeStatus,
   ComponentGroup,
+  ComponentOrigin,
   ComponentTypeCode,
   Discipline,
   EvidenceLevel,
   InventoryCategory,
   InventoryUnit,
+  MaintenanceAction,
   MovementKind,
   RemovalReason,
   RideConditions,
@@ -158,6 +160,59 @@ export const COMPONENT_TYPE_LABELS: Record<ComponentTypeCode, string> = {
   motor: "Moteur",
   battery: "Batterie",
   display: "Écran",
+  other: "Autre",
+};
+
+/** Grammatical gender and number of each type's label, for "Chaîne remplacée" (f: feminine). */
+export const COMPONENT_TYPE_AGREEMENT: Record<ComponentTypeCode, "m" | "f" | "mp" | "fp"> = {
+  fork: "f",
+  rear_shock: "m",
+  chain: "f",
+  cassette: "f",
+  chainring: "m",
+  crankset: "m",
+  bottom_bracket: "m",
+  rear_derailleur: "m",
+  shifter: "f",
+  pedals: "fp",
+  brake: "m",
+  brake_pads: "fp",
+  rotor: "m",
+  wheel: "f",
+  tire: "m",
+  handlebar: "m",
+  stem: "f",
+  grips: "fp",
+  saddle: "f",
+  dropper_post: "f",
+  frame: "m",
+  headset: "m",
+  motor: "m",
+  battery: "f",
+  display: "m",
+  other: "f",
+};
+
+export const POSITION_LABELS: Record<"front" | "rear", string> = {
+  front: "avant",
+  rear: "arrière",
+};
+
+export const COMPONENT_ORIGIN_LABELS: Record<ComponentOrigin, string> = {
+  stock: "D'origine",
+  replacement: "Remplacement",
+  upgrade: "Ajoutée ou améliorée",
+};
+
+export const MAINTENANCE_ACTION_LABELS: Record<MaintenanceAction, string> = {
+  replaced: "Remplacé",
+  serviced: "Entretenu",
+  inspected: "Contrôlé",
+  adjusted: "Réglé",
+  cleaned: "Nettoyé",
+  lubricated: "Lubrifié",
+  bled: "Purgé",
+  trued: "Dévoilé",
   other: "Autre",
 };
 

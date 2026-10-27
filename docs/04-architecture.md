@@ -66,6 +66,7 @@ src/
 │   └── api/
 │       ├── auth/[...all]/ # Better Auth endpoints
 │       ├── healthz/       # Health check for Docker and monitoring
+│       ├── export/        # The ZIP export (feature 12, D-68)
 │       └── uploads/       # Phase 1: Route Handler streaming files to disk
 ├── components/            # Screens and building blocks, data received as view models (props)
 │   ├── ui/                # Primitives (shadcn/ui style, Radix): button, field, chip, sheet, toast…
@@ -80,6 +81,7 @@ src/
 │   ├── actions/           # Server Actions (forms) and their Zod input schemas (*-input.ts)
 │   ├── domain/            # Pure, tested logic: bike status, total cost, (wear, rules, stock…)
 │   ├── views/             # View models of the real pages, from the data-access layer + domain
+│   ├── export/            # ZIP writer, CSV, data dictionary for the export (D-68)
 │   ├── theme.ts           # Reads the theme cookie
 │   ├── time.ts            # "Today" in the configured TZ
 │   └── env.ts             # Configuration, validated with Zod
@@ -126,10 +128,10 @@ of the navigation shows a "Bientôt ici" page rather than a 404.
 | `/activity` | Activité | Rides and maintenance log (features 4 and 5) |
 | `/workshop` | Atelier | `?tab=rebuy`, `?bike=`, `?q=` keep the filters in the URL |
 | `/workshop/[itemId]` | Fiche d'un objet | Under 1024 px it replaces the list; from 1024 px the list stays beside it |
-| `/settings` | Réglages | Theme, account, ZIP export (feature 12) |
+| `/settings` | Réglages | Account and sign-out, theme of this device, "Exporter mes données" (feature 12, D-68) |
 | `/login`, `/setup` | Connexion, premier lancement | Unchanged |
 | `/api/uploads`, `/api/uploads/[id]` | Pièces jointes | Streaming upload (POST); scoped download with `nosniff` (GET) |
-| `/api/export` | Export ZIP | Current workspace only, auth tables never included |
+| `/api/export` | Export ZIP | Current workspace only, auth tables never included; 401 when signed out (D-68) |
 | `/design` | Design system | Development only |
 
 Quick ride entry, maintenance entry, "Remplacer une pièce" and the edit sheets are sheets, not
@@ -227,8 +229,11 @@ Backing up is the operator's job (D-12); the app makes it easy:
   inconsistent state. Either snapshot the whole volume (filesystem or VM/container snapshot:
   SQLite in WAL mode normally recovers from a crash-consistent copy), or make a consistent copy
   first with `sqlite3 bikebook.db ".backup copy.db"` (or `VACUUM INTO`) while the app runs.
-- **Built-in export (MVP):** one ZIP with every table as CSV/JSON plus the uploads. A portable
-  copy you can keep anywhere, and a safety net for mistakes noticed late.
+- **Built-in export (MVP):** Réglages › "Exporter mes données": one ZIP with every table as CSV
+  and JSON and the data dictionary (D-68), plus the uploads once feature 10 exists. A portable,
+  readable copy you can keep anywhere, and a safety net for mistakes noticed late. The app
+  cannot import it back, so it complements the backup of the data directory, it does not
+  replace it.
 - **History matters more than frequency:** a deletion noticed a week later needs a backup from
   before it. Keep at least a few weeks of history if you can.
 - **Test a restore** once before entering real data.

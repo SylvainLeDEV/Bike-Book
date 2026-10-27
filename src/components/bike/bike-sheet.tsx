@@ -1,10 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { Check, ChevronRight, Zap } from "lucide-react";
+import { Check, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Chip, ChipRow } from "@/components/ui/chip";
 import { Field, FieldError, Fieldset, Input, NativeSelect, Textarea } from "@/components/ui/field";
+import { Fold } from "@/components/ui/fold";
 import { Sheet, SheetBody, SheetContent, SheetFooter, SheetForm } from "@/components/ui/sheet";
 import { BIKE_STATUSES, WHEEL_SIZES } from "@/lib/enums";
 import { formatDecimal, type LocalDate } from "@/lib/format";
@@ -17,7 +18,7 @@ import {
   WHEEL_SIZE_LABELS,
 } from "@/lib/labels";
 import { nameKey } from "@/lib/names";
-import { parseDecimalInput, parseMoneyInput } from "@/lib/parse";
+import { decimalText, parseDecimalInput, parseMoneyInput } from "@/lib/parse";
 import type {
   BikeFormVM,
   BikeInput,
@@ -124,11 +125,6 @@ type Values = {
 };
 
 type Errors = Partial<Record<keyof BikeInput, string>> & { form?: string };
-
-/** "15,2" rather than "15,20": decimals only when needed. */
-function decimalText(value: number, maxDigits: number): string {
-  return formatDecimal(value, maxDigits).replace(/,?0+$/, "");
-}
 
 function initialValues(bike: BikeFormVM | null, today: LocalDate): Values {
   const money = (cents: number | null) => (cents == null ? "" : formatDecimal(cents / 100, 2));
@@ -242,37 +238,6 @@ const FIELD_ORDER: { field: keyof BikeInput; id: string; fold?: "details" | "pur
   { field: "initialDistanceM", id: "bike-initial-km", fold: "purchase" },
   { field: "initialWearS", id: "bike-initial-hours", fold: "purchase" },
 ];
-
-function Fold({
-  open,
-  onOpenChange,
-  title,
-  hint,
-  children,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  title: string;
-  hint: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <details
-      className="group border-t border-border pt-1"
-      open={open}
-      onToggle={(event) => onOpenChange(event.currentTarget.open)}
-    >
-      <summary className="flex min-h-11 list-none items-center gap-2 text-[14.5px] font-semibold [&::-webkit-details-marker]:hidden">
-        <ChevronRight
-          className="size-[18px] transition-transform group-open:rotate-90"
-          aria-hidden
-        />
-        {title} <span className="hint">{hint}</span>
-      </summary>
-      <div className="grid gap-4 pt-1.5 pb-1">{children}</div>
-    </details>
-  );
-}
 
 function BikeForm({
   bike,

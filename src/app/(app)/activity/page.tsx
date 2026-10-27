@@ -1,17 +1,11 @@
 import type { Metadata } from "next";
-import { Activity } from "lucide-react";
-import { ComingSoon } from "@/components/coming-soon";
+import { requireAccessContext } from "@/server/auth/context";
+import { getActivityVM } from "@/server/views/activity";
+import { ActivityView } from "./activity-view";
 
 export const metadata: Metadata = { title: "Activité · Bike-Book" };
 
-export default function ActivityPage() {
-  return (
-    <ComingSoon
-      eyebrow="Sorties et entretiens"
-      title="Activité"
-      art={<Activity className="!w-14" aria-hidden />}
-    >
-      Le journal de tes sorties et de tes entretiens arrive avec leur saisie.
-    </ComingSoon>
-  );
+export default async function ActivityPage() {
+  const context = await requireAccessContext();
+  return <ActivityView vm={getActivityVM(context)} />;
 }

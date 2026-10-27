@@ -10,17 +10,36 @@ import {
   index,
   integer,
   primaryKey,
+  real,
   sqliteTable,
   text,
   uniqueIndex,
+  type AnySQLiteColumn,
 } from "drizzle-orm/sqlite-core";
 // Relative path: drizzle-kit loads this file without the "@" alias.
 import {
   BIKE_STATUSES,
   COMPONENT_GROUPS,
+  COMPONENT_ORIGINS,
+  COMPONENT_POSITIONS,
   DISCIPLINES,
+  INVENTORY_CATEGORIES,
+  INVENTORY_KINDS,
+  INVENTORY_UNITS,
+  MOVEMENT_KINDS,
+  PRODUCT_LEVELS,
+  RESTOCK_STATUSES,
   EVIDENCE_LEVELS,
+  MAINTENANCE_ACTIONS,
+  MAINTENANCE_PERFORMERS,
+  MEASUREMENT_UNITS,
+  REMOVAL_REASONS,
+  RIDE_CONDITIONS,
+  RIDE_SOURCES,
+  RIDE_TYPES,
   SHOP_KINDS,
+  TASK_PRIORITIES,
+  TASK_STATUSES,
   TEMPLATE_SOURCES,
   WHEEL_SIZES,
 } from "../../lib/enums";
@@ -283,6 +302,461 @@ export const ruleTemplates = sqliteTable(
     check(
       "rule_templates_code_check",
       sql`(${table.workspaceId} is null and ${table.code} is not null) or (${table.workspaceId} is not null and ${table.code} is null)`,
+    ),
+  ],
+);
+
+// --- Workshop (feature 8, D-33 to D-42) ----------------------------------------------------------
+
+/**
+ * The garage's inventory, owned by the workspace: parts, products and tools (D-33). No quantity
+ * is stored: it is the sum of the item's movements (D-39).
+ */
+export const inventoryItems = sqliteTable(
+  "inventory_items",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    workspaceId: integer("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    kind: text("kind", { enum: INVENTORY_KINDS }).notNull(),
+    name: text("name").notNull(),
+    brand: text("brand"),
+    /** The manufacturer's part number. */
+    reference: text("reference"),
+    category: text("category", { enum: INVENTORY_CATEGORIES }).notNull(),
+    /** The slot type it fits: offered when that slot is replaced, and shown on its rules. */
+    componentTypeCode: text("component_type_code").references(() => componentTypes.code),
+    /** Serves every bike, future ones included; `inventory_item_bikes` is then empty. */
+    allBikes: integer("all_bikes", { mode: "boolean" }).notNull().default(false),
+    /** Parts only: what one unit of stock is. */
+    unit: text("unit", { enum: INVENTORY_UNITS }),
+    /** Parts only, in units: "Stock bas" at or below it, a suggestion only (D-35). */
+    lowStockThreshold: integer("low_stock_threshold"),
+    /** Products only: "flacon", "tube" (phase 1.5). */
+    containerLabel: text("container_label"),
+    restockStatus: text("restock_status", { enum: RESTOCK_STATUSES }).notNull().default("none"),
+    /** Set when ordering, corrected at reception (D-42). */
+    restockQuantity: integer("restock_quantity"),
+    restockChangedOn: text("restock_changed_on"),
+    /** Storage place, free text. */
+    location: text("location"),
+    notes: text("notes"),
+    /** Archived, not deleted: past movements and parts keep their link. */
+    archivedAt: integer("archived_at", { mode: "timestamp_ms" }),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    index("inventory_items_workspace_id_idx").on(table.workspaceId),
+    enumCheck("inventory_items_kind_check", table.kind, INVENTORY_KINDS),
+    enumCheck("inventory_items_category_check", table.category, INVENTORY_CATEGORIES),
+    enumCheck("inventory_items_unit_check", table.unit, INVENTORY_UNITS),
+    enumCheck("inventory_items_restock_status_check", table.restockStatus, RESTOCK_STATUSES),
+    check(
+      "inventory_items_unit_kind_check",
+      sql`(${table.kind} = 'part') = (${table.unit} is not null)`,
+    ),
+    check(
+      "inventory_items_restock_check",
+      sql`(${table.restockStatus} = 'none' and ${table.restockQuantity} is null) or (${table.restockStatus} <> 'none' and (${table.restockQuantity} is null or ${table.restockQuantity} > 0))`,
+    ),
+    check(
+      "inventory_items_threshold_check",
+      sql`${table.lowStockThreshold} is null or ${table.lowStockThreshold} >= 0`,
+    ),
+  ],
+);
+
+/** The bikes an item serves, when it does not serve them all. */
+export const inventoryItemBikes = sqliteTable(
+  "inventory_item_bikes",
+  {
+    itemId: integer("item_id")
+      .notNull()
+      .references(() => inventoryItems.id, { onDelete: "cascade" }),
+    bikeId: integer("bike_id")
+      .notNull()
+      .references(() => bikes.id, { onDelete: "cascade" }),
+  },
+  (table) => [
+    primaryKey({ columns: [table.itemId, table.bikeId] }),
+    index("inventory_item_bikes_bike_id_idx").on(table.bikeId),
+  ],
+);
+
+/** Where an item can be bought: a shop, a web page, a price typed by hand (never fetched, D-09). */
+export const purchaseLinks = sqliteTable(
+  "purchase_links",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    itemId: integer("item_id")
+      .notNull()
+      .references(() => inventoryItems.id, { onDelete: "cascade" }),
+    shopId: integer("shop_id").references(() => shops.id, { onDelete: "set null" }),
+    /** Shown and opened in a new tab, never fetched by the server (D-09). */
+    url: text("url"),
+    priceCents: integer("price_cents"),
+    priceNotedOn: text("price_noted_on"),
+    /** Display order. */
+    sortOrder: integer("sort_order").notNull().default(0),
+    notes: text("notes"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    index("purchase_links_item_id_idx").on(table.itemId),
+    check(
+      "purchase_links_target_check",
+      sql`${table.shopId} is not null or ${table.url} is not null`,
+    ),
+    check(
+      "purchase_links_price_check",
+      sql`${table.priceCents} is null or ${table.priceCents} >= 0`,
+    ),
+  ],
+);
+
+// --- Components (feature 3) ---------------------------------------------------------------------
+
+/**
+ * A part of a bike, fitted or removed. Never moves to another bike (D-05) and is never deleted:
+ * it is removed (`removed_at`). Its counter is computed from the bike's rides between
+ * `installed_at` and `removed_at` (docs/03, wear counters).
+ */
+export const components = sqliteTable(
+  "components",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    bikeId: integer("bike_id")
+      .notNull()
+      .references(() => bikes.id, { onDelete: "cascade" }),
+    typeCode: text("type_code")
+      .notNull()
+      .references(() => componentTypes.code),
+    /** `front` or `rear` for the types that have a position, else `none`. */
+    position: text("position", { enum: COMPONENT_POSITIONS }).notNull(),
+    brand: text("brand"),
+    model: text("model"),
+    /** Manufacturer part number or SKU. */
+    reference: text("reference"),
+    /** Free key/values, e.g. {"travel_mm": 160}; never filtered or summed (D-50). */
+    specs: text("specs", { mode: "json" }).$type<Record<string, string | number>>(),
+    origin: text("origin", { enum: COMPONENT_ORIGINS }).notNull(),
+    /** The part it replaced in the same slot: one history chain per slot. */
+    replacesComponentId: integer("replaces_component_id").references(
+      (): AnySQLiteColumn => components.id,
+    ),
+    /** Rides from this instant on count towards its wear. */
+    installedAt: integer("installed_at", { mode: "timestamp_ms" }).notNull(),
+    /** Distance and wear time before it was fitted (second-hand part); 0 when none. */
+    initialDistanceM: integer("initial_distance_m").notNull().default(0),
+    initialWearS: integer("initial_wear_s").notNull().default(0),
+    /** null = currently fitted. */
+    removedAt: integer("removed_at", { mode: "timestamp_ms" }),
+    removalReason: text("removal_reason", { enum: REMOVAL_REASONS }),
+    /** Detail shown after the reason: "chape tordue aux Gets" (D-43). */
+    removalNote: text("removal_note"),
+    purchasedOn: text("purchased_on"),
+    purchasePriceCents: integer("purchase_price_cents"),
+    shopId: integer("shop_id").references(() => shops.id, { onDelete: "set null" }),
+    /** The workshop item the part came from (D-33). */
+    inventoryItemId: integer("inventory_item_id").references(
+      (): AnySQLiteColumn => inventoryItems.id,
+      { onDelete: "set null" },
+    ),
+    /** Last day covered by the warranty. */
+    warrantyEndsOn: text("warranty_ends_on"),
+    notes: text("notes"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    index("components_bike_id_idx").on(table.bikeId),
+    index("components_replaces_component_id_idx").on(table.replacesComponentId),
+    enumCheck("components_position_check", table.position, COMPONENT_POSITIONS),
+    enumCheck("components_origin_check", table.origin, COMPONENT_ORIGINS),
+    enumCheck("components_removal_reason_check", table.removalReason, REMOVAL_REASONS),
+    check(
+      "components_removal_check",
+      sql`(${table.removedAt} is null and ${table.removalReason} is null and ${table.removalNote} is null) or (${table.removedAt} is not null and ${table.removalReason} is not null and ${table.removedAt} >= ${table.installedAt})`,
+    ),
+    check(
+      "components_origin_chain_check",
+      sql`${table.replacesComponentId} is null or ${table.origin} <> 'stock'`,
+    ),
+    check(
+      "components_amounts_check",
+      sql`(${table.purchasePriceCents} is null or ${table.purchasePriceCents} >= 0) and ${table.initialDistanceM} >= 0 and ${table.initialWearS} >= 0`,
+    ),
+  ],
+);
+
+// --- Rides (feature 4) ---------------------------------------------------------------------------
+
+/**
+ * A ride on a bike: usage lives here only, bike and component counters are computed from it
+ * (docs/03, wear counters). `external_activity_id` comes with the Garmin import (phase 2, D-57).
+ */
+export const rides = sqliteTable(
+  "rides",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    bikeId: integer("bike_id")
+      .notNull()
+      .references(() => bikes.id, { onDelete: "cascade" }),
+    /** Noon local time when only a date was typed (D-61). */
+    startedAt: integer("started_at", { mode: "timestamp_ms" }).notNull(),
+    title: text("title"),
+    /** Free text, offered again from previous rides. */
+    location: text("location"),
+    rideType: text("ride_type", { enum: RIDE_TYPES }).notNull(),
+    /** Lifts or shuttles: wear counts the descent only (D-13). */
+    liftAssisted: integer("lift_assisted", { mode: "boolean" }).notNull().default(false),
+    distanceM: integer("distance_m"),
+    /** Distance ridden downhill on lift days. */
+    descentDistanceM: integer("descent_distance_m"),
+    /** Total time of the ride or of the day (D-06); the quick entry's single duration. */
+    totalTimeS: integer("total_time_s"),
+    movingTimeS: integer("moving_time_s"),
+    descentTimeS: integer("descent_time_s"),
+    runsCount: integer("runs_count"),
+    elevationGainM: integer("elevation_gain_m"),
+    elevationLossM: integer("elevation_loss_m"),
+    conditions: text("conditions", { enum: RIDE_CONDITIONS }),
+    notes: text("notes"),
+    source: text("source", { enum: RIDE_SOURCES }).notNull().default("manual"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    index("rides_bike_id_started_at_idx").on(table.bikeId, table.startedAt),
+    enumCheck("rides_ride_type_check", table.rideType, RIDE_TYPES),
+    enumCheck("rides_conditions_check", table.conditions, RIDE_CONDITIONS),
+    enumCheck("rides_source_check", table.source, RIDE_SOURCES),
+    check(
+      "rides_duration_check",
+      sql`${table.totalTimeS} is not null or ${table.movingTimeS} is not null`,
+    ),
+    check(
+      "rides_values_check",
+      sql`(${table.distanceM} is null or ${table.distanceM} >= 0) and (${table.descentDistanceM} is null or ${table.descentDistanceM} >= 0) and (${table.totalTimeS} is null or ${table.totalTimeS} > 0) and (${table.movingTimeS} is null or ${table.movingTimeS} > 0) and (${table.descentTimeS} is null or ${table.descentTimeS} > 0) and (${table.runsCount} is null or ${table.runsCount} >= 0) and (${table.elevationGainM} is null or ${table.elevationGainM} >= 0) and (${table.elevationLossM} is null or ${table.elevationLossM} >= 0)`,
+    ),
+    check(
+      "rides_descent_check",
+      sql`${table.descentTimeS} is null or ${table.totalTimeS} is null or ${table.descentTimeS} <= ${table.totalTimeS}`,
+    ),
+  ],
+);
+
+// --- Maintenance rules (feature 6) ---------------------------------------------------------------
+
+/**
+ * "What's coming", recurring: a service due by distance, wear time or days, whichever comes
+ * first. It targets a slot (type + position) or the whole bike, not a part: replacing the part
+ * restarts it when `reset_on_replacement` is set. Status, usage and ETA are computed (D-50).
+ */
+export const maintenanceRules = sqliteTable(
+  "maintenance_rules",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    bikeId: integer("bike_id")
+      .notNull()
+      .references(() => bikes.id, { onDelete: "cascade" }),
+    /** The slot's type; null = a bike-level rule (yearly check). */
+    componentTypeCode: text("component_type_code").references(() => componentTypes.code),
+    /** `front`/`rear` for one side; null = every part of that type (both brakes). */
+    position: text("position", { enum: COMPONENT_POSITIONS }),
+    templateId: integer("template_id").references(() => ruleTemplates.id, { onDelete: "set null" }),
+    title: text("title").notNull(),
+    intervalDistanceM: integer("interval_distance_m"),
+    intervalWearS: integer("interval_wear_s"),
+    intervalDays: integer("interval_days"),
+    /** "Due soon" from this share of any interval (0.9 = 90 %). */
+    warnRatio: real("warn_ratio").notNull().default(0.9),
+    resetOnReplacement: integer("reset_on_replacement", { mode: "boolean" })
+      .notNull()
+      .default(true),
+    /** Where the counter starts while the rule has never been done. */
+    counterStartAt: integer("counter_start_at", { mode: "timestamp_ms" }).notNull(),
+    active: integer("active", { mode: "boolean" }).notNull().default(true),
+    /** Snoozed until this day: the rule shows its real status again from that day. */
+    snoozeEndsOn: text("snooze_ends_on"),
+    notes: text("notes"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    index("maintenance_rules_bike_id_idx").on(table.bikeId),
+    enumCheck("maintenance_rules_position_check", table.position, COMPONENT_POSITIONS),
+    check(
+      "maintenance_rules_interval_check",
+      sql`(${table.intervalDistanceM} is not null or ${table.intervalWearS} is not null or ${table.intervalDays} is not null) and (${table.intervalDistanceM} is null or ${table.intervalDistanceM} > 0) and (${table.intervalWearS} is null or ${table.intervalWearS} > 0) and (${table.intervalDays} is null or ${table.intervalDays} > 0)`,
+    ),
+    check(
+      "maintenance_rules_warn_ratio_check",
+      sql`${table.warnRatio} > 0 and ${table.warnRatio} < 1`,
+    ),
+    check(
+      "maintenance_rules_slot_check",
+      sql`${table.componentTypeCode} is not null or ${table.position} is null`,
+    ),
+  ],
+);
+
+// --- Tasks (feature 7, D-34) ---------------------------------------------------------------------
+
+/** One-off to-dos, shown under "À prévoir" after the rules. They may concern no bike. */
+export const tasks = sqliteTable(
+  "tasks",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    /** Tasks may have no bike, so they carry the workspace themselves (D-25). */
+    workspaceId: integer("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    /** null: a general task ("regonfler la pompe de l'atelier"). */
+    bikeId: integer("bike_id").references(() => bikes.id, { onDelete: "cascade" }),
+    componentTypeCode: text("component_type_code").references(() => componentTypes.code),
+    position: text("position", { enum: COMPONENT_POSITIONS }),
+    title: text("title").notNull(),
+    dueOn: text("due_on"),
+    status: text("status", { enum: TASK_STATUSES }).notNull().default("open"),
+    priority: text("priority", { enum: TASK_PRIORITIES }).notNull().default("normal"),
+    /** When it was marked done; null unless `status` is `done`. */
+    doneAt: integer("done_at", { mode: "timestamp_ms" }),
+    notes: text("notes"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    index("tasks_workspace_id_status_idx").on(table.workspaceId, table.status),
+    index("tasks_bike_id_idx").on(table.bikeId),
+    enumCheck("tasks_status_check", table.status, TASK_STATUSES),
+    enumCheck("tasks_priority_check", table.priority, TASK_PRIORITIES),
+    enumCheck("tasks_position_check", table.position, COMPONENT_POSITIONS),
+    check("tasks_done_check", sql`(${table.status} = 'done') = (${table.doneAt} is not null)`),
+  ],
+);
+
+/** Stock changes only through movements (D-39): the quantity is their sum. */
+export const inventoryMovements = sqliteTable(
+  "inventory_movements",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    itemId: integer("item_id")
+      .notNull()
+      .references(() => inventoryItems.id, { onDelete: "cascade" }),
+    occurredAt: integer("occurred_at", { mode: "timestamp_ms" }).notNull(),
+    kind: text("kind", { enum: MOVEMENT_KINDS }).notNull(),
+    /** Parts: units. Products: containers (0 when only the level changes). Tools: +1 or −1. */
+    quantityDelta: integer("quantity_delta").notNull(),
+    /** Products only (phase 1.5). */
+    levelAfter: text("level_after", { enum: PRODUCT_LEVELS }),
+    /** Purchases: the price paid per unit. */
+    unitCostCents: integer("unit_cost_cents"),
+    purchaseLinkId: integer("purchase_link_id").references(() => purchaseLinks.id, {
+      onDelete: "set null",
+    }),
+    /** The intervention that used it (a replacement from stock). */
+    maintenanceItemId: integer("maintenance_item_id").references(() => maintenanceItems.id, {
+      onDelete: "set null",
+    }),
+    /** Who recorded it (D-25). */
+    createdBy: text("created_by").references(() => users.id, { onDelete: "set null" }),
+    note: text("note"),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    index("inventory_movements_item_id_idx").on(table.itemId),
+    index("inventory_movements_maintenance_item_id_idx").on(table.maintenanceItemId),
+    enumCheck("inventory_movements_kind_check", table.kind, MOVEMENT_KINDS),
+    enumCheck("inventory_movements_level_after_check", table.levelAfter, PRODUCT_LEVELS),
+    check(
+      "inventory_movements_delta_check",
+      sql`(${table.kind} <> 'purchase' or ${table.quantityDelta} > 0) and (${table.kind} <> 'use' or ${table.quantityDelta} <= 0) and (${table.kind} <> 'initial' or ${table.quantityDelta} >= 0)`,
+    ),
+    check(
+      "inventory_movements_cost_check",
+      sql`${table.unitCostCents} is null or ${table.unitCostCents} >= 0`,
+    ),
+  ],
+);
+
+// --- Maintenance (tables from feature 3, entry screen in feature 5) ------------------------------
+
+/** One visit to the shop or one session in the garage. */
+export const maintenanceEvents = sqliteTable(
+  "maintenance_events",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    bikeId: integer("bike_id")
+      .notNull()
+      .references(() => bikes.id, { onDelete: "cascade" }),
+    performedOn: text("performed_on").notNull(),
+    title: text("title").notNull(),
+    performedBy: text("performed_by", { enum: MAINTENANCE_PERFORMERS }).notNull(),
+    shopId: integer("shop_id").references(() => shops.id, { onDelete: "set null" }),
+    /** Who logged it (D-25). */
+    createdBy: text("created_by").references(() => users.id, { onDelete: "set null" }),
+    /** The total typed by the person (an invoice total); null = the sum of the items' costs. */
+    totalCostCents: integer("total_cost_cents"),
+    notes: text("notes"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    index("maintenance_events_bike_id_idx").on(table.bikeId),
+    enumCheck("maintenance_events_performed_by_check", table.performedBy, MAINTENANCE_PERFORMERS),
+    check(
+      "maintenance_events_shop_check",
+      sql`${table.performedBy} = 'shop' or ${table.shopId} is null`,
+    ),
+    check(
+      "maintenance_events_total_check",
+      sql`${table.totalCostCents} is null or ${table.totalCostCents} >= 0`,
+    ),
+  ],
+);
+
+/** What was done during an event; each line can point to its part (and, from feature 6, its rule). */
+export const maintenanceItems = sqliteTable(
+  "maintenance_items",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    eventId: integer("event_id")
+      .notNull()
+      .references(() => maintenanceEvents.id, { onDelete: "cascade" }),
+    action: text("action", { enum: MAINTENANCE_ACTIONS }).notNull(),
+    /** The part concerned; for `replaced`, the part removed. */
+    componentId: integer("component_id").references(() => components.id),
+    /** For `replaced` only: the part fitted. */
+    newComponentId: integer("new_component_id").references(() => components.id),
+    /** The rule this line fulfils: its counter restarts (feature 6). */
+    ruleId: integer("rule_id").references(() => maintenanceRules.id, { onDelete: "set null" }),
+    description: text("description"),
+    costCents: integer("cost_cents"),
+    measurementValue: real("measurement_value"),
+    measurementUnit: text("measurement_unit", { enum: MEASUREMENT_UNITS }),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    index("maintenance_items_event_id_idx").on(table.eventId),
+    index("maintenance_items_component_id_idx").on(table.componentId),
+    index("maintenance_items_new_component_id_idx").on(table.newComponentId),
+    enumCheck("maintenance_items_action_check", table.action, MAINTENANCE_ACTIONS),
+    enumCheck("maintenance_items_measurement_unit_check", table.measurementUnit, MEASUREMENT_UNITS),
+    check(
+      "maintenance_items_replaced_check",
+      sql`(${table.action} = 'replaced' and ${table.componentId} is not null and ${table.newComponentId} is not null) or (${table.action} <> 'replaced' and ${table.newComponentId} is null)`,
+    ),
+    check(
+      "maintenance_items_measurement_check",
+      sql`(${table.measurementValue} is null) = (${table.measurementUnit} is null)`,
+    ),
+    check(
+      "maintenance_items_cost_check",
+      sql`${table.costCents} is null or ${table.costCents} >= 0`,
     ),
   ],
 );

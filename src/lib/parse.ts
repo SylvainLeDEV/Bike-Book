@@ -3,7 +3,15 @@
  * server validates the converted values again (Zod).
  */
 
+import { formatDecimal } from "./format";
+
 const DECIMAL = /^\d+(?:[.,]\d+)?$/;
+
+/** A number shown in a form field: "15,2" rather than "15,200", "1 500" rather than "1 500,0". */
+export function decimalText(value: number, maxDigits: number): string {
+  const text = formatDecimal(value, maxDigits);
+  return text.includes(",") ? text.replace(/0+$/, "").replace(/,$/, "") : text;
+}
 
 /**
  * A positive number typed the French way, spaces (any kind) between thousands and a decimal

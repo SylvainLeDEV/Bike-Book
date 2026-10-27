@@ -2,11 +2,12 @@
 
 import * as React from "react";
 import { cn } from "cn";
-import { BadgeCheck, Replace } from "lucide-react";
+import { BadgeCheck, ChevronRight, Plus, Replace } from "lucide-react";
 import { CATEGORY_ICONS } from "@/components/icons";
 import { PhotoThumbs } from "@/components/photos/photo-thumbs";
 import { RuleStatusMark } from "@/components/status";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
   SegmentedTabs,
@@ -35,9 +36,15 @@ function GroupHead({ group }: { group: ComponentGroupVM["group"] }) {
   );
 }
 
-function FittedRow({ component, today }: { component: ComponentVM; today: LocalDate }) {
-  return (
-    <li className="flex items-center gap-3 px-4 py-2.5">
+type RowProps = {
+  component: ComponentVM;
+  today: LocalDate;
+  onEdit?: (componentId: number) => void;
+};
+
+function FittedRow({ component, today, onEdit }: RowProps) {
+  const content = (
+    <>
       <div className="min-w-0 flex-1">
         <p className="flex items-center gap-2 text-[14.5px] font-semibold">
           {component.typeLabel}
@@ -52,11 +59,25 @@ function FittedRow({ component, today }: { component: ComponentVM; today: LocalD
         <span className="num text-[17px] font-semibold">{formatQuantity(component.counter)}</span>
         <span className="block text-xs text-fg-muted">{sinceText(component, today)}</span>
       </div>
+      {onEdit ? <ChevronRight className="size-4 shrink-0 text-fg-muted" aria-hidden /> : null}
+    </>
+  );
+  if (!onEdit) return <li className="flex items-center gap-3 px-4 py-2.5">{content}</li>;
+  return (
+    <li>
+      <button
+        type="button"
+        onClick={() => onEdit(component.id)}
+        aria-label={`Modifier ${component.typeLabel} : ${component.model}`}
+        className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-[color-mix(in_oklch,var(--surface-2),var(--surface)_40%)] focus-visible:-outline-offset-3"
+      >
+        {content}
+      </button>
     </li>
   );
 }
 
-function OriginRow({ component, today }: { component: ComponentVM; today: LocalDate }) {
+function OriginRow({ component, today }: RowProps) {
   const count = component.lineage.length;
   return (
     <li className="block px-4 py-2.5">
@@ -123,10 +144,16 @@ export function ComponentsSection({
   groups,
   purchasedOn,
   today,
+  onAdd,
+  onEdit,
 }: {
   groups: ComponentGroupVM[];
   purchasedOn: LocalDate | null;
   today: LocalDate;
+  /** "Ajouter un composant". */
+  onAdd?: () => void;
+  /** Opens a fitted part in the component sheet. */
+  onEdit?: (componentId: number) => void;
 }) {
   const [view, setView] = React.useState<"fitted" | "origin">("fitted");
   const all = groups.flatMap((g) => g.components);
@@ -139,16 +166,25 @@ export function ComponentsSection({
   const list = (Row: typeof FittedRow) => (
     <Card className="overflow-hidden">
       {groups.length ? null : (
-        <p className="px-4 py-3 text-[13px] text-fg-muted">
-          Aucun composant noté pour l&apos;instant.
-        </p>
+        <div className="grid justify-items-start gap-2 px-4 py-3">
+          <p className="text-[13px] text-fg-muted">
+            Aucun composant noté pour l&apos;instant. Commence par les pièces qui s&apos;usent :
+            fourche, amortisseur, chaîne, plaquettes, pneus.
+          </p>
+          {onAdd ? (
+            <Button variant="secondary" size="sm" onClick={onAdd}>
+              <Plus />
+              Ajouter un composant
+            </Button>
+          ) : null}
+        </div>
       )}
       {groups.map((group, index) => (
         <div key={group.group} className={cn(index > 0 && "border-t border-border")}>
           <GroupHead group={group.group} />
           <ul className="m-0 list-none divide-y divide-border p-0 pb-1.5">
             {group.components.map((component) => (
-              <Row key={component.id} component={component} today={today} />
+              <Row key={component.id} component={component} today={today} onEdit={onEdit} />
             ))}
           </ul>
         </div>
@@ -162,9 +198,14 @@ export function ComponentsSection({
         <h2 id="bike-components-title" className="text-[17px] font-semibold tracking-[-0.01em]">
           Composants
         </h2>
-        <span className="hint" aria-live="polite">
+        <span className="ml-auto hint" aria-live="polite">
           {hint}
         </span>
+        {onAdd && groups.length ? (
+          <Button variant="link" onClick={onAdd}>
+            Ajouter
+          </Button>
+        ) : null}
       </div>
       <SegmentedTabs value={view} onValueChange={(v) => setView(v as "fitted" | "origin")}>
         <SegmentedTabsList aria-label="Vue des composants" className="mb-3">

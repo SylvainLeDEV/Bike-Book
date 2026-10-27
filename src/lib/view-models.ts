@@ -9,10 +9,16 @@
 import type {
   BikeStatus,
   ComponentGroup,
+  ComponentOrigin,
+  ComponentPosition,
+  ComponentTypeCode,
   Discipline,
+  EvidenceLevel,
   InventoryCategory,
   InventoryUnit,
+  MaintenanceAction,
   MaintenancePerformer,
+  MeasurementUnit,
   MovementKind,
   RemovalReason,
   RestockStatus,
@@ -90,6 +96,15 @@ export type RuleRowVM = {
     unit: InventoryUnit;
     state: RebuyState | null;
   } | null;
+};
+
+/** "Nouvelle tâche" (feature 7). */
+export type TaskInput = {
+  /** null: a general task. */
+  bikeId: number | null;
+  title: string;
+  dueOn: LocalDate | null;
+  notes: string | null;
 };
 
 export type TaskRowVM = {
@@ -305,6 +320,118 @@ export type BikePageVM = {
   photos: PhotoVM[];
 };
 
+// --- "Voir le détail" of the bike's counters (principle 2) ------------------------------------------
+
+export type WearDetailVM = {
+  initialDistanceM: number;
+  initialWearS: number;
+  /** Every ride counted, newest first, with the wear it adds (D-13). */
+  rides: {
+    id: number;
+    on: LocalDate;
+    title: string;
+    distanceM: number;
+    wearS: number;
+    /** "descent": the descent time was counted; "fallback": a lift day without it. */
+    liftCounting: "descent" | "fallback" | null;
+  }[];
+};
+
+// --- Rules sheet (feature 6) -------------------------------------------------------------------------
+
+/** Where a rule applies: "bike", or `type:position` ("brake:*" = both sides). */
+export type RuleSlotOption = { value: string; label: string };
+
+export type RuleInput = {
+  /** A RuleSlotOption value. */
+  slot: string;
+  title: string;
+  intervalDistanceM: number | null;
+  intervalWearS: number | null;
+  intervalDays: number | null;
+  /** 0.9 = "due soon" from 90 %. */
+  warnRatio: number;
+  resetOnReplacement: boolean;
+  /** Last time it was done before tracking; null: counts from the start of tracking. */
+  lastDoneOn: LocalDate | null;
+  active: boolean;
+  notes: string | null;
+};
+
+export type RuleFormVM = RuleInput & {
+  id: number;
+  status: RuleStatus | null;
+  /** How the figures were computed (principle 2). */
+  explanation: {
+    since: LocalDate;
+    source: "maintenance" | "replacement" | "start";
+    rideCount: number;
+    distanceM: number;
+    wearS: number;
+    days: number;
+    ratio: number;
+    etaDays: number | null;
+  } | null;
+};
+
+export type RulesSheetVM = {
+  today: LocalDate;
+  bike: { id: number; name: string };
+  slots: RuleSlotOption[];
+  rules: RuleFormVM[];
+};
+
+export type SaveRuleResult = { ok: true; message: string } | { ok: false; error: string };
+
+// --- Maintenance entry (feature 5, D-63) ------------------------------------------------------------
+
+export type MaintenanceLineInput = {
+  action: Exclude<MaintenanceAction, "replaced">;
+  /** null: the whole bike. */
+  componentId: number | null;
+  /** The rule this line fulfils: its counter restarts (feature 6). */
+  ruleId: number | null;
+  description: string | null;
+  costCents: number | null;
+  measurementValue: number | null;
+  measurementUnit: MeasurementUnit | null;
+};
+
+export type MaintenanceInput = {
+  bikeId: number;
+  on: LocalDate;
+  title: string;
+  performedBy: MaintenancePerformer;
+  shop: { name: string; kind: ShopKind } | null;
+  /** The total typed (an invoice); null: the sum of the lines. */
+  totalCostCents: number | null;
+  notes: string | null;
+  lines: MaintenanceLineInput[];
+};
+
+export type MaintenanceFormVM = {
+  today: LocalDate;
+  bike: { id: number; name: string };
+  /** The bike's fitted parts, as the line's "Pièce" offers them. */
+  parts: { id: number; label: string }[];
+  /** Active rules a line can fulfil: those of the line's part slot, or of the whole bike. */
+  rules: { id: number; title: string; componentIds: number[]; bikeLevel: boolean }[];
+  shops: ShopOption[];
+};
+
+export type SaveMaintenanceResult =
+  { ok: true; message: string; undoEventId: number } | { ok: false; error: string };
+
+// --- Activité ------------------------------------------------------------------------------------------
+
+export type ActivityVM = {
+  today: LocalDate;
+  /** Rides and maintenance of every bike, newest first. */
+  items: TimelineItemVM[];
+  rideCount: number;
+  maintenanceCount: number;
+};
+
 // --- Bikes list and bike sheet ----------------------------------------------------------------------
 
 export type BikesPageVM = {
@@ -416,7 +543,10 @@ export type WorkshopVM = {
 
 /** "Remplacer une pièce" on one bike: its slots and what the workshop has for them. */
 export type ReplacePartVM = {
+  today: LocalDate;
   bike: BikeRef;
+  /** Recent events of the bike: a replacement can join one of the same day (D-63). */
+  events?: { id: number; on: LocalDate; title: string }[];
   slots: {
     componentId: number;
     label: string;
@@ -450,10 +580,20 @@ export type QuickRideInput = {
   conditions: RideConditions | null;
   location: string | null;
   notes: string | null;
+  /** "HH:MM", local time; null: the ride starts at noon (D-61). */
+  startTime: string | null;
 };
+
+/** Answer of the quick ride action: the undo token is the ride (D-60). */
+export type QuickRideResult =
+  { ok: true; message: string; undoRideId: number } | { ok: false; error: string };
 
 export type ReplacePartInput = {
   removedComponentId: number;
+  /** The day of the replacement (today by default); past days are history (D-61). */
+  on: LocalDate;
+  /** An event of the same bike and day to add the line to; null records a new one (D-63). */
+  eventId: number | null;
   reason: Exclude<RemovalReason, "sold_with_bike">;
   removalNote: string | null;
   /** A workshop item (stock −1, D-33) or a part typed by hand ("Autre pièce, hors atelier"). */
@@ -480,5 +620,60 @@ export type AddItemInput = {
   notes: string | null;
 };
 
+/** Answer of the replace action: the undo token is the `replaced` line (D-60). */
+export type ReplacePartResult =
+  { ok: true; message: string; undoItemId: number } | { ok: false; error: string };
+
 /** Component types a part can fit, for the workshop's "Type de pièce" (docs/03). */
 export type ComponentTypeOption = { code: string; label: string };
+
+/** A rule template offered when a part is added (feature 6). */
+export type RuleTemplateChoice = {
+  id: number;
+  componentTypeCode: ComponentTypeCode;
+  title: string;
+  /** "50 h", "125 h ou 365 j". */
+  intervalText: string;
+  evidenceLevel: EvidenceLevel;
+};
+
+/** A component type as the component sheet offers it. */
+export type ComponentTypeChoice = {
+  code: ComponentTypeCode;
+  label: string;
+  group: ComponentGroup;
+  hasPosition: boolean;
+};
+
+/** What "Ajouter un composant" / "Modifier le composant" sends (raw units, D-50). */
+export type ComponentInput = {
+  /** Rule templates to copy for the new part (ignored when editing). */
+  templateIds?: number[];
+  typeCode: ComponentTypeCode;
+  position: ComponentPosition;
+  brand: string | null;
+  model: string | null;
+  reference: string | null;
+  /** "D'origine" or "Ajoutée plus tard"; a replacement's origin is set by the replacement. */
+  origin: "stock" | "upgrade";
+  installedOn: LocalDate;
+  initialDistanceM: number;
+  initialWearS: number;
+  purchasedOn: LocalDate | null;
+  purchasePriceCents: number | null;
+  shop: { name: string; kind: ShopKind } | null;
+  warrantyEndsOn: LocalDate | null;
+  notes: string | null;
+};
+
+/** The component sheet in edit mode. */
+export type ComponentFormVM = Omit<ComponentInput, "origin"> & {
+  id: number;
+  origin: ComponentOrigin;
+  /** Fitted by a replacement: its origin and date belong to the replacement. */
+  fromReplacement: boolean;
+};
+
+export type SaveComponentResult =
+  | { ok: true; componentId: number; message: string }
+  | { ok: false; error?: string; fieldErrors?: Partial<Record<keyof ComponentInput, string>> };

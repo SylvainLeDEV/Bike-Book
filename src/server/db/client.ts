@@ -11,6 +11,9 @@ import * as schema from "./schema";
 
 export type Db = BetterSQLite3Database<typeof schema>;
 
+/** The handle a transaction callback receives. */
+export type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
+
 export const DATABASE_FILE_NAME = "bikebook.db";
 
 /** Resolved from the working directory: the repository root in dev, /app in the image. */

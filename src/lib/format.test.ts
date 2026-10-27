@@ -16,8 +16,11 @@ import {
   formatMonthYear,
   formatPercent,
   formatSignedInteger,
+  endOfLocalDay,
   isLocalDate,
   localDateOf,
+  localInstant,
+  startOfLocalDay,
   MINUS,
   NBSP,
   NNBSP,
@@ -167,5 +170,37 @@ describe("isLocalDate", () => {
     expect(isLocalDate("2026-13-01")).toBe(false);
     expect(isLocalDate("2026-10-5")).toBe(false);
     expect(isLocalDate("25/10/2026")).toBe(false);
+  });
+});
+
+describe("local instants and clock changes (Europe/Paris)", () => {
+  const PARIS = "Europe/Paris";
+  const iso = (ms: number) => new Date(ms).toISOString();
+
+  it("places noon in summer and winter time", () => {
+    expect(iso(localInstant("2026-07-14", { hour: 12 }, PARIS))).toBe("2026-07-14T10:00:00.000Z");
+    expect(iso(localInstant("2026-12-24", { hour: 12 }, PARIS))).toBe("2026-12-24T11:00:00.000Z");
+  });
+
+  it("handles the day the clocks go back (25 October 2026, a 25-hour day)", () => {
+    expect(iso(startOfLocalDay("2026-10-25", PARIS))).toBe("2026-10-24T22:00:00.000Z");
+    expect(iso(localInstant("2026-10-25", { hour: 12 }, PARIS))).toBe("2026-10-25T11:00:00.000Z");
+    expect(iso(endOfLocalDay("2026-10-25", PARIS))).toBe("2026-10-25T22:59:59.999Z");
+    expect(localDateOf(endOfLocalDay("2026-10-25", PARIS), PARIS)).toBe("2026-10-25");
+  });
+
+  it("handles the day the clocks go forward (29 March 2026, a 23-hour day)", () => {
+    expect(iso(startOfLocalDay("2026-03-29", PARIS))).toBe("2026-03-28T23:00:00.000Z");
+    expect(iso(localInstant("2026-03-29", { hour: 12 }, PARIS))).toBe("2026-03-29T10:00:00.000Z");
+    expect(iso(endOfLocalDay("2026-03-29", PARIS))).toBe("2026-03-29T21:59:59.999Z");
+    // 02:30 does not exist that night: it falls after the gap.
+    expect(iso(localInstant("2026-03-29", { hour: 2, minute: 30 }, PARIS))).toBe(
+      "2026-03-29T01:30:00.000Z",
+    );
+  });
+
+  it("works in UTC and far from it", () => {
+    expect(iso(localInstant("2026-10-25", { hour: 12 }, "UTC"))).toBe("2026-10-25T12:00:00.000Z");
+    expect(iso(startOfLocalDay("2026-10-25", "Pacific/Auckland"))).toBe("2026-10-24T11:00:00.000Z");
   });
 });

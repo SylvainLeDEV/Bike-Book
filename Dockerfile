@@ -35,6 +35,8 @@ COPY --from=build /app/public ./public
 # Applied at startup (src/instrumentation.ts). Already traced into standalone; copied
 # explicitly so a tracing change can never ship an image without them.
 COPY --from=build /app/src/server/db/migrations ./src/server/db/migrations
+# The data dictionary shipped in the ZIP export (feature 12, D-50), traced the same way.
+COPY --from=build /app/docs/03-data-model.md ./docs/03-data-model.md
 
 # The only writable location. Mount a volume on a local filesystem here (never NFS/SMB).
 RUN mkdir -p /data && chown 1000:1000 /data

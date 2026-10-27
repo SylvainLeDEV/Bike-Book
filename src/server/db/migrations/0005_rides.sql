@@ -1,0 +1,31 @@
+CREATE TABLE `rides` (
+	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+	`bike_id` integer NOT NULL,
+	`started_at` integer NOT NULL,
+	`title` text,
+	`location` text,
+	`ride_type` text NOT NULL,
+	`lift_assisted` integer DEFAULT false NOT NULL,
+	`distance_m` integer,
+	`descent_distance_m` integer,
+	`total_time_s` integer,
+	`moving_time_s` integer,
+	`descent_time_s` integer,
+	`runs_count` integer,
+	`elevation_gain_m` integer,
+	`elevation_loss_m` integer,
+	`conditions` text,
+	`notes` text,
+	`source` text DEFAULT 'manual' NOT NULL,
+	`created_at` integer NOT NULL,
+	`updated_at` integer NOT NULL,
+	FOREIGN KEY (`bike_id`) REFERENCES `bikes`(`id`) ON UPDATE no action ON DELETE cascade,
+	CONSTRAINT "rides_ride_type_check" CHECK("rides"."ride_type" in ('road', 'gravel', 'xc', 'trail', 'enduro', 'dh', 'bike_park', 'commute', 'indoor', 'other')),
+	CONSTRAINT "rides_conditions_check" CHECK("rides"."conditions" in ('dry', 'wet', 'mud', 'dust', 'snow', 'mixed')),
+	CONSTRAINT "rides_source_check" CHECK("rides"."source" in ('manual', 'garmin_api', 'file_import')),
+	CONSTRAINT "rides_duration_check" CHECK("rides"."total_time_s" is not null or "rides"."moving_time_s" is not null),
+	CONSTRAINT "rides_values_check" CHECK(("rides"."distance_m" is null or "rides"."distance_m" >= 0) and ("rides"."descent_distance_m" is null or "rides"."descent_distance_m" >= 0) and ("rides"."total_time_s" is null or "rides"."total_time_s" > 0) and ("rides"."moving_time_s" is null or "rides"."moving_time_s" > 0) and ("rides"."descent_time_s" is null or "rides"."descent_time_s" > 0) and ("rides"."runs_count" is null or "rides"."runs_count" >= 0) and ("rides"."elevation_gain_m" is null or "rides"."elevation_gain_m" >= 0) and ("rides"."elevation_loss_m" is null or "rides"."elevation_loss_m" >= 0)),
+	CONSTRAINT "rides_descent_check" CHECK("rides"."descent_time_s" is null or "rides"."total_time_s" is null or "rides"."descent_time_s" <= "rides"."total_time_s")
+);
+--> statement-breakpoint
+CREATE INDEX `rides_bike_id_started_at_idx` ON `rides` (`bike_id`,`started_at`);

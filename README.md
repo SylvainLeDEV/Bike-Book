@@ -3,8 +3,9 @@
 Track all your bikes in one place — rides, maintenance, parts and upcoming service.
 
 > **Status (2026-10-26): Phase 1 — MVP, in progress.** Accounts, the app shell (light and dark
-> themes) and bikes with their full record. Components, rides, maintenance, rules, the workshop,
-> photos and the export come next, one feature at a time.
+> themes), bikes with their full record, components and their history, rides, maintenance, the
+> rule engine ("À prévoir"), tasks, the workshop ("À racheter") and the ZIP export. Photos and
+> documents come next.
 
 ## Quick start
 

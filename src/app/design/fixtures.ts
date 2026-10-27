@@ -1543,6 +1543,7 @@ export const QUICK_RIDE: QuickRideVM = {
 };
 
 export const REPLACE_ON_SPECTRAL: ReplacePartVM = {
+  today: TODAY,
   bike: SPECTRAL,
   slots: [
     {

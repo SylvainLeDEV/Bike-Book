@@ -7,6 +7,8 @@ coverage
 data
 docs
 *.md
+# The data dictionary is part of the ZIP export (feature 12).
+!docs/03-data-model.md
 .env*
 !.env.example
 Dockerfile

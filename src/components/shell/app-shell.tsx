@@ -18,7 +18,7 @@ export function AppShell({
 }: {
   shell: ShellValue;
   quickRide: QuickRideVM;
-  onQuickRideSubmit: (input: QuickRideInput) => void | Promise<void>;
+  onQuickRideSubmit: (input: QuickRideInput) => void | Promise<void | { ok: false; error: string }>;
   children: React.ReactNode;
 }) {
   return (

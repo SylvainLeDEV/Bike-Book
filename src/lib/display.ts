@@ -13,7 +13,13 @@ import {
   formatMoney,
   type LocalDate,
 } from "./format";
-import { UNIT_LABELS } from "./labels";
+import type { ComponentPosition, ComponentTypeCode } from "./enums";
+import {
+  COMPONENT_TYPE_AGREEMENT,
+  COMPONENT_TYPE_LABELS,
+  POSITION_LABELS,
+  UNIT_LABELS,
+} from "./labels";
 import type { InventoryUnit, Quantity, RideItemVM, RuleRowVM } from "./view-models";
 
 export function formatQuantity(quantity: Quantity): string {
@@ -101,4 +107,21 @@ export function maskSerial(serial: string): string {
 /** The last group of a frame number, for the masked version read aloud. */
 export function serialEnd(serial: string): string {
   return serial.trim().split(/\s+/).pop() ?? "";
+}
+
+/** "Pneu avant", "Plaquettes arrière", "Chaîne": a slot in words. */
+export function slotLabel(typeCode: ComponentTypeCode, position: ComponentPosition): string {
+  const label = typeCode === "other" ? "Pièce" : COMPONENT_TYPE_LABELS[typeCode];
+  return position === "none" ? label : `${label} ${POSITION_LABELS[position]}`;
+}
+
+/** A past participle agreed with the part: agreed("chain", "monté") → "montée". */
+export function agreed(typeCode: ComponentTypeCode, participle: string): string {
+  const ending = { m: "", f: "e", mp: "s", fp: "es" }[COMPONENT_TYPE_AGREEMENT[typeCode]];
+  return participle + ending;
+}
+
+/** "Chaîne remplacée", "Pneu avant remplacé", "Plaquettes arrière remplacées". */
+export function replacedTitle(typeCode: ComponentTypeCode, position: ComponentPosition): string {
+  return `${slotLabel(typeCode, position)} ${agreed(typeCode, "remplacé")}`;
 }

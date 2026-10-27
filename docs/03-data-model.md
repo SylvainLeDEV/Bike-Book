@@ -68,6 +68,14 @@ Status: **Decided** (D-25, D-26) and built in Phase 0 (`src/server/db/schema.ts`
 | `workspaces` | `id`, `name`, `created_at` | "My garage" |
 | `memberships` | `user_id`, `workspace_id`, `role` (`owner` for now; `member`, `mechanic`… later), `created_at` | Primary key (`user_id`, `workspace_id`). `role` has a CHECK constraint: adding a role needs a migration |
 
+**`workspaces`**, the only table of this section in the ZIP export (feature 12):
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `id` | integer PK | Referenced by the `workspace_id` of the tables at the top of each hierarchy |
+| `name` | text, required | Shown in the app; "Mon garage" in the demo |
+| `created_at` | timestamp | Instant, UTC epoch milliseconds |
+
 Scoping rules:
 
 - Tables at the top of the hierarchy carry a `workspace_id`: `bikes`, `shops`, `tasks`,
@@ -223,56 +231,98 @@ Built-in templates (rows of `0003_reference_data`):
 
 ### `components`
 
+Status: **Built** in phase 1 feature 3 (2026-10-26, migration `0004_components_and_maintenance`),
+except `inventory_item_id`, added with the workshop (feature 8, D-57).
+
 | Field | Type | Notes |
 |-------|------|-------|
 | `id` | integer PK | |
-| `bike_id` | FK `bikes`, required, never changes | D-05 |
-| `type_code` | FK `component_types` | |
-| `position` | enum: `front`, `rear`, `none` | |
-| `brand`, `model` | text | "RockShox", "ZEB Ultimate" |
+| `bike_id` | FK `bikes`, required, never changes | D-05. The part inherits the workspace through its bike (D-25) |
+| `type_code` | FK `component_types`, required | |
+| `position` | enum, required | `front`, `rear` for the types with `has_position`, else `none`. Brakes, pads, rotors, wheels and tyres are recorded per position (D-62) |
+| `brand`, `model` | text | "RockShox", "Lyrik Ultimate"; at least one of them (Zod) |
 | `reference` | text | Manufacturer part number or SKU |
-| `specs` | JSON | Free key/values: `{"travel_mm": 170, "offset_mm": 44}` |
-| `origin` | enum: `stock`, `replacement`, `upgrade` | `stock` = part of the original spec sheet |
-| `replaces_component_id` | FK `components`, nullable | The part it replaced in the same slot: one history chain per slot |
-| `installed_at` | timestamp | Rides from this instant on count towards its wear |
-| `initial_distance_m`, `initial_wear_s` | integer | Usage before it was fitted (second-hand part) or before tracking started |
-| `removed_at` | timestamp, nullable | `null` = currently fitted |
-| `removal_reason` | enum: `worn`, `broken`, `crash`, `upgrade`, `sold_with_bike`, `other` | Feeds phase 3 |
+| `specs` | JSON, nullable | Free key/values, e.g. `{"travel_mm": 160}` (shown after the name: "· 160 mm"). Never filtered or summed (D-50) |
+| `origin` | enum, required | See [values](#component-values) |
+| `replaces_component_id` | FK `components`, nullable | The part it replaced in the same slot: one history chain per slot. CHECK: never on an `origin = stock` part |
+| `installed_at` | timestamp, required | Rides from this instant on count towards its wear. Original part: first millisecond of the bike's purchase day; other parts: see D-61 |
+| `initial_distance_m`, `initial_wear_s` | integer, required, default 0 | Usage before it was fitted (second-hand part) or before tracking started; 0 when none |
+| `removed_at` | timestamp, nullable | `null` = currently fitted. CHECK: ≥ `installed_at` |
+| `removal_reason` | enum, nullable | See [values](#component-values). CHECK: set exactly when `removed_at` is set. Feeds phase 3 |
 | `removal_note` | text, nullable | Detail shown after the reason: "chape tordue aux Gets" (D-43). `notes` stays for the part itself |
-| `purchased_on`, `purchase_price_cents`, `shop_id` | | Optional |
-| `inventory_item_id` | FK `inventory_items`, nullable | The workshop item the part came from (D-33) |
+| `purchased_on` | date, nullable | |
+| `purchase_price_cents` | integer, nullable | ≥ 0. Informative: the total cost counts parts through their maintenance lines only (D-44) |
+| `shop_id` | FK `shops`, nullable | Where it was bought |
+| `inventory_item_id` | FK `inventory_items`, nullable | The workshop item the part came from (D-33). Added with feature 8 |
 | `warranty_ends_on` | date, nullable | Last day covered by the warranty |
 | `notes` | text | |
+| `created_at`, `updated_at` | timestamp | |
+
+<a id="component-values"></a>**Values**
+
+| Column | Value | Meaning |
+|--------|-------|---------|
+| `position` | `front`, `rear` | Front or rear part of a type that exists on both ends |
+| | `none` | A type without position (chain, fork…) |
+| `origin` | `stock` | Part of the bike as bought (the original spec) |
+| | `replacement` | Fitted to replace a worn, broken or crashed part |
+| | `upgrade` | Fitted to improve on the previous part, or added later without replacing anything |
+| `removal_reason` | `worn` | Worn out |
+| | `broken` | Broken |
+| | `crash` | Damaged in a crash |
+| | `upgrade` | Replaced by a better part |
+| | `sold_with_bike` | Left on the bike when it was sold |
+| | `other` | Any other reason, explained in `removal_note` |
 
 **Original spec (D-43):** the components with `origin = stock`, each followed through
 `replaces_component_id` down to the part fitted today. The wear at removal is the component's
-counter at `removed_at`, computed, not stored.
+counter at `removed_at`, computed, not stored (`fittedSlots` in `src/server/domain/components.ts`).
+A part's counter unit follows its group: hours for suspension and electric parts, kilometres for
+the others.
 
 ### `rides`
+
+Status: **Built** in phase 1 feature 4 (2026-10-26, migration `0005_rides`), except
+`external_activity_id`, added with the Garmin import (phase 2, D-57).
 
 | Field | Type | Notes |
 |-------|------|-------|
 | `id` | integer PK | |
-| `bike_id` | FK `bikes`, required | |
-| `started_at` | timestamp | |
-| `title` | text | Optional |
-| `location` | text | Free text, autocompleted from previous rides ("Les Gets", "Forêt de …") |
-| `ride_type` | enum: `road`, `gravel`, `xc`, `trail`, `enduro`, `dh`, `bike_park`, `commute`, `indoor`, `other` | |
-| `lift_assisted` | boolean | Bike park, shuttles. Defaults to `true` when `ride_type = bike_park` |
-| `distance_m` | integer | Total recorded distance |
-| `descent_distance_m` | integer, nullable | Distance ridden downhill on lift days |
-| `total_time_s` | integer | Total time of the day (D-06) |
-| `moving_time_s` | integer, nullable | Given by Garmin, optional by hand |
-| `descent_time_s` | integer, nullable | Descent time only (D-06) |
-| `runs_count` | integer, nullable | Number of runs (D-06) |
-| `elevation_gain_m`, `elevation_loss_m` | integer, nullable | |
-| `conditions` | enum: `dry`, `wet`, `mud`, `dust`, `snow`, `mixed`, nullable | Cheap to enter, useful for phase 3 |
+| `bike_id` | FK `bikes`, required | The ride inherits the workspace through its bike (D-25) |
+| `started_at` | timestamp, required | Noon local time when only a date was typed, else the time given (D-61) |
+| `title` | text, nullable | Not typed in the quick entry: lists show the place, else the ride type |
+| `location` | text, nullable | Free text, offered again from previous rides ("Les Gets", "Salève") |
+| `ride_type` | enum, required | See [values](#ride-values) |
+| `lift_assisted` | boolean, required, default `false` | Lifts or shuttles: wear counts the descent only (D-13). The quick entry sets it for `bike_park` (D-64) |
+| `distance_m` | integer, nullable | Total recorded distance, ≥ 0 |
+| `descent_distance_m` | integer, nullable | Distance ridden downhill on lift days, ≥ 0 |
+| `total_time_s` | integer, nullable | Total time of the ride or of the day (D-06); the quick entry's single duration (D-64). > 0 |
+| `moving_time_s` | integer, nullable | Given by Garmin (phase 2); not typed in the quick entry. > 0 |
+| `descent_time_s` | integer, nullable | Descent time only (D-06). > 0 and ≤ `total_time_s` (CHECK) |
+| `runs_count` | integer, nullable | Number of runs (D-06), ≥ 0 |
+| `elevation_gain_m`, `elevation_loss_m` | integer, nullable | ≥ 0 |
+| `conditions` | enum, nullable | See [values](#ride-values) |
 | `notes` | text | |
-| `source` | enum: `manual`, `garmin_api`, `file_import` | |
-| `external_activity_id` | FK `external_activities`, nullable | Phase 2 |
+| `source` | enum, required, default `manual` | See [values](#ride-values) |
+| `external_activity_id` | FK `external_activities`, nullable | Phase 2 (D-57) |
 | `created_at`, `updated_at` | timestamp | |
 
-Validation: at least one of `total_time_s` and `moving_time_s` is set.
+Validation: at least one of `total_time_s` and `moving_time_s` is set (CHECK). Durations are
+seconds; the UI types hours and minutes.
+
+<a id="ride-values"></a>**Values**
+
+| Column | Value | Meaning |
+|--------|-------|---------|
+| `ride_type` | `road`, `gravel`, `xc`, `trail`, `enduro`, `dh` | The discipline ridden (the bike's own discipline is on `bikes`) |
+| | `bike_park` | A day with lifts or shuttles (D-06) |
+| | `commute` | Riding to work or around town |
+| | `indoor` | Home trainer |
+| | `other` | Anything else |
+| `conditions` | `dry`, `wet`, `mud`, `dust`, `snow` | The ground during the ride |
+| | `mixed` | Several of these |
+| `source` | `manual` | Typed in the app |
+| | `garmin_api`, `file_import` | Imported from Garmin's API or a FIT file (phase 2) |
 
 ### `shops`
 
@@ -292,21 +342,30 @@ in a bike's purchase (D-55); there is no shop screen yet.
 
 ### `maintenance_events`
 
+Status: **Built** in phase 1 feature 3 (2026-10-26, migration `0004`): a replacement records one
+(D-63). The entry sheet ("Nouvel entretien", D-63) was built in feature 5: a required title, up to
+20 lines (replacements excluded), the total summed from the lines unless typed. "Annuler" deletes
+the event and its lines, unless a replacement joined it since (D-60).
+
 One visit to the shop or one session in the garage.
 
 | Field | Type | Notes |
 |-------|------|-------|
 | `id` | integer PK | |
-| `bike_id` | FK `bikes` | |
-| `performed_on` | date | |
-| `title` | text | "Pre-season service" |
-| `performed_by` | enum: `self`, `shop` | |
-| `shop_id` | FK `shops`, nullable | |
-| `created_by` | FK `users` | Who logged it (D-25) |
-| `total_cost_cents` | integer | Entered, or the sum of the items |
+| `bike_id` | FK `bikes`, required | |
+| `performed_on` | date, required | The day it was done. Its instant for counters (rule resets) is derived with `created_at`: the moment it was recorded if dated that day, else the end of its day (D-61) |
+| `title` | text, required | "Révision avant saison"; a replacement writes "Chaîne remplacée" |
+| `performed_by` | enum, required | `self`: done at home; `shop`: done by a shop |
+| `shop_id` | FK `shops`, nullable | The shop that did it. CHECK: null unless `performed_by = 'shop'` |
+| `created_by` | FK `users`, nullable | Who logged it (D-25); null if that account was deleted |
+| `total_cost_cents` | integer, nullable | The total typed (an invoice). `null`: the event costs the sum of its lines' `cost_cents` (D-63). ≥ 0 |
 | `notes` | text | |
+| `created_at`, `updated_at` | timestamp | `created_at` also dates a same-day event for the counters (D-61) |
 
 ### `maintenance_items`
+
+Status: **Built** in phase 1 feature 3 (2026-10-26); `rule_id` added with the rule engine (feature 6,
+migration `0006`, D-57).
 
 What was done during an event. A shop service often covers several interventions (chain +
 cassette + pads + bleed): each one can reset its own rule and point to its own part.
@@ -314,42 +373,58 @@ cassette + pads + bleed): each one can reset its own rule and point to its own p
 | Field | Type | Notes |
 |-------|------|-------|
 | `id` | integer PK | |
-| `event_id` | FK `maintenance_events` | |
-| `action` | enum: `replaced`, `serviced`, `inspected`, `adjusted`, `cleaned`, `lubricated`, `bled`, `trued`, `other` | |
+| `event_id` | FK `maintenance_events`, required | |
+| `action` | enum, required | `replaced`, `serviced`, `inspected`, `adjusted`, `cleaned`, `lubricated`, `bled` (brakes), `trued` (wheel), `other` |
 | `component_id` | FK `components`, nullable | The part concerned (for `replaced`: the part removed) |
-| `new_component_id` | FK `components`, nullable | For `replaced`: the part fitted |
-| `rule_id` | FK `maintenance_rules`, nullable | This item fulfils the rule, so its counter restarts |
+| `new_component_id` | FK `components`, nullable | For `replaced` only: the part fitted. CHECK: both parts set for `replaced`, no new part otherwise |
+| `rule_id` | FK `maintenance_rules`, nullable | This item fulfils the rule, so its counter restarts. Added in feature 6 (migration `0006`); must be a rule of the event's bike |
 | `description` | text | |
-| `cost_cents` | integer | Optional |
-| `measurement_value`, `measurement_unit` | real, text | E.g. chain stretch 0.5 %, pad thickness 1.2 mm. Feeds phase 3 |
+| `cost_cents` | integer, nullable | ≥ 0. For `replaced`, the price of the part fitted |
+| `measurement_value` | real, nullable | E.g. chain stretch 0.5, pad thickness 1.2. Feeds phase 3 |
+| `measurement_unit` | enum, nullable | `percent` or `mm` (D-63). CHECK: set exactly when `measurement_value` is |
+| `created_at` | timestamp | |
 
-**"Replace a part" flow (one sheet):** pick the old part, give a removal reason and its detail,
-then choose the new part from the workshop first: items of the same slot type, serving the bike,
+**"Replace a part" flow (one sheet, built in feature 3):** pick the old part, give a removal
+reason and its detail and the date (today by default, D-61), then choose the new part from the
+workshop first (feature 8; until then "Autre pièce, hors atelier" only): items of the same slot type, serving the bike,
 in stock. Choosing one prefills the new part (brand, model, reference, last purchase price,
 D-38); "Autre pièce, hors atelier" stays possible, prefilled from the old part. The sheet spells
 out the effect on the stock before saving. In one transaction the app sets `removed_at` on the
 old part, creates the new one with `replaces_component_id` and `inventory_item_id`, records a
 `replaced` item and, for a stock item, a `use` movement of −1 linked to it. Undo removes all
-four together. Rules on that slot restart if `reset_on_replacement` is set.
+four together (D-60). The line can join an event of the same bike and day instead of creating
+one (D-63). Rules on that slot restart if `reset_on_replacement` is set.
 
 ### `maintenance_rules` — "what's coming", recurring
+
+Status: **Built** in phase 1 feature 6 (2026-10-26, migration `0006_maintenance_rules`, which also
+adds `maintenance_items.rule_id`), except `procedure_id` (phase 1.5). Status, usage, ratio and ETA
+are computed by `src/server/domain/rules.ts`, never stored (D-50, D-65).
 
 | Field | Type | Notes |
 |-------|------|-------|
 | `id` | integer PK | |
-| `bike_id` | FK `bikes`, required | |
-| `component_type_code`, `position` | nullable | The slot targeted. `null` = bike-level rule |
+| `bike_id` | FK `bikes`, required | The rule inherits the workspace through its bike (D-25) |
+| `component_type_code` | FK `component_types`, nullable | The slot's type. `null` = a bike-level rule (yearly check) |
+| `position` | enum, nullable | `front` or `rear`: one side; `null`: every part of the type (both brakes), or the bike. CHECK: null for a bike-level rule |
 | `template_id` | FK `rule_templates`, nullable | Where the rule came from |
-| `title` | text | |
-| `interval_distance_m`, `interval_wear_s`, `interval_days` | integer, nullable | At least one is set; whichever comes first |
-| `warn_ratio` | real, default `0.9` | "Due soon" from 90 % of any interval (**Proposed**) |
-| `reset_on_replacement` | boolean, default `true` | Replacing the slot's part restarts the counter |
-| `counter_start_at` | timestamp | Counter start when the rule has never been done |
-| `active` | boolean | |
-| `snooze_ends_on` | date, nullable | Snoozed until this date: the rule shows its real status again from that day |
+| `title` | text, required | "Entretien des bas de fourreaux (RockShox)" |
+| `interval_distance_m`, `interval_wear_s`, `interval_days` | integer, nullable | At least one is set, each > 0 (CHECK); whichever comes first |
+| `warn_ratio` | real, required, default `0.9` | "Due soon" from this share of any interval; CHECK between 0 and 1 (the UI offers 50 to 99 %) |
+| `reset_on_replacement` | boolean, required, default `true` | Fitting a new part in the slot restarts the counter. Always false for a bike-level rule |
+| `counter_start_at` | timestamp, required | Counter start while the rule has never been done: the part's fitting for a rule from a template, the end of the "last done" day typed in the sheet, else the start of tracking |
+| `active` | boolean, required, default `true` | `false`: set aside, not shown in "À prévoir"; rules are never deleted |
+| `snooze_ends_on` | date, nullable | Snoozed until this date ("Reporter": 14 days): the rule shows its real status again from that day |
+| `procedure_id` | FK `procedures`, nullable | Phase 1.5 (D-47) |
 | `notes` | text | |
+| `created_at`, `updated_at` | timestamp | |
+
+Computed status values: `ok` (ratio < `warn_ratio`), `due_soon` (≥ `warn_ratio`), `overdue` (≥ 1),
+`snoozed` (before `snooze_ends_on`).
 
 ### `tasks` — "what's coming", one-off
+
+Status: **Built** in phase 1 feature 7 (2026-10-26, migration `0007_tasks`, D-66).
 
 One-off to-dos only (D-34), shown under "À prévoir" after the rules: all of them on the
 dashboard, a bike's own on its page. Same row as a rule without the wear bar, a neutral "Tâche"
@@ -361,13 +436,14 @@ badge, the due date or "Sans échéance", and "Fait" with undo. Parts to buy liv
 | `id` | integer PK | |
 | `workspace_id` | FK `workspaces`, required | Tasks may have no bike, so they carry the workspace themselves |
 | `bike_id` | FK `bikes`, nullable | `null` = general ("check the garage's floor pump") |
-| `component_type_code`, `position` | nullable | Optional slot |
-| `title` | text | |
+| `component_type_code`, `position` | nullable | Optional slot; not offered by the phase 1 sheet |
+| `title` | text, required | |
 | `due_on` | date, nullable | |
-| `status` | enum: `open`, `done`, `cancelled` | |
-| `priority` | enum: `low`, `normal`, `high` | |
-| `done_at` | timestamp | |
+| `status` | enum, required, default `open` | `open`: to do; `done`: done (`done_at` set); `cancelled`: dropped (not offered in phase 1) |
+| `priority` | enum, required, default `normal` | `low`, `normal`, `high`; not offered in phase 1 |
+| `done_at` | timestamp, nullable | When it was marked done. CHECK: set exactly when `status = 'done'` |
 | `notes` | text | |
+| `created_at`, `updated_at` | timestamp | |
 
 ### `attachments` — photos, invoices, manuals, tracks
 
@@ -396,6 +472,16 @@ the content, 25 MB per file, one upload request per file so each shows its own p
 
 The garage's inventory, owned by the workspace. Created complete in phase 1; the phase 1 UI
 offers parts only, products and tools come in 1.5 (D-33).
+
+Status: **Built** in phase 1 feature 8 (2026-10-26, migration `0008_workshop`, which also adds
+`components.inventory_item_id`), except `inventory_items.photo_attachment_id`, added with the
+attachments (feature 10, D-57). CHECK constraints: a part has a unit and only a part does; a
+restocking quantity only while to order or ordered (> 0); a link names a shop or a page; the sign
+of each movement kind (below); prices and thresholds ≥ 0. Values of `kind`: `part` (counted in
+units), `product` (levels and containers, 1.5), `tool` (owned or not, 1.5); of `unit`: `piece`,
+`pair`, `set` (a kit); of `restock_status`: `none`, `to_order`, `ordered`; of `level_after`: `full`,
+`started`, `low`, `empty`; of movement `kind`: `initial` (stock when the item was added), `purchase`,
+`use`, `adjustment` (a correction after a count).
 
 | Kind | Tracked as | "Stock bas" when |
 |------|------------|------------------|
@@ -437,7 +523,7 @@ erDiagram
 | `restock_quantity` | integer, nullable | Set when ordering; prefilled at reception and correctable, then added to the stock (D-42) |
 | `restock_changed_on` | date, nullable | Shown on the restocking steps |
 | `location` | text | Storage place, free text |
-| `photo_attachment_id` | FK `attachments`, nullable | Like `bikes.cover_attachment_id` |
+| `photo_attachment_id` | FK `attachments`, nullable | Like `bikes.cover_attachment_id`. Added with feature 10 |
 | `notes` | text | |
 | `archived_at` | timestamp, nullable | Items are archived, not deleted, like bikes and components |
 | `created_at`, `updated_at` | timestamp | |
@@ -446,7 +532,12 @@ No quantity is stored (D-39): the quantity of a part or tool, and the container 
 product, are the sum of its movements; a product's level is the `level_after` of its latest
 movement that sets one.
 
-**`inventory_item_bikes`**: `item_id`, `bike_id`, primary key on both.
+**`inventory_item_bikes`**: the bikes an item serves when `all_bikes` is `false`.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `item_id` | FK `inventory_items`, required | Primary key on (`item_id`, `bike_id`) |
+| `bike_id` | FK `bikes`, required | A bike of the same workspace (checked by the data-access layer) |
 
 **`inventory_movements`**
 
@@ -463,6 +554,7 @@ movement that sets one.
 | `maintenance_item_id` | FK `maintenance_items`, nullable | The intervention that used it |
 | `created_by` | FK `users` | Who recorded it (D-25) |
 | `note` | text | |
+| `created_at` | timestamp | When it was recorded; `occurred_at` is when it happened |
 
 Stock moves by movements, never by a typed total: "−" records a use, "+" a purchase, and
 "Corriger le stock" after a count records the difference as an `adjustment`. Tools are not
@@ -480,6 +572,7 @@ recorded per job (D-40).
 | `price_noted_on` | date, nullable | |
 | `sort_order` | integer | Display order |
 | `notes` | text | |
+| `created_at`, `updated_at` | timestamp | |
 
 The last purchase date and the last price paid come from the movements, not from the link. A
 part taken from stock costs its last purchase price (D-38).
@@ -720,7 +813,9 @@ Counters:
 - **Bike**: `bike.initial_*` + the sum over all rides of the bike.
 - **Component**: `component.initial_*` + the sum over its bike's rides with
   `installed_at ≤ started_at < removed_at`. Timestamps rather than dates, so a part fitted at
-  18:00 does not count that morning's ride.
+  18:00 does not count that morning's ride. A ride entered without a time starts at noon; a
+  replacement dated in the past happens at the end of its day, so that day's rides stay on the
+  old part (D-61).
 - **Rule status**:
   - *last reset* = the latest of: the last `maintenance_item` linked to the rule; the
     installation of the slot's current part (if `reset_on_replacement`); `counter_start_at`.
@@ -798,6 +893,9 @@ the app. The data therefore has to explain itself. **Decided** on 2026-10-25.
    whose meaning is not obvious from its name. A schema change updates both in the same commit.
 7. **The export ships the dictionary**: the ZIP contains, next to the CSV/JSON files, a
    machine-readable description of every table and column (type, unit, allowed values, meaning).
+   Built in feature 12 (D-68): `dictionary.json` takes the structure from the schema and the
+   type and notes from the "Field | Type | Notes" tables of this document, so **every exported
+   column must have a row in one of them** (a test checks it); `data-model.md` is this file.
 8. **Fictitious data stays realistic and consistent** (D-22): seed and demo data obey the same
    rules, so they can be used to test what a model reads.
 
@@ -818,4 +916,5 @@ the app. The data therefore has to explain itself. **Decided** on 2026-10-25.
   deletes only fix mistakes, and cascade to attachments.
 - **Export**: every table can be exported to CSV/JSON in a single ZIP with the uploads, the
   workshop tables included (and the label and procedure tables from 1.5). It doubles as a
-  portable backup.
+  portable backup. Built in feature 12 (D-68): the auth tables and `memberships` are left out; a
+  new table must be added to the export or to its exclusion list (a test checks it).

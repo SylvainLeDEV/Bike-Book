@@ -199,6 +199,72 @@ export function localDateOf(epochMs: number, timeZone: string): LocalDate {
   return `${get("year")}-${get("month")}-${get("day")}`;
 }
 
+const zoneFormats = new Map<string, Intl.DateTimeFormat>();
+
+/** Milliseconds to add to UTC to get the wall-clock time of `timeZone` at that instant. */
+function zoneOffsetMs(epochMs: number, timeZone: string): number {
+  let format = zoneFormats.get(timeZone);
+  if (!format) {
+    format = new Intl.DateTimeFormat("en-US", {
+      timeZone,
+      hourCycle: "h23",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    });
+    zoneFormats.set(timeZone, format);
+  }
+  const parts = format.formatToParts(new Date(epochMs));
+  const get = (type: string) => Number(parts.find((part) => part.type === type)?.value);
+  const wall = Date.UTC(
+    get("year"),
+    get("month") - 1,
+    get("day"),
+    get("hour"),
+    get("minute"),
+    get("second"),
+  );
+  return wall - (epochMs - (((epochMs % 1000) + 1000) % 1000));
+}
+
+/**
+ * The instant of a wall-clock time on a calendar date in a time zone: noon on 25 October 2026 in
+ * Europe/Paris is 11:00 UTC (winter time from 03:00 that day). For a time skipped by a clock
+ * change, the result falls just after the gap.
+ */
+export function localInstant(
+  date: LocalDate,
+  time: { hour: number; minute?: number; second?: number; millisecond?: number },
+  timeZone: string,
+): number {
+  const { year, month, day } = parseLocalDate(date);
+  const wall = Date.UTC(
+    year,
+    month - 1,
+    day,
+    time.hour,
+    time.minute ?? 0,
+    time.second ?? 0,
+    time.millisecond ?? 0,
+  );
+  const first = wall - zoneOffsetMs(wall, timeZone);
+  const second = wall - zoneOffsetMs(first, timeZone);
+  return second;
+}
+
+/** The first millisecond of a calendar date in a time zone. */
+export function startOfLocalDay(date: LocalDate, timeZone: string): number {
+  return localInstant(date, { hour: 0 }, timeZone);
+}
+
+/** The last millisecond of a calendar date in a time zone (23:59:59.999, whatever its length). */
+export function endOfLocalDay(date: LocalDate, timeZone: string): number {
+  return startOfLocalDay(addDays(date, 1), timeZone) - 1;
+}
+
 function capitalize(text: string): string {
   return text.charAt(0).toUpperCase() + text.slice(1);
 }

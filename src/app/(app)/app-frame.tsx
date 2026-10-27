@@ -2,11 +2,14 @@
 
 import { useRouter } from "next/navigation";
 import { BikeSheetProvider } from "@/components/bike/bike-sheet";
+import { TaskSheetProvider } from "@/components/plan/task-sheet";
 import { AppShell } from "@/components/shell/app-shell";
 import type { ShellNav } from "@/components/shell/shell-context";
 import { useToast } from "@/components/ui/toast";
 import type { ThemePreference } from "@/lib/theme";
 import { saveBikeAction } from "@/server/actions/bikes";
+import { createRideAction, undoCreateRideAction } from "@/server/actions/rides";
+import { createTaskAction } from "@/server/actions/tasks";
 import { signOutAction } from "@/server/actions/session";
 import type { AppFrameVM } from "@/server/views/shell";
 
@@ -36,14 +39,16 @@ export function AppFrame({
         nav: APP_NAV,
         theme,
         onSignOut: signOutAction,
-        // Feature 12 brings the settings page (account, ZIP export); the theme is in the top bar.
-        onOpenSettings: () => toast("Les réglages arrivent avec l'export des données."),
+        onOpenSettings: () => router.push("/settings"),
       }}
       quickRide={frame.quickRide}
-      // Feature 4 saves rides.
-      onQuickRideSubmit={() =>
-        toast("L'enregistrement des sorties arrive dans la prochaine version.")
-      }
+      onQuickRideSubmit={async (input) => {
+        const result = await createRideAction(input);
+        if (!result.ok) return result;
+        toast(result.message, {
+          undo: async () => toast((await undoCreateRideAction(result.undoRideId)).message),
+        });
+      }}
     >
       <BikeSheetProvider
         today={frame.today}
@@ -57,7 +62,17 @@ export function AppFrame({
           return result;
         }}
       >
-        {children}
+        <TaskSheetProvider
+          bikes={frame.quickRide.bikes}
+          onSubmit={async (input) => {
+            const result = await createTaskAction(input);
+            if (!result.ok) return result.error;
+            toast(result.message);
+            return null;
+          }}
+        >
+          {children}
+        </TaskSheetProvider>
       </BikeSheetProvider>
     </AppShell>
   );

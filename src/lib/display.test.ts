@@ -8,6 +8,9 @@ import {
   rideFigures,
   ruleNote,
   serialEnd,
+  agreed,
+  replacedTitle,
+  slotLabel,
 } from "./display";
 import { NBSP, NNBSP } from "./format";
 import type { RideItemVM, RuleRowVM } from "./view-models";
@@ -112,5 +115,23 @@ describe("small helpers", () => {
     expect(initialsOf("Camille Martin")).toBe("CM");
     expect(initialsOf("camille")).toBe("C");
     expect(initialsOf("Jean Paul Durand")).toBe("JD");
+  });
+});
+
+describe("slots in words", () => {
+  it("names a slot with its position", () => {
+    expect(slotLabel("tire", "front")).toBe("Pneu avant");
+    expect(slotLabel("brake_pads", "rear")).toBe("Plaquettes arrière");
+    expect(slotLabel("chain", "none")).toBe("Chaîne");
+    expect(slotLabel("other", "none")).toBe("Pièce");
+  });
+
+  it("agrees the participle with the part", () => {
+    expect(replacedTitle("chain", "none")).toBe("Chaîne remplacée");
+    expect(replacedTitle("tire", "rear")).toBe("Pneu arrière remplacé");
+    expect(replacedTitle("brake_pads", "front")).toBe("Plaquettes avant remplacées");
+    expect(replacedTitle("rear_derailleur", "none")).toBe("Dérailleur arrière remplacé");
+    expect(agreed("tire", "ajouté")).toBe("ajouté");
+    expect(agreed("grips", "monté")).toBe("montées");
   });
 });

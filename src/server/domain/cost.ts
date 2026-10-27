@@ -78,3 +78,13 @@ export function computeTotalCost(input: {
     events,
   };
 }
+
+/** What an event cost: the total typed, else the sum of its lines; null when nothing is priced. */
+export function eventCostCents(event: {
+  totalCostCents: number | null;
+  items: { costCents: number | null }[];
+}): number | null {
+  if (event.totalCostCents != null) return event.totalCostCents;
+  const costs = event.items.flatMap((item) => (item.costCents == null ? [] : [item.costCents]));
+  return costs.length ? costs.reduce((sum, cost) => sum + cost, 0) : null;
+}

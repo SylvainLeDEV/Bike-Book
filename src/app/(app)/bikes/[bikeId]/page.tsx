@@ -20,10 +20,18 @@ export async function generateMetadata({
   return { title: bike ? `${bike.name} · Bike-Book` : "Vélo introuvable · Bike-Book" };
 }
 
-export default async function BikePage({ params }: PageProps<"/bikes/[bikeId]">) {
+export default async function BikePage({ params, searchParams }: PageProps<"/bikes/[bikeId]">) {
   const id = parseBikeId((await params).bikeId);
   if (id == null) notFound();
   const page = getBikePage(await requireAccessContext(), id);
   if (!page) notFound();
-  return <BikeView page={page} />;
+  const query = await searchParams;
+  const number = (value: unknown) => {
+    const n = Number(value);
+    return Number.isSafeInteger(n) && n > 0 ? n : null;
+  };
+  // ?done=<rule>: "C'est fait" from the dashboard; ?replace=<item>: "Monter sur…" from the workshop.
+  return (
+    <BikeView page={page} doneRuleId={number(query.done)} replaceItemId={number(query.replace)} />
+  );
 }

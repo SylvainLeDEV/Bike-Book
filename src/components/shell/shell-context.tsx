@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import type { ThemePreference } from "@/lib/theme";
+import { applyThemePreference, type ThemePreference } from "@/lib/theme";
 import type { ShellUserVM } from "@/lib/view-models";
 
 /** Where the navigation entries lead: the real routes, or the /design screens. */
@@ -21,7 +21,10 @@ export type ShellValue = {
   onOpenSettings: () => void;
 };
 
-const ShellContext = React.createContext<ShellValue | null>(null);
+/** The shell as pages see it: `theme` is the current choice, `setTheme` changes it. */
+type ShellContextValue = ShellValue & { setTheme: (theme: ThemePreference) => void };
+
+const ShellContext = React.createContext<ShellContextValue | null>(null);
 
 export function ShellProvider({
   value,
@@ -30,10 +33,20 @@ export function ShellProvider({
   value: ShellValue;
   children: React.ReactNode;
 }) {
-  return <ShellContext.Provider value={value}>{children}</ShellContext.Provider>;
+  // One theme state for the top bar toggle and the settings page.
+  const [theme, setTheme] = React.useState(value.theme);
+  const context: ShellContextValue = {
+    ...value,
+    theme,
+    setTheme: (next) => {
+      applyThemePreference(next);
+      setTheme(next);
+    },
+  };
+  return <ShellContext.Provider value={context}>{children}</ShellContext.Provider>;
 }
 
-export function useShell(): ShellValue {
+export function useShell(): ShellContextValue {
   const value = React.useContext(ShellContext);
   if (!value) throw new Error("useShell must be used inside <ShellProvider>");
   return value;

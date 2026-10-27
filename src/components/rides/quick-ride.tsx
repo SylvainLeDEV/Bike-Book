@@ -5,7 +5,7 @@ import { CableCar, Calendar, Check, ChevronRight } from "lucide-react";
 import { BikeCover } from "@/components/bike-cover";
 import { Button } from "@/components/ui/button";
 import { Chip, ChipRow } from "@/components/ui/chip";
-import { Field, Fieldset, Input, Textarea } from "@/components/ui/field";
+import { Field, FieldError, Fieldset, Input, Textarea } from "@/components/ui/field";
 import { Sheet, SheetBody, SheetContent, SheetFooter, SheetForm } from "@/components/ui/sheet";
 import { addDays } from "@/lib/format";
 import { CONDITIONS_LABELS, RIDE_TYPE_LABELS, RIDE_TYPE_ORDER } from "@/lib/labels";
@@ -32,8 +32,8 @@ export function QuickRideProvider({
   children,
 }: {
   vm: QuickRideVM;
-  /** Saves the ride; the caller shows the toast. Server-side validation comes with feature 4. */
-  onSubmit: (input: QuickRideInput) => void | Promise<void>;
+  /** Saves the ride; the caller shows the toast. An `{ ok: false }` answer keeps the sheet open. */
+  onSubmit: (input: QuickRideInput) => void | Promise<void | { ok: false; error: string }>;
   children: React.ReactNode;
 }) {
   const [state, setState] = React.useState<{ open: boolean; bikeId: number | null; key: number }>({
@@ -59,8 +59,10 @@ export function QuickRideProvider({
             vm={vm}
             initialBikeId={state.bikeId ?? vm.defaultBikeId ?? vm.bikes[0]?.id ?? null}
             onDone={async (input) => {
-              await onSubmit(input);
+              const result = await onSubmit(input);
+              if (result && !result.ok) return result.error;
               setState((s) => ({ ...s, open: false }));
+              return null;
             }}
           />
         </SheetContent>
@@ -143,7 +145,8 @@ function QuickRideForm({
 }: {
   vm: QuickRideVM;
   initialBikeId: number | null;
-  onDone: (input: QuickRideInput) => Promise<void>;
+  /** Resolves with the server's error message, or null once saved. */
+  onDone: (input: QuickRideInput) => Promise<string | null>;
 }) {
   const usualType = (id: number | null) =>
     vm.bikes.find((bike) => bike.id === id)?.usualRideType ?? "trail";
@@ -160,6 +163,8 @@ function QuickRideForm({
   const [conditions, setConditions] = React.useState<RideConditions | null>(null);
   const [location, setLocation] = React.useState("");
   const [notes, setNotes] = React.useState("");
+  const [startTime, setStartTime] = React.useState("");
+  const [formError, setFormError] = React.useState<string | null>(null);
   const [errors, setErrors] = React.useState<Errors>({});
   const [pending, setPending] = React.useState(false);
   const formRef = React.useRef<HTMLFormElement>(null);
@@ -188,8 +193,9 @@ function QuickRideForm({
     const elevationM = parseDecimal(elevation);
     const runsCount = Number.parseInt(runs, 10);
     setPending(true);
+    setFormError(null);
     try {
-      await onDone({
+      const error = await onDone({
         bikeId,
         on: when === "today" ? vm.today : when === "yesterday" ? addDays(vm.today, -1) : otherDate,
         rideType,
@@ -202,7 +208,11 @@ function QuickRideForm({
         conditions,
         location: location.trim() || null,
         notes: notes.trim() || null,
+        startTime: startTime || null,
       });
+      setFormError(error);
+    } catch {
+      setFormError("Enregistrement impossible. Vérifie la connexion et réessaie.");
     } finally {
       setPending(false);
     }
@@ -211,6 +221,7 @@ function QuickRideForm({
   return (
     <SheetForm ref={formRef} onSubmit={submit}>
       <SheetBody>
+        {formError ? <FieldError>{formError}</FieldError> : null}
         <Fieldset legend="Vélo">
           <ChipRow scroll className="-mx-5 px-5">
             {vm.bikes.map((bike) => (
@@ -412,7 +423,7 @@ function QuickRideForm({
               className="size-[18px] transition-transform group-open:rotate-90"
               aria-hidden
             />
-            Plus de détails <span className="hint">lieu, notes</span>
+            Plus de détails <span className="hint">lieu, heure, notes</span>
           </summary>
           <div className="grid gap-4 pt-1.5">
             <div className="grid gap-2">
@@ -439,6 +450,12 @@ function QuickRideForm({
                 </div>
               ) : null}
             </div>
+            <Field
+              label="Heure de départ"
+              hint="Facultative : sans heure, la sortie compte à midi. Elle range la sortie avant ou après un remplacement fait le même jour."
+            >
+              <Input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} />
+            </Field>
             <Field label="Notes">
               <Textarea
                 placeholder="Réglages, sensations, incidents…"

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { NBSP, NNBSP } from "./format";
-import { parseDecimalInput, parseMoneyInput } from "./parse";
+import { decimalText, parseDecimalInput, parseMoneyInput } from "./parse";
 
 describe("parseDecimalInput", () => {
   it("reads French and plain numbers", () => {
@@ -28,5 +28,16 @@ describe("parseMoneyInput", () => {
     expect(parseMoneyInput("0,1")).toBe(10);
     expect(parseMoneyInput("")).toBeNull();
     expect(parseMoneyInput("x")).toBeNaN();
+  });
+});
+
+describe("decimalText", () => {
+  it("keeps only the decimals that matter", () => {
+    expect(decimalText(15.2, 3)).toBe("15,2");
+    expect(decimalText(15, 3)).toBe("15");
+    expect(decimalText(1500, 1)).toBe(`1${NNBSP}500`);
+    expect(decimalText(0.25, 2)).toBe("0,25");
+    expect(decimalText(100, 0)).toBe("100");
+    expect(decimalText(100, 2)).toBe("100");
   });
 });

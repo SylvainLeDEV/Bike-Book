@@ -6,10 +6,11 @@ import { CATEGORY_ICONS } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { ChoiceCard } from "@/components/ui/choice-card";
 import { Chip, ChipRow } from "@/components/ui/chip";
-import { Field, Fieldset, Input } from "@/components/ui/field";
+import { Field, FieldError, Fieldset, Input, NativeSelect } from "@/components/ui/field";
 import { Sheet, SheetBody, SheetContent, SheetFooter, SheetForm } from "@/components/ui/sheet";
 import { formatQuantity, formatStock } from "@/lib/display";
 import { REMOVAL_REASON_CHOICES } from "@/lib/labels";
+import { parseMoneyInput } from "@/lib/parse";
 import type { InventoryItemVM, ReplacePartInput, ReplacePartVM } from "@/lib/view-models";
 
 /*
@@ -21,11 +22,6 @@ type Reason = ReplacePartInput["reason"];
 
 function centsToInput(cents: number | null): string {
   return cents == null ? "" : (cents / 100).toFixed(2).replace(".", ",");
-}
-
-function parsePrice(text: string): number | null {
-  const n = Number.parseFloat(text.replace(",", ".").replace(/\s/g, ""));
-  return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) : null;
 }
 
 function servesBike(item: InventoryItemVM, bikeId: number) {
@@ -44,7 +40,11 @@ export function ReplacePartSheet({
   onOpenChange: (open: boolean) => void;
   /** Opened from a workshop item ("Monter sur …"): that item is chosen. */
   initialItemId?: number | null;
-  onSubmit: (input: ReplacePartInput, item: InventoryItemVM | null) => void | Promise<void>;
+  /** Saves; an `{ ok: false }` answer keeps the sheet open with its message. */
+  onSubmit: (
+    input: ReplacePartInput,
+    item: InventoryItemVM | null,
+  ) => void | Promise<void | { ok: false; error: string }>;
 }) {
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -54,8 +54,10 @@ export function ReplacePartSheet({
             vm={vm}
             initialItemId={initialItemId ?? null}
             onSubmit={async (input, item) => {
-              await onSubmit(input, item);
+              const result = await onSubmit(input, item);
+              if (result && !result.ok) return result.error;
               onOpenChange(false);
+              return null;
             }}
           />
         ) : null}
@@ -71,7 +73,8 @@ function ReplaceForm({
 }: {
   vm: ReplacePartVM;
   initialItemId: number | null;
-  onSubmit: (input: ReplacePartInput, item: InventoryItemVM | null) => Promise<void>;
+  /** Resolves with an error message, or null once saved. */
+  onSubmit: (input: ReplacePartInput, item: InventoryItemVM | null) => Promise<string | null>;
 }) {
   const initialItem = vm.stock.find((it) => it.id === initialItemId) ?? null;
   const firstSlot =
@@ -80,6 +83,12 @@ function ReplaceForm({
   const [slotId, setSlotId] = React.useState(firstSlot?.componentId ?? 0);
   const [reason, setReason] = React.useState<Reason>("worn");
   const [note, setNote] = React.useState("");
+  const [on, setOn] = React.useState(vm.today);
+  const [eventId, setEventId] = React.useState<number | null>(null);
+  const sameDay = (vm.events ?? []).filter((event) => event.on === on);
+  const [formError, setFormError] = React.useState<string | null>(null);
+  const [priceError, setPriceError] = React.useState<string | null>(null);
+  const [pending, setPending] = React.useState(false);
   const slot = vm.slots.find((s) => s.componentId === slotId) ?? firstSlot;
 
   const candidates = vm.stock.filter(
@@ -123,24 +132,38 @@ function ReplaceForm({
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!slot) return;
-    if (!model.trim()) {
+    const priceCents = parseMoneyInput(price);
+    const badPrice = priceCents != null && Number.isNaN(priceCents);
+    setPriceError(badPrice ? "Montant invalide." : null);
+    if (!model.trim() || badPrice) {
       setDetailsOpen(true);
-      setModelError("Indique le modèle de la pièce montée.");
+      if (!model.trim()) setModelError("Indique le modèle de la pièce montée.");
       requestAnimationFrame(() => modelRef.current?.focus());
       return;
     }
-    await onSubmit(
-      {
-        removedComponentId: slot.componentId,
-        reason,
-        removalNote: note.trim() || null,
-        fromItemId: chosen?.id ?? null,
-        brand: brand.trim() || null,
-        model: model.trim(),
-        priceCents: parsePrice(price),
-      },
-      chosen,
-    );
+    setFormError(null);
+    setPending(true);
+    try {
+      const error = await onSubmit(
+        {
+          removedComponentId: slot.componentId,
+          on: on || vm.today,
+          eventId: sameDay.some((event) => event.id === eventId) ? eventId : null,
+          reason,
+          removalNote: note.trim() || null,
+          fromItemId: chosen?.id ?? null,
+          brand: brand.trim() || null,
+          model: model.trim(),
+          priceCents,
+        },
+        chosen,
+      );
+      setFormError(error);
+    } catch {
+      setFormError("Enregistrement impossible. Vérifie la connexion et réessaie.");
+    } finally {
+      setPending(false);
+    }
   }
 
   const after = chosen ? chosen.quantity - 1 : 0;
@@ -149,6 +172,7 @@ function ReplaceForm({
   return (
     <SheetForm onSubmit={submit}>
       <SheetBody>
+        {formError ? <FieldError>{formError}</FieldError> : null}
         <Fieldset legend="Pièce retirée">
           <ChipRow scroll className="-mx-5 px-5">
             {vm.slots.map((s) => (
@@ -194,6 +218,36 @@ function ReplaceForm({
             />
           </Field>
         </Fieldset>
+
+        <Field
+          label="Date du remplacement"
+          hint="Une date passée complète l'historique : les sorties de ce jour-là restent sur l'ancienne pièce."
+        >
+          <Input
+            type="date"
+            max={vm.today}
+            value={on}
+            onChange={(e) => {
+              setOn(e.target.value);
+              setEventId(null);
+            }}
+          />
+        </Field>
+        {sameDay.length ? (
+          <Field label="Entretien" hint="Un entretien existe déjà ce jour-là sur ce vélo.">
+            <NativeSelect
+              value={eventId ?? ""}
+              onChange={(e) => setEventId(e.target.value ? Number(e.target.value) : null)}
+            >
+              <option value="">Nouvel entretien</option>
+              {sameDay.map((event) => (
+                <option key={event.id} value={event.id}>
+                  Ajouter à « {event.title} »
+                </option>
+              ))}
+            </NativeSelect>
+          </Field>
+        ) : null}
 
         <Fieldset legend="Pièce montée" hint="d'abord ce qui est dans l'atelier">
           <div className="grid gap-2">
@@ -287,7 +341,7 @@ function ReplaceForm({
                   onChange={(e) => setBrand(e.target.value)}
                 />
               </Field>
-              <Field label="Prix payé">
+              <Field label="Prix payé" error={priceError}>
                 <Input
                   inputMode="decimal"
                   autoComplete="off"
@@ -313,7 +367,7 @@ function ReplaceForm({
         </details>
       </SheetBody>
       <SheetFooter>
-        <Button type="submit" size="lg" className="w-full">
+        <Button type="submit" size="lg" className="w-full" disabled={pending || !slot}>
           <Check />
           Enregistrer le remplacement
         </Button>

@@ -29,6 +29,41 @@
       "when": 1793020761198,
       "tag": "0003_reference_data",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1793022779100,
+      "tag": "0004_components_and_maintenance",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1793023837113,
+      "tag": "0005_rides",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1793024727749,
+      "tag": "0006_maintenance_rules",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1793025492487,
+      "tag": "0007_tasks",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1793025759045,
+      "tag": "0008_workshop",
+      "breakpoints": true
     }
   ]
 }

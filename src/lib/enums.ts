@@ -44,6 +44,10 @@ export const RIDE_TYPES = [
 ] as const;
 export type RideType = (typeof RIDE_TYPES)[number];
 
+/** Where a ride comes from: typed by hand, or imported from Garmin (phase 2). */
+export const RIDE_SOURCES = ["manual", "garmin_api", "file_import"] as const;
+export type RideSource = (typeof RIDE_SOURCES)[number];
+
 export const RIDE_CONDITIONS = ["dry", "wet", "mud", "dust", "snow", "mixed"] as const;
 export type RideConditions = (typeof RIDE_CONDITIONS)[number];
 
@@ -109,6 +113,40 @@ export type EvidenceLevel = (typeof EVIDENCE_LEVELS)[number];
 export const COMPONENT_POSITIONS = ["front", "rear", "none"] as const;
 export type ComponentPosition = (typeof COMPONENT_POSITIONS)[number];
 
+/** `stock`: part of the bike as bought; `replacement`: replaced a worn or broken part;
+ * `upgrade`: replaced a part to improve it, or added later. */
+export const COMPONENT_ORIGINS = ["stock", "replacement", "upgrade"] as const;
+export type ComponentOrigin = (typeof COMPONENT_ORIGINS)[number];
+
+export const MAINTENANCE_ACTIONS = [
+  "replaced",
+  "serviced",
+  "inspected",
+  "adjusted",
+  "cleaned",
+  "lubricated",
+  "bled",
+  "trued",
+  "other",
+] as const;
+export type MaintenanceAction = (typeof MAINTENANCE_ACTIONS)[number];
+
+/** The actions of the maintenance sheet: replacements go through "Remplacer une pièce" (D-63). */
+export const MAINTENANCE_LINE_ACTIONS = [
+  "serviced",
+  "inspected",
+  "adjusted",
+  "cleaned",
+  "lubricated",
+  "bled",
+  "trued",
+  "other",
+] as const satisfies readonly MaintenanceAction[];
+
+/** Unit of a measurement taken during maintenance (chain stretch, pad thickness). */
+export const MEASUREMENT_UNITS = ["percent", "mm"] as const;
+export type MeasurementUnit = (typeof MEASUREMENT_UNITS)[number];
+
 export const REMOVAL_REASONS = [
   "worn",
   "broken",
@@ -122,6 +160,21 @@ export type RemovalReason = (typeof REMOVAL_REASONS)[number];
 /** Computed by the rule engine, never stored. */
 export const RULE_STATUSES = ["ok", "due_soon", "overdue", "snoozed"] as const;
 export type RuleStatus = (typeof RULE_STATUSES)[number];
+
+/** One-off to-dos (D-34): to do, done, or dropped. */
+export const TASK_STATUSES = ["open", "done", "cancelled"] as const;
+export type TaskStatus = (typeof TASK_STATUSES)[number];
+
+export const TASK_PRIORITIES = ["low", "normal", "high"] as const;
+export type TaskPriority = (typeof TASK_PRIORITIES)[number];
+
+/** What a workshop item is (D-33): all three kinds exist from phase 1, the UI offers parts. */
+export const INVENTORY_KINDS = ["part", "product", "tool"] as const;
+export type InventoryKind = (typeof INVENTORY_KINDS)[number];
+
+/** Level of a product's open container (D-36, phase 1.5). */
+export const PRODUCT_LEVELS = ["full", "started", "low", "empty"] as const;
+export type ProductLevel = (typeof PRODUCT_LEVELS)[number];
 
 export const INVENTORY_UNITS = ["piece", "pair", "set"] as const;
 export type InventoryUnit = (typeof INVENTORY_UNITS)[number];

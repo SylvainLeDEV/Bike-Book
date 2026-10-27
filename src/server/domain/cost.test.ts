@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeTotalCost, type CostEvent } from "./cost";
+import { computeTotalCost, eventCostCents, type CostEvent } from "./cost";
 
 const events: CostEvent[] = [
   { id: 2, on: "2025-06-06", title: "Chaîne remplacée", shopName: null, costCents: 4490 },
@@ -54,5 +54,14 @@ describe("computeTotalCost (D-44)", () => {
     expect(cost.totalCents).toBe(0);
     expect(cost.per100KmCents).toBeNull();
     expect(cost.per100KmUpkeepCents).toBeNull();
+  });
+});
+
+describe("eventCostCents", () => {
+  it("takes the total typed, else the sum of the priced lines", () => {
+    const items = [{ costCents: 4690 }, { costCents: 2200 }, { costCents: null }];
+    expect(eventCostCents({ totalCostCents: 25_000, items })).toBe(25_000);
+    expect(eventCostCents({ totalCostCents: null, items })).toBe(6890);
+    expect(eventCostCents({ totalCostCents: null, items: [{ costCents: null }] })).toBeNull();
   });
 });

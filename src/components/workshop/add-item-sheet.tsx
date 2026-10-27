@@ -5,9 +5,10 @@ import { Bike, Camera, Check, ChevronRight } from "lucide-react";
 import { BikeCover } from "@/components/bike-cover";
 import { Button } from "@/components/ui/button";
 import { Chip, ChipRow } from "@/components/ui/chip";
-import { Field, Fieldset, Input, NativeSelect, Textarea } from "@/components/ui/field";
+import { Field, FieldError, Fieldset, Input, NativeSelect, Textarea } from "@/components/ui/field";
 import { Sheet, SheetBody, SheetContent, SheetFooter, SheetForm } from "@/components/ui/sheet";
 import { INVENTORY_CATEGORY_LABELS, UNIT_LABELS } from "@/lib/labels";
+import { parseMoneyInput } from "@/lib/parse";
 import type {
   AddItemInput,
   BikeRef,
@@ -48,6 +49,7 @@ export function AddItemSheet({
   bikes,
   componentTypes,
   prefill,
+  editing,
   onSubmit,
 }: {
   open: boolean;
@@ -55,22 +57,30 @@ export function AddItemSheet({
   bikes: BikeRef[];
   componentTypes: ComponentTypeOption[];
   prefill?: AddItemPrefill | null;
-  onSubmit: (input: AddItemInput) => void | Promise<void>;
+  /** "Modifier l'objet": its current values; stock and links change through their own actions. */
+  editing?: AddItemInput | null;
+  /** Saves; an `{ ok: false }` answer keeps the sheet open with its message. */
+  onSubmit: (input: AddItemInput) => void | Promise<void | { ok: false; error: string }>;
 }) {
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
-        title="Ajouter un objet"
-        description="Une pièce de l'atelier : plaquettes, chaîne, chambre à air…"
+        title={editing ? "Modifier l'objet" : "Ajouter un objet"}
+        description={
+          editing ? editing.name : "Une pièce de l'atelier : plaquettes, chaîne, chambre à air…"
+        }
       >
         {open ? (
           <AddItemForm
             bikes={bikes}
             componentTypes={componentTypes}
             prefill={prefill ?? null}
+            editing={editing ?? null}
             onSubmit={async (input) => {
-              await onSubmit(input);
+              const result = await onSubmit(input);
+              if (result && !result.ok) return result.error;
               onOpenChange(false);
+              return null;
             }}
           />
         ) : null}
@@ -83,17 +93,22 @@ function AddItemForm({
   bikes,
   componentTypes,
   prefill,
+  editing,
   onSubmit,
 }: {
   bikes: BikeRef[];
   componentTypes: ComponentTypeOption[];
   prefill: AddItemPrefill | null;
-  onSubmit: (input: AddItemInput) => Promise<void>;
+  editing: AddItemInput | null;
+  /** Resolves with an error message, or null once saved. */
+  onSubmit: (input: AddItemInput) => Promise<string | null>;
 }) {
-  const [name, setName] = React.useState(prefill?.name ?? "");
+  const [name, setName] = React.useState(editing?.name ?? prefill?.name ?? "");
   const [nameError, setNameError] = React.useState<string | null>(null);
-  const [selectedBikes, setSelectedBikes] = React.useState<"all" | number[]>([]);
-  const [unit, setUnit] = React.useState<InventoryUnit>(prefill?.unit ?? "piece");
+  const [formError, setFormError] = React.useState<string | null>(null);
+  const [pending, setPending] = React.useState(false);
+  const [selectedBikes, setSelectedBikes] = React.useState<"all" | number[]>(editing?.bikes ?? []);
+  const [unit, setUnit] = React.useState<InventoryUnit>(editing?.unit ?? prefill?.unit ?? "piece");
   const nameRef = React.useRef<HTMLInputElement>(null);
 
   function toggleBike(id: number | "all", checked: boolean) {
@@ -113,10 +128,12 @@ function AddItemForm({
       nameRef.current?.focus();
       return;
     }
-    const price = Number.parseFloat(String(data.get("price") ?? "").replace(",", "."));
+    const price = parseMoneyInput(String(data.get("price") ?? ""));
     const shopName = text("shop");
     const url = text("url");
-    await onSubmit({
+    setFormError(null);
+    setPending(true);
+    const error = await onSubmit({
       name: name.trim(),
       brand: text("brand"),
       reference: text("reference"),
@@ -129,15 +146,18 @@ function AddItemForm({
       location: text("location"),
       link:
         shopName || url
-          ? { shopName, url, priceCents: Number.isFinite(price) ? Math.round(price * 100) : null }
+          ? { shopName, url, priceCents: price != null && !Number.isNaN(price) ? price : null }
           : null,
       notes: text("notes"),
-    });
+    }).catch(() => "Enregistrement impossible. Vérifie la connexion et réessaie.");
+    setPending(false);
+    setFormError(error);
   }
 
   return (
     <SheetForm onSubmit={submit}>
       <SheetBody>
+        {formError ? <FieldError>{formError}</FieldError> : null}
         <Field label="Nom" error={nameError}>
           <Input
             ref={nameRef}
@@ -154,15 +174,28 @@ function AddItemForm({
         </Field>
         <div className="grid grid-cols-2 gap-2.5">
           <Field label="Marque">
-            <Input name="brand" autoComplete="off" placeholder="Ex. SRAM" />
+            <Input
+              name="brand"
+              autoComplete="off"
+              placeholder="Ex. SRAM"
+              defaultValue={editing?.brand ?? ""}
+            />
           </Field>
           <Field label="Référence">
-            <Input name="reference" autoComplete="off" placeholder="Facultatif" />
+            <Input
+              name="reference"
+              autoComplete="off"
+              placeholder="Facultatif"
+              defaultValue={editing?.reference ?? ""}
+            />
           </Field>
         </div>
         <div className="grid gap-2.5 md:grid-cols-2">
           <Field label="Catégorie">
-            <NativeSelect name="category" defaultValue={prefill?.category ?? "brakes"}>
+            <NativeSelect
+              name="category"
+              defaultValue={editing?.category ?? prefill?.category ?? "brakes"}
+            >
               {CATEGORY_ORDER.map((category) => (
                 <option key={category} value={category}>
                   {INVENTORY_CATEGORY_LABELS[category]}
@@ -171,7 +204,10 @@ function AddItemForm({
             </NativeSelect>
           </Field>
           <Field label="Type de pièce" hint="Pour la proposer au remplacement.">
-            <NativeSelect name="componentType" defaultValue={prefill?.componentTypeCode ?? ""}>
+            <NativeSelect
+              name="componentType"
+              defaultValue={editing?.componentTypeCode ?? prefill?.componentTypeCode ?? ""}
+            >
               <option value="">Aucun en particulier</option>
               {componentTypes.map((type) => (
                 <option key={type.code} value={type.code}>
@@ -216,15 +252,17 @@ function AddItemForm({
         </Fieldset>
 
         <div className="grid grid-cols-2 gap-2.5">
-          <Field label="En stock">
-            <Input
-              name="quantity"
-              inputMode="numeric"
-              pattern="[0-9]*"
-              autoComplete="off"
-              defaultValue="1"
-            />
-          </Field>
+          {editing ? null : (
+            <Field label="En stock">
+              <Input
+                name="quantity"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                autoComplete="off"
+                defaultValue="1"
+              />
+            </Field>
+          )}
           <Field label="Alerte à partir de">
             <Input
               name="threshold"
@@ -232,6 +270,7 @@ function AddItemForm({
               pattern="[0-9]*"
               autoComplete="off"
               placeholder="Aucune"
+              defaultValue={editing?.lowStockThreshold ?? ""}
             />
           </Field>
         </div>
@@ -261,7 +300,12 @@ function AddItemForm({
           </summary>
           <div className="grid gap-4 pt-1.5">
             <Field label="Rangement">
-              <Input name="location" autoComplete="off" placeholder="Ex. Établi, tiroir 2" />
+              <Input
+                name="location"
+                autoComplete="off"
+                placeholder="Ex. Établi, tiroir 2"
+                defaultValue={editing?.location ?? ""}
+              />
             </Field>
             <div>
               <Button variant="secondary" disabled>
@@ -270,41 +314,47 @@ function AddItemForm({
               </Button>
               <p className="mt-1 hint">Les photos arrivent avec les pièces jointes.</p>
             </div>
-            <Fieldset legend="Lien d'achat" hint="affiché, jamais consulté par l'app">
-              <div className="grid grid-cols-2 gap-2.5">
-                <Field label="Boutique">
-                  <Input name="shop" autoComplete="off" placeholder="Ex. Cycles du Lac" />
-                </Field>
-                <Field label="Prix">
+            {editing ? null : (
+              <Fieldset legend="Lien d'achat" hint="affiché, jamais consulté par l'app">
+                <div className="grid grid-cols-2 gap-2.5">
+                  <Field label="Boutique">
+                    <Input name="shop" autoComplete="off" placeholder="Ex. Cycles du Lac" />
+                  </Field>
+                  <Field label="Prix">
+                    <Input
+                      name="price"
+                      inputMode="decimal"
+                      autoComplete="off"
+                      placeholder="0,00"
+                      suffix="€"
+                    />
+                  </Field>
+                </div>
+                <Field label="Adresse de la page">
                   <Input
-                    name="price"
-                    inputMode="decimal"
+                    name="url"
+                    type="url"
+                    inputMode="url"
                     autoComplete="off"
-                    placeholder="0,00"
-                    suffix="€"
+                    placeholder="https://…"
                   />
                 </Field>
-              </div>
-              <Field label="Adresse de la page">
-                <Input
-                  name="url"
-                  type="url"
-                  inputMode="url"
-                  autoComplete="off"
-                  placeholder="https://…"
-                />
-              </Field>
-            </Fieldset>
+              </Fieldset>
+            )}
             <Field label="Notes">
-              <Textarea name="notes" placeholder="Compatibilité, couple de serrage, astuces…" />
+              <Textarea
+                name="notes"
+                placeholder="Compatibilité, couple de serrage, astuces…"
+                defaultValue={editing?.notes ?? ""}
+              />
             </Field>
           </div>
         </details>
       </SheetBody>
       <SheetFooter>
-        <Button type="submit" size="lg" className="w-full">
+        <Button type="submit" size="lg" className="w-full" disabled={pending}>
           <Check />
-          Ajouter à l&apos;atelier
+          {editing ? "Enregistrer" : "Ajouter à l'atelier"}
         </Button>
       </SheetFooter>
     </SheetForm>

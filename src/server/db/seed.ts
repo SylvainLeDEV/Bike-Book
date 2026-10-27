@@ -3,10 +3,13 @@ import { randomUUID } from "node:crypto";
 import { hashPassword } from "better-auth/crypto";
 import { eq, inArray } from "drizzle-orm";
 import { addDays, daysBetween, type LocalDate } from "@/lib/format";
+import { getEnv } from "@/server/env";
 import { today as currentDay } from "@/server/time";
 import { findAccessContext } from "./accounts";
 import { createBike, type BikeData } from "./bikes";
 import { getDb } from "./client";
+import { seedDemoParts } from "./demo-garage";
+import { seedDemoRides } from "./demo-rides";
 import { accounts, memberships, users, workspaces } from "./schema";
 
 /** Fictitious demo account for local development (D-22: never real data). */
@@ -160,15 +163,24 @@ export async function seedDemoData(
   const shift = weeksShift(options.today ?? currentDay());
   const day = (date: LocalDate | null) => (date ? addDays(date, shift) : null);
 
+  const bikes = new Map<string, { id: number; purchasedOn: LocalDate }>();
   for (const bike of DEMO_BIKES) {
+    const purchasedOn = day(bike.purchasedOn);
     const outcome = createBike(ctx, {
       ...bike,
-      purchasedOn: day(bike.purchasedOn),
-      statusChangedOn: day(bike.purchasedOn),
+      purchasedOn,
+      statusChangedOn: purchasedOn,
       salePriceCents: null,
     });
     if (!outcome.ok) throw new Error(`Demo bike ${bike.name}: ${outcome.reason}`);
+    if (purchasedOn) bikes.set(bike.name, { id: outcome.bikeId, purchasedOn });
   }
+
+  const moved = (date: LocalDate) => addDays(date, shift);
+  const { timeZone } = getEnv();
+  // Rides first: the demo rules are dated from them.
+  seedDemoRides({ ctx, bikes, day: moved, timeZone });
+  seedDemoParts({ ctx, bikes, day: moved, now: Date.now(), timeZone });
 
   return { created: true, email: DEMO_ACCOUNT.email };
 }
