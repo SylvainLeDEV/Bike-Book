@@ -284,7 +284,10 @@ Backing up is the operator's job (D-12); the app makes it easy:
    HEIC to JPEG when the file input's `accept` leaves HEIC out, and the order of `accept` steers
    the target format (**Secondary**: WebKit bug reports, behaviour varies across iOS versions).
    D-46: `accept` lists JPEG first and no HEIC, and a HEIC that still arrives is decoded without
-   a native library. Test with a real iPhone photo first (H-11).
+   a native library. Tested on 2026-10-27 (H-11, iOS 27): Safari sent JPEG whatever `accept`
+   said, with the date taken, its UTC offset and the GPS position (D-72: kept in the original only); every photo had EXIF
+   orientation 6, so thumbnails must apply it (sharp's `rotate()`); camera captures from the
+   picker carry no date.
 5. **Garmin key expiry (phase 2).** The Personal API key lasts one year at most: the app shows
    its expiry date and warns 30 days before.
 6. **SQLite table rebuilds in migrations.** drizzle-kit changes a column by recreating the

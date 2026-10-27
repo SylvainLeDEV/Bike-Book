@@ -463,7 +463,7 @@ badge, the due date or "Sans échéance", and "Fait" with undo. Parts to buy liv
 | `size_bytes` | integer | |
 | `sha256` | text | Duplicate detection and integrity checks |
 | `width_px`, `height_px` | integer | Photos |
-| `taken_at` | timestamp | Photos: read from the photo's metadata at upload, else the upload time. Galleries sort on it |
+| `taken_at` | timestamp | Photos: EXIF `DateTimeOriginal` with `OffsetTimeOriginal` (without an offset, read in `TZ`); else the file's `lastModified`, sent by the client as its own field (a multipart body does not carry it); else the upload time (H-11). Galleries sort on it |
 | `caption` | text | Without one, the alternative text is generated from the linked element ("Photo de l'entretien « … »"): nothing more to store |
 | `created_at` | timestamp | |
 

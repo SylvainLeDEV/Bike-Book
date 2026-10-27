@@ -5,7 +5,7 @@ Self-hosted web app to track bikes: rides, maintenance, components, and what is 
 
 **Status:** Phase 1 step B in progress: features 1 to 9, 11 and 12 (bikes, reference data,
 components, rides, maintenance, rule engine, tasks, workshop, dashboard, bike page, ZIP export)
-done on 2026-10-26; feature 10 (attachments) is next, after an iPhone test with the owner.
+done on 2026-10-26; feature 10 (attachments) is next (iPhone test done 2026-10-27: H-11, D-72).
 Phase 0 items still open are deployment-side (backups with a tested restore, a 10 MB upload
 through the proxy), planned before real data.
 
