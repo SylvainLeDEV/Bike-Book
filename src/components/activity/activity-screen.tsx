@@ -4,10 +4,21 @@ import { Timeline } from "@/components/timeline";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { formatCount } from "@/lib/format";
-import type { ActivityVM } from "@/lib/view-models";
+import type { ActivityVM, TimelineItemVM } from "@/lib/view-models";
 
-/** "Activité": the ride and maintenance log of every bike, by month, newest first. */
-export function ActivityScreen({ vm, onAddRide }: { vm: ActivityVM; onAddRide: () => void }) {
+/**
+ * "Activité": the ride and maintenance log of every bike, by month, newest first. `onEdit` makes
+ * each entry open its edit sheet (D-70).
+ */
+export function ActivityScreen({
+  vm,
+  onAddRide,
+  onEdit,
+}: {
+  vm: ActivityVM;
+  onAddRide: () => void;
+  onEdit?: (item: TimelineItemVM) => void;
+}) {
   return (
     <>
       <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
@@ -27,7 +38,7 @@ export function ActivityScreen({ vm, onAddRide }: { vm: ActivityVM; onAddRide: (
       </div>
       {vm.items.length ? (
         <Card padded>
-          <Timeline items={vm.items} today={vm.today} withBike groupByMonth />
+          <Timeline items={vm.items} today={vm.today} withBike groupByMonth onEdit={onEdit} />
         </Card>
       ) : (
         <EmptyState

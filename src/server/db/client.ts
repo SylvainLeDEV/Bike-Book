@@ -21,17 +21,47 @@ const MIGRATIONS_FOLDER = path.join(process.cwd(), "src/server/db/migrations");
 
 type Connection = { db: Db; sqlite: Database.Database };
 
-/** Opens (or creates) the database file, sets the pragmas and applies pending migrations. */
-export function openDatabase(file: string): Connection {
+/**
+ * Opens (or creates) the database file, sets the pragmas and applies pending migrations.
+ * `migrationsFolder` is only overridden by tests.
+ */
+export function openDatabase(file: string, migrationsFolder = MIGRATIONS_FOLDER): Connection {
   fs.mkdirSync(path.dirname(file), { recursive: true });
   const sqlite = new Database(file);
-  sqlite.pragma("journal_mode = WAL");
-  sqlite.pragma("synchronous = NORMAL");
-  sqlite.pragma("foreign_keys = ON");
-  sqlite.pragma("busy_timeout = 5000");
-  const db = drizzle({ client: sqlite, schema });
-  migrate(db, { migrationsFolder: MIGRATIONS_FOLDER });
-  return { db, sqlite };
+  try {
+    sqlite.pragma("journal_mode = WAL");
+    sqlite.pragma("synchronous = NORMAL");
+    sqlite.pragma("busy_timeout = 5000");
+    const db = drizzle({ client: sqlite, schema });
+    migrateWithoutForeignKeys(sqlite, db, migrationsFolder);
+    sqlite.pragma("foreign_keys = ON");
+    return { db, sqlite };
+  } catch (error) {
+    sqlite.close();
+    throw error;
+  }
+}
+
+/**
+ * Applies pending migrations with foreign keys off, then checks them (D-69).
+ *
+ * drizzle-kit rebuilds a table to change a column (CREATE __new_x, copy, DROP x, RENAME). With
+ * foreign keys on, DROP TABLE deletes every row first and fires ON DELETE CASCADE on the child
+ * tables. The pragma is a no-op inside a transaction and drizzle runs all pending migrations in
+ * one, so it must be off before migrate() starts. A migration that leaves a dangling reference
+ * stops the app: it is already committed, so restore the backup taken before the upgrade.
+ */
+function migrateWithoutForeignKeys(sqlite: Database.Database, db: Db, migrationsFolder: string) {
+  sqlite.pragma("foreign_keys = OFF");
+  migrate(db, { migrationsFolder });
+  const violations = sqlite.pragma("foreign_key_check") as { table: string; parent: string }[];
+  if (violations.length > 0) {
+    const pairs = [...new Set(violations.map((v) => `${v.table} -> ${v.parent}`))].join(", ");
+    throw new Error(
+      `Migrations left ${violations.length} broken foreign key reference(s) (${pairs}). ` +
+        "Restore the backup taken before the upgrade.",
+    );
+  }
 }
 
 // Kept on globalThis so that hot reloads in development reuse one connection.

@@ -8,8 +8,10 @@ import type {
   BikesPageVM,
   ComponentFormVM,
   ComponentTypeChoice,
+  MaintenanceEditVM,
   MaintenanceFormVM,
   MaintenanceLineInput,
+  QuickRideInput,
   ReplacePartVM,
   RuleTemplateChoice,
   RulesSheetVM,
@@ -49,7 +51,7 @@ import {
   rulesSheet,
 } from "./rules";
 import { bikeRef } from "./refs";
-import { timeline } from "./timeline";
+import { maintenanceEdit, rideForm, timeline } from "./timeline";
 import { bikeStock, loadGarage, stockLine } from "./workshop";
 
 // Bike view models for the real pages, built from the data-access layer and the domain
@@ -139,6 +141,11 @@ export type BikePage = {
   form: BikeFormVM;
   replace: ReplacePartVM;
   maintenance: MaintenanceFormVM;
+  /** What the history's entries open (D-70): a ride's sheet values, an event's edit sheet. */
+  edits: {
+    rides: Record<number, QuickRideInput>;
+    maintenance: Record<number, MaintenanceEditVM>;
+  };
   /** "C'est fait" on a rule: the maintenance sheet prefilled (D-63). */
   done: Record<number, { title: string; lines: MaintenanceLineInput[] }>;
   rules: RulesSheetVM;
@@ -273,6 +280,12 @@ export function getBikePage(ctx: AccessContext, bikeId: number): BikePage | null
       })),
       rules: maintenanceRules(rules, components),
       shops,
+    },
+    edits: {
+      rides: Object.fromEntries(rides.map((ride) => [ride.id, rideForm(ride, timeZone)])),
+      maintenance: Object.fromEntries(
+        events.map((event) => [event.id, maintenanceEdit(event, components)]),
+      ),
     },
     done: donePrefill(evaluated, components),
     wear: {

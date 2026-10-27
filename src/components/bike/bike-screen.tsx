@@ -22,6 +22,7 @@ import type {
   PhotoVM,
   ReplacePartInput,
   ReplacePartVM,
+  TimelineItemVM,
 } from "@/lib/view-models";
 import { BikeRecord, BIKE_STATUS_ICONS } from "./bike-record";
 import { BikeTabList, BikeTabPanel, BikeTabs, useBikeTabs } from "./bike-tabs";
@@ -42,6 +43,8 @@ export type BikeScreenActions = PlanActions &
     onAttachDocument?: () => void;
     onShowWearDetail?: () => void;
     onShowRules?: () => void;
+    /** Opens an entry of the history in its edit sheet (D-70). */
+    onEditHistoryItem?: (item: TimelineItemVM) => void;
   };
 
 export type BikeScreenLinks = {
@@ -429,6 +432,7 @@ function BikeScreenContent({
                   items={vm.history}
                   today={vm.today}
                   groupByMonth
+                  onEdit={actions.onEditHistoryItem}
                   addPhotos={
                     actions.onAddPhotos
                       ? (eventId, title, hasPhotos) => (

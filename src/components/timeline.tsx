@@ -1,5 +1,5 @@
 import { cn } from "cn";
-import { Info, Paperclip, Wrench } from "lucide-react";
+import { ChevronRight, Info, Paperclip, Wrench } from "lucide-react";
 import { RIDE_TYPE_ICONS } from "@/components/icons";
 import { PhotoThumbs } from "@/components/photos/photo-thumbs";
 import { maintenanceFigures, rideFigures } from "@/lib/display";
@@ -38,12 +38,14 @@ function TimelineEntry({
   withBike,
   relativeDates,
   addPhotos,
+  onEdit,
 }: {
   item: TimelineItemVM;
   today: LocalDate;
   withBike: boolean;
   relativeDates: boolean;
   addPhotos?: (eventId: number, title: string, hasPhotos: boolean) => React.ReactNode;
+  onEdit?: (item: TimelineItemVM) => void;
 }) {
   const isRide = item.kind === "ride";
   const Icon = isRide ? RIDE_TYPE_ICONS[item.rideType] : Wrench;
@@ -94,7 +96,10 @@ function TimelineEntry({
       data-kind={item.kind}
       id={`${item.kind}-${item.id}`}
       tabIndex={-1}
-      className="relative grid grid-cols-[36px_minmax(0,1fr)] gap-3 pb-[18px] outline-none before:absolute before:top-10 before:bottom-1 before:left-[17px] before:w-0.5 before:rounded-[1px] before:bg-border last:pb-0 last:before:hidden"
+      className={cn(
+        "group relative grid grid-cols-[36px_minmax(0,1fr)] gap-3 pb-[18px] outline-none before:absolute before:top-10 before:bottom-1 before:left-[17px] before:w-0.5 before:rounded-[1px] before:bg-border last:pb-0 last:before:hidden",
+        onEdit && "grid-cols-[36px_minmax(0,1fr)_auto]",
+      )}
     >
       <span
         className={cn(
@@ -112,21 +117,45 @@ function TimelineEntry({
             {kindLabel}
           </span>
         </p>
-        <h4 className="mt-0.5 text-[15px] leading-[1.35] font-semibold">{item.title}</h4>
+        <h4 className="mt-0.5 text-[15px] leading-[1.35] font-semibold">
+          {onEdit ? (
+            // The whole entry is the hit area (stretched over the <li>); the name keeps the title.
+            <button
+              type="button"
+              onClick={() => onEdit(item)}
+              className="text-left outline-none group-hover:underline group-hover:underline-offset-3 after:absolute after:-inset-x-2 after:-top-1.5 after:bottom-2.5 after:rounded-lg group-last:after:-bottom-1.5 focus-visible:after:ring-2 focus-visible:after:ring-ring"
+            >
+              <span className="sr-only">
+                {isRide ? "Modifier la sortie" : "Modifier l'entretien"} :{" "}
+              </span>
+              {item.title}
+            </button>
+          ) : (
+            item.title
+          )}
+        </h4>
         {figures ? (
           <p className="mt-0.5 num text-base leading-[1.35] font-medium">{figures}</p>
         ) : null}
         {tags.length ? <div className="mt-2 flex flex-wrap gap-1.5">{tags}</div> : null}
         {showPhotos ? (
-          <PhotoThumbs
-            photos={item.photos}
-            title={`${date} · ${item.title}`}
-            extra={
-              !isRide && addPhotos ? addPhotos(item.id, item.title, item.photos.length > 0) : null
-            }
-          />
+          <div className="relative z-10">
+            <PhotoThumbs
+              photos={item.photos}
+              title={`${date} · ${item.title}`}
+              extra={
+                !isRide && addPhotos ? addPhotos(item.id, item.title, item.photos.length > 0) : null
+              }
+            />
+          </div>
         ) : null}
       </div>
+      {onEdit ? (
+        <ChevronRight
+          className="size-[18px] self-center text-fg-muted group-hover:text-fg"
+          aria-hidden
+        />
+      ) : null}
     </li>
   );
 }
@@ -142,6 +171,7 @@ export function Timeline({
   groupByMonth = false,
   relativeDates = false,
   addPhotos,
+  onEdit,
 }: {
   items: TimelineItemVM[];
   today: LocalDate;
@@ -150,6 +180,8 @@ export function Timeline({
   relativeDates?: boolean;
   /** Renders the "add photos" control of a maintenance event (bike page). */
   addPhotos?: (eventId: number, title: string, hasPhotos: boolean) => React.ReactNode;
+  /** Makes each entry open its edit sheet (D-70). */
+  onEdit?: (item: TimelineItemVM) => void;
 }) {
   const entry = (item: TimelineItemVM) => (
     <TimelineEntry
@@ -159,6 +191,7 @@ export function Timeline({
       withBike={withBike}
       relativeDates={relativeDates}
       addPhotos={addPhotos}
+      onEdit={onEdit}
     />
   );
   if (!items.length) {

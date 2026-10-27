@@ -1,17 +1,32 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { ActivityScreen } from "@/components/activity/activity-screen";
 import { useQuickRide } from "@/components/rides/quick-ride";
 import { PageBody, Topbar } from "@/components/shell/topbar";
-import type { ActivityVM } from "@/lib/view-models";
+import type { ActivityVM, TimelineEdits } from "@/lib/view-models";
 
-export function ActivityView({ vm }: { vm: ActivityVM }) {
+export function ActivityView({ vm, edits }: { vm: ActivityVM; edits: TimelineEdits }) {
   const quickRide = useQuickRide();
+  const router = useRouter();
   return (
     <>
       <Topbar />
       <PageBody>
-        <ActivityScreen vm={vm} onAddRide={() => quickRide.open()} />
+        <ActivityScreen
+          vm={vm}
+          onAddRide={() => quickRide.open()}
+          onEdit={(item) => {
+            if (item.kind === "ride") {
+              const ride = edits.rides[item.id];
+              if (ride) quickRide.edit(item.id, ride);
+              return;
+            }
+            // A maintenance event is edited on its bike's page, where its parts and rules are.
+            const bikeId = edits.eventBikeIds[item.id];
+            if (bikeId != null) router.push(`/bikes/${bikeId}?event=${item.id}`);
+          }}
+        />
       </PageBody>
     </>
   );

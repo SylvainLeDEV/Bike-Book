@@ -1,23 +1,36 @@
 "use client";
 
 import * as React from "react";
-import { CableCar, Calendar, Check, ChevronRight } from "lucide-react";
+import { CableCar, Calendar, Check, ChevronRight, Trash2 } from "lucide-react";
 import { BikeCover } from "@/components/bike-cover";
+import { DeleteConfirm } from "@/components/delete-confirm";
 import { Button } from "@/components/ui/button";
 import { Chip, ChipRow } from "@/components/ui/chip";
 import { Field, FieldError, Fieldset, Input, Textarea } from "@/components/ui/field";
 import { Sheet, SheetBody, SheetContent, SheetFooter, SheetForm } from "@/components/ui/sheet";
 import { addDays } from "@/lib/format";
+import { decimalText } from "@/lib/parse";
 import { CONDITIONS_LABELS, RIDE_TYPE_LABELS, RIDE_TYPE_ORDER } from "@/lib/labels";
-import type { QuickRideInput, QuickRideVM, RideConditions, RideType } from "@/lib/view-models";
+import type {
+  EditResult,
+  QuickRideInput,
+  QuickRideVM,
+  RideConditions,
+  RideType,
+} from "@/lib/view-models";
 
 /*
  * Quick ride entry (principle 1: under 30 seconds). Required: bike, date, one duration. The
  * defaults do most of the work: last bike used, today, the ride type most used with that bike.
  * "Bike park" swaps the duration for total time, descent time and runs (D-06, D-13).
+ * The same sheet edits a ride, and deletes it after a confirmation (D-70).
  */
 
-type QuickRideContextValue = { open: (bikeId?: number) => void };
+type QuickRideContextValue = {
+  open: (bikeId?: number) => void;
+  /** Opens the sheet on an existing ride; needs `onUpdate` and `onDelete` on the provider. */
+  edit: (rideId: number, ride: QuickRideInput) => void;
+};
 const QuickRideContext = React.createContext<QuickRideContextValue | null>(null);
 
 export function useQuickRide(): QuickRideContextValue {
@@ -29,41 +42,67 @@ export function useQuickRide(): QuickRideContextValue {
 export function QuickRideProvider({
   vm,
   onSubmit,
+  onUpdate,
+  onDelete,
   children,
 }: {
   vm: QuickRideVM;
   /** Saves the ride; the caller shows the toast. An `{ ok: false }` answer keeps the sheet open. */
   onSubmit: (input: QuickRideInput) => void | Promise<void | { ok: false; error: string }>;
+  /** Saves an edited ride; the caller shows the toast. */
+  onUpdate?: (rideId: number, input: QuickRideInput) => Promise<EditResult>;
+  /** Deletes a ride, once confirmed in the sheet; the caller shows the toast. */
+  onDelete?: (rideId: number) => Promise<EditResult>;
   children: React.ReactNode;
 }) {
-  const [state, setState] = React.useState<{ open: boolean; bikeId: number | null; key: number }>({
-    open: false,
-    bikeId: null,
-    key: 0,
-  });
+  const [state, setState] = React.useState<{
+    open: boolean;
+    bikeId: number | null;
+    editing: { id: number; ride: QuickRideInput } | null;
+    key: number;
+  }>({ open: false, bikeId: null, editing: null, key: 0 });
   const open = React.useCallback(
-    (bikeId?: number) => setState((s) => ({ open: true, bikeId: bikeId ?? null, key: s.key + 1 })),
+    (bikeId?: number) =>
+      setState((s) => ({ open: true, bikeId: bikeId ?? null, editing: null, key: s.key + 1 })),
     [],
   );
-  const value = React.useMemo(() => ({ open }), [open]);
+  const edit = React.useCallback(
+    (id: number, ride: QuickRideInput) =>
+      setState((s) => ({ open: true, bikeId: ride.bikeId, editing: { id, ride }, key: s.key + 1 })),
+    [],
+  );
+  const value = React.useMemo(() => ({ open, edit }), [open, edit]);
+  const editing = state.editing;
+  const close = () => setState((s) => ({ ...s, open: false }));
   return (
     <QuickRideContext.Provider value={value}>
       {children}
       <Sheet open={state.open} onOpenChange={(isOpen) => setState((s) => ({ ...s, open: isOpen }))}>
         <SheetContent
-          title="Nouvelle sortie"
+          title={editing ? "Modifier la sortie" : "Nouvelle sortie"}
           description="Obligatoire : le vélo, la date et une durée."
         >
           <QuickRideForm
             key={state.key}
             vm={vm}
             initialBikeId={state.bikeId ?? vm.defaultBikeId ?? vm.bikes[0]?.id ?? null}
+            initial={editing?.ride ?? null}
             onDone={async (input) => {
-              const result = await onSubmit(input);
+              const result = editing ? await onUpdate?.(editing.id, input) : await onSubmit(input);
               if (result && !result.ok) return result.error;
-              setState((s) => ({ ...s, open: false }));
+              close();
               return null;
             }}
+            onDelete={
+              editing && onDelete
+                ? async () => {
+                    const result = await onDelete(editing.id);
+                    if (!result.ok) return result.error;
+                    close();
+                    return null;
+                  }
+                : undefined
+            }
           />
         </SheetContent>
       </Sheet>
@@ -138,35 +177,65 @@ function DurationInputs({
   );
 }
 
+/** Seconds back to the two boxes, rounded down to the minute; empty hours under one hour. */
+function toHoursMinutes(seconds: number | null): { h: string; m: string } {
+  if (seconds == null) return { h: "", m: "" };
+  const minutes = Math.floor(seconds / 60);
+  const h = Math.floor(minutes / 60);
+  return { h: h ? String(h) : "", m: String(minutes % 60) };
+}
+
 function QuickRideForm({
   vm,
   initialBikeId,
+  initial,
   onDone,
+  onDelete,
 }: {
   vm: QuickRideVM;
   initialBikeId: number | null;
+  /** The ride being edited; null for a new one. */
+  initial: QuickRideInput | null;
   /** Resolves with the server's error message, or null once saved. */
   onDone: (input: QuickRideInput) => Promise<string | null>;
+  /** Shown when editing: resolves with the server's error message, or null once deleted. */
+  onDelete?: () => Promise<string | null>;
 }) {
   const usualType = (id: number | null) =>
     vm.bikes.find((bike) => bike.id === id)?.usualRideType ?? "trail";
+  const initialWhen: When = !initial
+    ? "today"
+    : initial.on === vm.today
+      ? "today"
+      : initial.on === addDays(vm.today, -1)
+        ? "yesterday"
+        : "other";
   const [bikeId, setBikeId] = React.useState(initialBikeId);
-  const [when, setWhen] = React.useState<When>("today");
-  const [otherDate, setOtherDate] = React.useState(addDays(vm.today, -2));
-  const [rideType, setRideType] = React.useState<RideType>(usualType(initialBikeId));
-  const [duration, setDuration] = React.useState({ h: "", m: "" });
-  const [total, setTotal] = React.useState({ h: "", m: "" });
-  const [descent, setDescent] = React.useState({ h: "", m: "" });
-  const [runs, setRuns] = React.useState("");
-  const [distance, setDistance] = React.useState("");
-  const [elevation, setElevation] = React.useState("");
-  const [conditions, setConditions] = React.useState<RideConditions | null>(null);
-  const [location, setLocation] = React.useState("");
-  const [notes, setNotes] = React.useState("");
-  const [startTime, setStartTime] = React.useState("");
+  const [when, setWhen] = React.useState<When>(initialWhen);
+  const [otherDate, setOtherDate] = React.useState(
+    initialWhen === "other" && initial ? initial.on : addDays(vm.today, -2),
+  );
+  const [rideType, setRideType] = React.useState<RideType>(
+    initial?.rideType ?? usualType(initialBikeId),
+  );
+  const [duration, setDuration] = React.useState(() => toHoursMinutes(initial?.durationS ?? null));
+  const [total, setTotal] = React.useState(() => toHoursMinutes(initial?.totalTimeS ?? null));
+  const [descent, setDescent] = React.useState(() => toHoursMinutes(initial?.descentTimeS ?? null));
+  const [runs, setRuns] = React.useState(initial?.runsCount?.toString() ?? "");
+  const [distance, setDistance] = React.useState(
+    initial?.distanceM == null ? "" : decimalText(initial.distanceM / 1000, 2),
+  );
+  const [elevation, setElevation] = React.useState(initial?.elevationGainM?.toString() ?? "");
+  const [conditions, setConditions] = React.useState<RideConditions | null>(
+    initial?.conditions ?? null,
+  );
+  const [location, setLocation] = React.useState(initial?.location ?? "");
+  const [notes, setNotes] = React.useState(initial?.notes ?? "");
+  const [startTime, setStartTime] = React.useState(initial?.startTime ?? "");
   const [formError, setFormError] = React.useState<string | null>(null);
   const [errors, setErrors] = React.useState<Errors>({});
   const [pending, setPending] = React.useState(false);
+  const [confirmDelete, setConfirmDelete] = React.useState(false);
   const formRef = React.useRef<HTMLFormElement>(null);
   const park = rideType === "bike_park";
 
@@ -233,7 +302,8 @@ function QuickRideForm({
                 data-autofocus={bikeId === bike.id ? "" : undefined}
                 onChange={() => {
                   setBikeId(bike.id);
-                  setRideType(bike.usualRideType);
+                  // An edited ride keeps its type when it moves to another bike.
+                  if (!initial) setRideType(bike.usualRideType);
                 }}
               >
                 <BikeCover
@@ -417,7 +487,10 @@ function QuickRideForm({
           </ChipRow>
         </Fieldset>
 
-        <details className="group border-t border-border pt-1">
+        <details
+          className="group border-t border-border pt-1"
+          open={Boolean(initial?.location || initial?.notes || initial?.startTime) || undefined}
+        >
           <summary className="flex min-h-11 list-none items-center gap-2 text-[14.5px] font-semibold [&::-webkit-details-marker]:hidden">
             <ChevronRight
               className="size-[18px] transition-transform group-open:rotate-90"
@@ -466,11 +539,46 @@ function QuickRideForm({
           </div>
         </details>
       </SheetBody>
-      <SheetFooter>
-        <Button type="submit" size="lg" className="w-full" disabled={pending || bikeId == null}>
-          <Check />
-          Enregistrer la sortie
-        </Button>
+      <SheetFooter className="grid gap-2">
+        {confirmDelete && onDelete ? (
+          <DeleteConfirm
+            question="Supprimer cette sortie ? Ses kilomètres et ses heures ne compteront plus."
+            confirmLabel="Supprimer la sortie"
+            pending={pending}
+            onCancel={() => setConfirmDelete(false)}
+            onConfirm={async () => {
+              setPending(true);
+              setFormError(null);
+              try {
+                setFormError(await onDelete());
+              } catch {
+                setFormError("Suppression impossible. Vérifie la connexion et réessaie.");
+              } finally {
+                setPending(false);
+                setConfirmDelete(false);
+              }
+            }}
+          />
+        ) : (
+          <>
+            <Button type="submit" size="lg" className="w-full" disabled={pending || bikeId == null}>
+              <Check />
+              {initial ? "Enregistrer les modifications" : "Enregistrer la sortie"}
+            </Button>
+            {onDelete ? (
+              <Button
+                type="button"
+                variant="ghost"
+                className="w-full text-late-ink hover:text-late-ink"
+                disabled={pending}
+                onClick={() => setConfirmDelete(true)}
+              >
+                <Trash2 />
+                Supprimer la sortie
+              </Button>
+            ) : null}
+          </>
+        )}
       </SheetFooter>
     </SheetForm>
   );

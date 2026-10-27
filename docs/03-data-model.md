@@ -283,7 +283,8 @@ the others.
 ### `rides`
 
 Status: **Built** in phase 1 feature 4 (2026-10-26, migration `0005_rides`), except
-`external_activity_id`, added with the Garmin import (phase 2, D-57).
+`external_activity_id`, added with the Garmin import (phase 2, D-57). Rides are edited and deleted
+from their sheet (D-70); a change of duration clears `moving_time_s`.
 
 | Field | Type | Notes |
 |-------|------|-------|
@@ -345,7 +346,9 @@ in a bike's purchase (D-55); there is no shop screen yet.
 Status: **Built** in phase 1 feature 3 (2026-10-26, migration `0004`): a replacement records one
 (D-63). The entry sheet ("Nouvel entretien", D-63) was built in feature 5: a required title, up to
 20 lines (replacements excluded), the total summed from the lines unless typed. "Annuler" deletes
-the event and its lines, unless a replacement joined it since (D-60).
+the event and its lines, unless a replacement joined it since (D-60). "Modifier l'entretien" rewrites the
+event and its lines except replacements, which fix its date; "Supprimer l'entretien" follows the
+rule of "Annuler" (D-70).
 
 One visit to the shop or one session in the garage.
 
@@ -913,7 +916,8 @@ the app. The data therefore has to explain itself. **Decided** on 2026-10-25.
 - **Defaults**: computed by the application (Drizzle `$defaultFn`), not by SQLite-only SQL.
 - **Enums**: text columns with CHECK constraints.
 - **Deletion**: bikes and components are retired (`status`, `removed_at`), not deleted. Hard
-  deletes only fix mistakes, and cascade to attachments.
+  deletes only fix mistakes ("Annuler", "Supprimer la sortie", "Supprimer l'entretien", D-60,
+  D-70), and cascade to attachments.
 - **Export**: every table can be exported to CSV/JSON in a single ZIP with the uploads, the
   workshop tables included (and the label and procedure tables from 1.5). It doubles as a
   portable backup. Built in feature 12 (D-68): the auth tables and `memberships` are left out; a

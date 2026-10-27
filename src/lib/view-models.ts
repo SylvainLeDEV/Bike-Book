@@ -422,6 +422,20 @@ export type MaintenanceFormVM = {
 export type SaveMaintenanceResult =
   { ok: true; message: string; undoEventId: number } | { ok: false; error: string };
 
+/** "Modifier l'entretien" (D-70): the sheet filled with the event, its replacements read-only. */
+export type MaintenanceEditVM = {
+  eventId: number;
+  /** The event as the sheet sends it; `lines` holds the lines other than replacements. */
+  input: MaintenanceInput;
+  /** One per replacement of the event: "Chaîne : SRAM GX → Shimano XT", and its cost. */
+  replacements: { label: string; costCents: number | null }[];
+  /** Parts named by the lines but no longer fitted, offered next to the fitted ones. */
+  formerParts: { id: number; label: string }[];
+};
+
+/** The answer of an edit or a delete (D-70). */
+export type EditResult = { ok: true; message: string } | { ok: false; error: string };
+
 // --- Activité ------------------------------------------------------------------------------------------
 
 export type ActivityVM = {
@@ -430,6 +444,12 @@ export type ActivityVM = {
   items: TimelineItemVM[];
   rideCount: number;
   maintenanceCount: number;
+};
+
+/** What a timeline entry opens when tapped (D-70): a ride's sheet values, an event's bike. */
+export type TimelineEdits = {
+  rides: Record<number, QuickRideInput>;
+  eventBikeIds: Record<number, number>;
 };
 
 // --- Bikes list and bike sheet ----------------------------------------------------------------------

@@ -23,6 +23,12 @@ export type Ride = RideUsage & {
 
 export type RideData = Omit<Ride, "id" | "source">;
 
+/** What the ride sheet edits: the fields an import fills but the sheet does not show stay as they are. */
+export type RideEdit = Omit<
+  RideData,
+  "title" | "movingTimeS" | "descentDistanceM" | "elevationLossM"
+>;
+
 const rideColumns = {
   id: rides.id,
   bikeId: rides.bikeId,
@@ -108,8 +114,57 @@ export function createRide(
   });
 }
 
-/** Undoes "Sortie ajoutée" (D-60): deletes that ride of the workspace, entered by hand. */
-export function undoCreateRide(
+/**
+ * Changes a ride of the workspace, possibly moving it to another bike of the workspace (D-70).
+ * The sheet has a single "Durée" (the total time): when it changes, a moving time recorded
+ * before is dropped, since it would otherwise still be shown and counted (D-13). Counters are
+ * derived from the rides, so nothing else changes.
+ */
+export function updateRide(
+  ctx: AccessContext,
+  rideId: number,
+  data: RideEdit,
+): { ok: true } | { ok: false; reason: "not_found" } {
+  return getDb().transaction((tx) => {
+    const ride = tx
+      .select({ id: rides.id, totalTimeS: rides.totalTimeS })
+      .from(rides)
+      .innerJoin(bikes, eq(bikes.id, rides.bikeId))
+      .where(and(eq(rides.id, rideId), eq(bikes.workspaceId, ctx.workspace.id)))
+      .get();
+    const bike = tx
+      .select({ id: bikes.id })
+      .from(bikes)
+      .where(and(eq(bikes.id, data.bikeId), eq(bikes.workspaceId, ctx.workspace.id)))
+      .get();
+    if (!ride || !bike) return { ok: false, reason: "not_found" };
+    tx.update(rides)
+      .set({
+        bikeId: data.bikeId,
+        startedAt: new Date(data.startedAt),
+        location: data.location,
+        rideType: data.rideType,
+        liftAssisted: data.liftAssisted,
+        distanceM: data.distanceM,
+        totalTimeS: data.totalTimeS,
+        ...(data.totalTimeS === ride.totalTimeS ? {} : { movingTimeS: null }),
+        descentTimeS: data.descentTimeS,
+        runsCount: data.runsCount,
+        elevationGainM: data.elevationGainM,
+        conditions: data.conditions,
+        notes: data.notes,
+      })
+      .where(eq(rides.id, ride.id))
+      .run();
+    return { ok: true };
+  });
+}
+
+/**
+ * Deletes a ride of the workspace entered by hand: "Annuler" after "Sortie ajoutée" (D-60) and
+ * "Supprimer la sortie" (D-70). A hard delete that only fixes a mistake.
+ */
+export function deleteRide(
   ctx: AccessContext,
   rideId: number,
 ): { ok: true } | { ok: false; reason: "not_found" } {

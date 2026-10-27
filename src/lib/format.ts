@@ -199,6 +199,18 @@ export function localDateOf(epochMs: number, timeZone: string): LocalDate {
   return `${get("year")}-${get("month")}-${get("day")}`;
 }
 
+/** The wall-clock time of an instant in a time zone, "HH:MM" (24 h). */
+export function localTimeOf(epochMs: number, timeZone: string): string {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone,
+    hourCycle: "h23",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).formatToParts(new Date(epochMs));
+  const get = (type: string) => parts.find((part) => part.type === type)?.value ?? "";
+  return `${get("hour")}:${get("minute")}`;
+}
+
 const zoneFormats = new Map<string, Intl.DateTimeFormat>();
 
 /** Milliseconds to add to UTC to get the wall-clock time of `timeZone` at that instant. */

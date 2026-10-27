@@ -8,7 +8,12 @@ import type { ShellNav } from "@/components/shell/shell-context";
 import { useToast } from "@/components/ui/toast";
 import type { ThemePreference } from "@/lib/theme";
 import { saveBikeAction } from "@/server/actions/bikes";
-import { createRideAction, undoCreateRideAction } from "@/server/actions/rides";
+import {
+  createRideAction,
+  deleteRideAction,
+  undoCreateRideAction,
+  updateRideAction,
+} from "@/server/actions/rides";
 import { createTaskAction } from "@/server/actions/tasks";
 import { signOutAction } from "@/server/actions/session";
 import type { AppFrameVM } from "@/server/views/shell";
@@ -48,6 +53,16 @@ export function AppFrame({
         toast(result.message, {
           undo: async () => toast((await undoCreateRideAction(result.undoRideId)).message),
         });
+      }}
+      onRideUpdate={async (rideId, input) => {
+        const result = await updateRideAction(rideId, input);
+        if (result.ok) toast(result.message);
+        return result;
+      }}
+      onRideDelete={async (rideId) => {
+        const result = await deleteRideAction(rideId);
+        if (result.ok) toast(result.message);
+        return result;
       }}
     >
       <BikeSheetProvider

@@ -31,7 +31,16 @@ const eslintConfig = defineConfig([
   },
   // Turns off the formatting rules that Prettier handles. Keep last.
   prettier,
-  globalIgnores([".next/**", "out/**", "build/**", "coverage/**", "data/**", "next-env.d.ts"]),
+  globalIgnores([
+    ".next/**",
+    "out/**",
+    "build/**",
+    "coverage/**",
+    "data/**",
+    "next-env.d.ts",
+    // Claude Code worktrees: other checkouts of this repository, with their own build output.
+    ".claude/**",
+  ]),
 ]);
 
 export default eslintConfig;

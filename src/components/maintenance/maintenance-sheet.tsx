@@ -1,17 +1,20 @@
 "use client";
 
 import * as React from "react";
-import { Calendar, Check, Plus, Trash2 } from "lucide-react";
+import { Calendar, Check, Plus, Repeat, Trash2 } from "lucide-react";
+import { DeleteConfirm } from "@/components/delete-confirm";
 import { Button } from "@/components/ui/button";
 import { Chip, ChipRow } from "@/components/ui/chip";
 import { Field, FieldError, Fieldset, Input, NativeSelect, Textarea } from "@/components/ui/field";
 import { Sheet, SheetBody, SheetContent, SheetFooter, SheetForm } from "@/components/ui/sheet";
 import { MAINTENANCE_LINE_ACTIONS, MEASUREMENT_UNITS, type MeasurementUnit } from "@/lib/enums";
-import { addDays, formatDecimal, formatMoney } from "@/lib/format";
+import { addDays, formatDate, formatDecimal, formatMoney } from "@/lib/format";
 import { MAINTENANCE_ACTION_LABELS, SHOP_KIND_LABELS } from "@/lib/labels";
 import { nameKey } from "@/lib/names";
-import { parseDecimalInput, parseMoneyInput } from "@/lib/parse";
+import { decimalText, parseDecimalInput, parseMoneyInput } from "@/lib/parse";
 import type {
+  EditResult,
+  MaintenanceEditVM,
   MaintenanceFormVM,
   MaintenanceInput,
   MaintenanceLineInput,
@@ -23,6 +26,8 @@ import type {
  * "Nouvel entretien" (D-63, validated on its preview): date, title, done at home or by a shop,
  * then the interventions, each with its part, detail, cost and an optional measurement. The total
  * is the sum of the lines unless an invoice total is typed. Replacements have their own sheet.
+ * "Modifier l'entretien" (D-70) reopens it filled; the event's replacements are listed, not
+ * editable, and fix its date.
  */
 
 const UNIT_LABELS: Record<MeasurementUnit, string> = { percent: "%", mm: "mm" };
@@ -34,6 +39,10 @@ export type MaintenanceSheetProps = {
   /** Lines to start with ("C'est fait" on a rule, feature 6). */
   prefill?: { title: string; lines: MaintenanceLineInput[] } | null;
   onSubmit: (input: MaintenanceInput) => Promise<SaveMaintenanceResult>;
+  /** The event being edited (D-70): the sheet then calls `onUpdate`, and offers `onDelete`. */
+  edit?: MaintenanceEditVM | null;
+  onUpdate?: (eventId: number, input: MaintenanceInput) => Promise<EditResult>;
+  onDelete?: (eventId: number) => Promise<EditResult>;
 };
 
 export function MaintenanceSheet({
@@ -42,19 +51,41 @@ export function MaintenanceSheet({
   vm,
   prefill,
   onSubmit,
+  edit,
+  onUpdate,
+  onDelete,
 }: MaintenanceSheetProps) {
+  const editing = edit ?? null;
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent title="Nouvel entretien" description={vm.bike.name}>
+      <SheetContent
+        title={editing ? "Modifier l'entretien" : "Nouvel entretien"}
+        description={vm.bike.name}
+      >
         {open ? (
           <MaintenanceForm
+            // Another event, or none, starts a fresh form.
+            key={editing?.eventId ?? "new"}
             vm={vm}
-            prefill={prefill ?? null}
+            prefill={editing ? null : (prefill ?? null)}
+            edit={editing}
             onSubmit={async (input) => {
-              const result = await onSubmit(input);
+              const result =
+                editing && onUpdate
+                  ? await onUpdate(editing.eventId, input)
+                  : await onSubmit(input);
               if (result.ok) onOpenChange(false);
               return result.ok ? null : result.error;
             }}
+            onDelete={
+              editing && onDelete && !editing.replacements.length
+                ? async () => {
+                    const result = await onDelete(editing.eventId);
+                    if (result.ok) onOpenChange(false);
+                    return result.ok ? null : result.error;
+                  }
+                : undefined
+            }
           />
         ) : null}
       </SheetContent>
@@ -134,35 +165,68 @@ function RuleReset({
   );
 }
 
+/** Cents as typed in a money box: "12,50". */
+const moneyText = (cents: number) => formatDecimal(cents / 100, 2);
+
 function MaintenanceForm({
   vm,
   prefill,
+  edit,
   onSubmit,
+  onDelete,
 }: {
   vm: MaintenanceFormVM;
   prefill: MaintenanceSheetProps["prefill"];
+  edit: MaintenanceEditVM | null;
   onSubmit: (input: MaintenanceInput) => Promise<string | null>;
+  /** Shown when editing an event without replacement; resolves with an error or null. */
+  onDelete?: () => Promise<string | null>;
 }) {
-  const [when, setWhen] = React.useState<When>("today");
-  const [otherDate, setOtherDate] = React.useState(addDays(vm.today, -2));
-  const [title, setTitle] = React.useState(prefill?.title ?? "");
-  const [performedBy, setPerformedBy] = React.useState<"self" | "shop">("self");
-  const [shopName, setShopName] = React.useState("");
-  const [shopKind, setShopKind] = React.useState<ShopKind>("physical");
-  const [lines, setLines] = React.useState<Line[]>(() =>
-    prefill?.lines.length
-      ? prefill.lines.map((line) =>
-          newLine({
-            action: line.action,
-            componentId: line.componentId == null ? "" : String(line.componentId),
-            ruleId: line.ruleId == null ? "" : String(line.ruleId),
-            description: line.description ?? "",
-          }),
-        )
-      : [newLine({ ruleId: firstRule("") })],
+  const initial = edit?.input ?? null;
+  const initialWhen: When = !initial
+    ? "today"
+    : initial.on === vm.today
+      ? "today"
+      : initial.on === addDays(vm.today, -1)
+        ? "yesterday"
+        : "other";
+  const replacements = edit?.replacements ?? [];
+  // The parts were fitted and removed at the event's instant: its date stays (D-70).
+  const dateLocked = replacements.length > 0;
+  // An event made by "Remplacer une pièce" may hold no other line.
+  const minLines = dateLocked ? 0 : 1;
+  const parts = [...vm.parts, ...(edit?.formerParts ?? [])];
+  const [when, setWhen] = React.useState<When>(initialWhen);
+  const [otherDate, setOtherDate] = React.useState(
+    initialWhen === "other" && initial ? initial.on : addDays(vm.today, -2),
   );
-  const [typedTotal, setTypedTotal] = React.useState<string | null>(null);
-  const [notes, setNotes] = React.useState("");
+  const [title, setTitle] = React.useState(initial?.title ?? prefill?.title ?? "");
+  const [performedBy, setPerformedBy] = React.useState<"self" | "shop">(
+    initial?.performedBy ?? "self",
+  );
+  const [shopName, setShopName] = React.useState(initial?.shop?.name ?? "");
+  const [shopKind, setShopKind] = React.useState<ShopKind>(initial?.shop?.kind ?? "physical");
+  const [lines, setLines] = React.useState<Line[]>(() => {
+    const start = initial?.lines ?? prefill?.lines ?? [];
+    if (!start.length) return initial && minLines === 0 ? [] : [newLine({ ruleId: firstRule("") })];
+    return start.map((line) =>
+      newLine({
+        action: line.action,
+        componentId: line.componentId == null ? "" : String(line.componentId),
+        ruleId: line.ruleId == null ? "" : String(line.ruleId),
+        description: line.description ?? "",
+        cost: line.costCents == null ? "" : moneyText(line.costCents),
+        measure: line.measurementValue == null ? "" : decimalText(line.measurementValue, 2),
+        unit: line.measurementUnit ?? "mm",
+        measureOpen: line.measurementValue != null,
+      }),
+    );
+  });
+  const [typedTotal, setTypedTotal] = React.useState<string | null>(
+    initial?.totalCostCents == null ? null : moneyText(initial.totalCostCents),
+  );
+  const [notes, setNotes] = React.useState(initial?.notes ?? "");
+  const [confirmDelete, setConfirmDelete] = React.useState(false);
   const [errors, setErrors] = React.useState<{ title?: string; total?: string; form?: string }>({});
   const [lineErrors, setLineErrors] = React.useState<Record<number, string>>({});
   const [pending, setPending] = React.useState(false);
@@ -183,7 +247,10 @@ function MaintenanceForm({
     shopName.trim() !== "" && !vm.shops.some((shop) => nameKey(shop.name) === nameKey(shopName));
 
   const lineCosts = lines.map((line) => parseMoneyInput(line.cost));
-  const sum = lineCosts.reduce<number>((total, cost) => total + (cost && cost > 0 ? cost : 0), 0);
+  const sum = [...lineCosts, ...replacements.map((r) => r.costCents)].reduce<number>(
+    (total, cost) => total + (cost && cost > 0 ? cost : 0),
+    0,
+  );
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -224,7 +291,14 @@ function MaintenanceForm({
     try {
       const error = await onSubmit({
         bikeId: vm.bike.id,
-        on: when === "today" ? vm.today : when === "yesterday" ? addDays(vm.today, -1) : otherDate,
+        on:
+          dateLocked && initial
+            ? initial.on
+            : when === "today"
+              ? vm.today
+              : when === "yesterday"
+                ? addDays(vm.today, -1)
+                : otherDate,
         title: title.trim(),
         performedBy,
         shop:
@@ -247,38 +321,53 @@ function MaintenanceForm({
     <SheetForm ref={formRef} onSubmit={submit}>
       <SheetBody>
         {errors.form ? <FieldError>{errors.form}</FieldError> : null}
-        <Fieldset legend="Date">
-          <ChipRow>
-            {(
-              [
-                ["today", "Aujourd'hui"],
-                ["yesterday", "Hier"],
-                ["other", "Autre date"],
-              ] as const
-            ).map(([value, label]) => (
-              <Chip
-                key={value}
-                name="when"
-                value={value}
-                checked={when === value}
-                onChange={() => setWhen(value)}
-              >
-                {value === "other" ? <Calendar aria-hidden /> : null}
-                {label}
-              </Chip>
-            ))}
-          </ChipRow>
-          {when === "other" ? (
-            <Field label="Date de l'entretien">
-              <Input
-                type="date"
-                max={vm.today}
-                value={otherDate}
-                onChange={(e) => setOtherDate(e.target.value)}
-              />
-            </Field>
-          ) : null}
-        </Fieldset>
+        {dateLocked && initial ? (
+          <Fieldset legend="Date">
+            <p className="text-[15px] font-semibold">
+              {formatDate(initial.on, {
+                weekday: "long",
+                month: "long",
+                year: "auto",
+                today: vm.today,
+                capitalized: true,
+              })}
+            </p>
+            <p className="hint">Fixée par le remplacement de pièce de cet entretien.</p>
+          </Fieldset>
+        ) : (
+          <Fieldset legend="Date">
+            <ChipRow>
+              {(
+                [
+                  ["today", "Aujourd'hui"],
+                  ["yesterday", "Hier"],
+                  ["other", "Autre date"],
+                ] as const
+              ).map(([value, label]) => (
+                <Chip
+                  key={value}
+                  name="when"
+                  value={value}
+                  checked={when === value}
+                  onChange={() => setWhen(value)}
+                >
+                  {value === "other" ? <Calendar aria-hidden /> : null}
+                  {label}
+                </Chip>
+              ))}
+            </ChipRow>
+            {when === "other" ? (
+              <Field label="Date de l'entretien">
+                <Input
+                  type="date"
+                  max={vm.today}
+                  value={otherDate}
+                  onChange={(e) => setOtherDate(e.target.value)}
+                />
+              </Field>
+            ) : null}
+          </Fieldset>
+        )}
 
         <Field label="Titre" id="mt-title" error={errors.title}>
           <Input
@@ -347,6 +436,28 @@ function MaintenanceForm({
         </Fieldset>
 
         <Fieldset legend="Interventions" hint="les remplacements ont leur propre feuille">
+          {replacements.length ? (
+            <ul className="m-0 grid list-none gap-2 p-0" aria-label="Remplacements de pièce">
+              {replacements.map((replacement, index) => (
+                <li
+                  key={index}
+                  className="flex items-start gap-2.5 rounded-card bg-surface-2 p-3 text-[13.5px] leading-[1.45]"
+                >
+                  <Repeat className="mt-0.5 size-4 shrink-0 text-fg-muted" aria-hidden />
+                  <span className="min-w-0 flex-1">
+                    {replacement.label}
+                    <span className="block hint">
+                      Remplacement : ne se modifie pas ici. Pour le défaire, utilise « Annuler »
+                      juste après l&apos;avoir enregistré.
+                    </span>
+                  </span>
+                  {replacement.costCents != null ? (
+                    <span className="num font-medium">{formatMoney(replacement.costCents)}</span>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          ) : null}
           <ol className="m-0 grid list-none gap-3 p-0">
             {lines.map((line, index) => (
               <li
@@ -380,7 +491,7 @@ function MaintenanceForm({
                       }
                     >
                       <option value="">Vélo entier</option>
-                      {vm.parts.map((part) => (
+                      {parts.map((part) => (
                         <option key={part.id} value={part.id}>
                           {part.label}
                         </option>
@@ -413,7 +524,7 @@ function MaintenanceForm({
                     variant="ghost"
                     size="icon"
                     aria-label={`Retirer l'intervention ${index + 1}`}
-                    disabled={lines.length === 1}
+                    disabled={lines.length <= minLines}
                     onClick={() => setLines((list) => list.filter((l) => l.key !== line.key))}
                   >
                     <Trash2 />
@@ -521,11 +632,46 @@ function MaintenanceForm({
           <Textarea maxLength={2000} value={notes} onChange={(e) => setNotes(e.target.value)} />
         </Field>
       </SheetBody>
-      <SheetFooter>
-        <Button type="submit" size="lg" className="w-full" disabled={pending}>
-          <Check />
-          Enregistrer l&apos;entretien
-        </Button>
+      <SheetFooter className="grid gap-2">
+        {confirmDelete && onDelete ? (
+          <DeleteConfirm
+            question="Supprimer cet entretien et ses interventions ? Les règles qu'il remettait à zéro reprennent leur compte précédent."
+            confirmLabel="Supprimer l'entretien"
+            pending={pending}
+            onCancel={() => setConfirmDelete(false)}
+            onConfirm={async () => {
+              setPending(true);
+              try {
+                const error = await onDelete();
+                if (error) setErrors({ form: error });
+              } catch {
+                setErrors({ form: "Suppression impossible. Vérifie la connexion et réessaie." });
+              } finally {
+                setPending(false);
+                setConfirmDelete(false);
+              }
+            }}
+          />
+        ) : (
+          <>
+            <Button type="submit" size="lg" className="w-full" disabled={pending}>
+              <Check />
+              {edit ? "Enregistrer les modifications" : "Enregistrer l'entretien"}
+            </Button>
+            {onDelete ? (
+              <Button
+                type="button"
+                variant="ghost"
+                className="w-full text-late-ink hover:text-late-ink"
+                disabled={pending}
+                onClick={() => setConfirmDelete(true)}
+              >
+                <Trash2 />
+                Supprimer l&apos;entretien
+              </Button>
+            ) : null}
+          </>
+        )}
       </SheetFooter>
     </SheetForm>
   );

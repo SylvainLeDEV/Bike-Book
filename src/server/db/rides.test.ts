@@ -6,7 +6,8 @@ import {
   createRide,
   listRides,
   listRideUsages,
-  undoCreateRide,
+  deleteRide,
+  updateRide,
   type BikeData,
   type RideData,
 } from "./index";
@@ -81,9 +82,43 @@ describe("rides", () => {
     const { ctx, bikeId } = setup("Undo");
     const created = createRide(ctx, ride(bikeId, "2026-10-10T10:00:00Z"));
     if (!created.ok) throw new Error("ride");
-    expect(undoCreateRide(ctx, created.rideId)).toEqual({ ok: true });
+    expect(deleteRide(ctx, created.rideId)).toEqual({ ok: true });
     expect(listRides(ctx)).toEqual([]);
-    expect(undoCreateRide(ctx, created.rideId)).toEqual({ ok: false, reason: "not_found" });
+    expect(deleteRide(ctx, created.rideId)).toEqual({ ok: false, reason: "not_found" });
+  });
+
+  it("edits a ride, moves it to another bike of the workspace, keeps what the sheet does not show", () => {
+    const { ctx, bikeId } = setup("Edit");
+    const other = createBike(ctx, { ...bike, name: "Enduro carbone" });
+    if (!other.ok) throw new Error("bike");
+    const created = createRide(ctx, {
+      ...ride(bikeId, "2026-10-10T10:00:00Z"),
+      title: "Imported title",
+      movingTimeS: 9000,
+    });
+    if (!created.ok) throw new Error("ride");
+    const edit = {
+      ...ride(other.bikeId, "2026-10-09T10:00:00Z"),
+      location: null,
+      distanceM: 30_000,
+      conditions: null,
+    };
+    expect(updateRide(ctx, created.rideId, edit)).toEqual({ ok: true });
+    expect(listRides(ctx)[0]).toMatchObject({
+      id: created.rideId,
+      bikeId: other.bikeId,
+      startedAt: Date.parse("2026-10-09T10:00:00Z"),
+      location: null,
+      distanceM: 30_000,
+      conditions: null,
+      title: "Imported title",
+      movingTimeS: 9000,
+    });
+    expect(listRideUsages(ctx, bikeId)).toEqual([]);
+
+    // A new "Durée" replaces the moving time, which would still be shown and counted.
+    expect(updateRide(ctx, created.rideId, { ...edit, totalTimeS: 5400 })).toEqual({ ok: true });
+    expect(listRides(ctx)[0]).toMatchObject({ totalTimeS: 5400, movingTimeS: null });
   });
 
   it("keeps each workspace's rides to itself", () => {
@@ -98,7 +133,16 @@ describe("rides", () => {
       ok: false,
       reason: "not_found",
     });
-    expect(undoCreateRide(intruder, created.rideId)).toEqual({ ok: false, reason: "not_found" });
+    expect(deleteRide(intruder, created.rideId)).toEqual({ ok: false, reason: "not_found" });
+    // Neither someone else's ride, nor one's ride moved to someone else's bike.
+    expect(updateRide(intruder, created.rideId, ride(theirs, "2026-10-11T10:00:00Z"))).toEqual({
+      ok: false,
+      reason: "not_found",
+    });
+    expect(updateRide(owner, created.rideId, ride(theirs, "2026-10-11T10:00:00Z"))).toEqual({
+      ok: false,
+      reason: "not_found",
+    });
     expect(listRides(owner)).toHaveLength(1);
     expect(createRide(intruder, ride(theirs, "2026-10-11T10:00:00Z")).ok).toBe(true);
   });

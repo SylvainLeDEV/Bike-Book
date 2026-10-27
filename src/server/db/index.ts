@@ -44,14 +44,18 @@ export {
   createRide,
   listRides,
   listRideUsages,
-  undoCreateRide,
+  deleteRide,
+  updateRide,
   type Ride,
   type RideData,
+  type RideEdit,
 } from "./rides";
 export {
   createMaintenanceEvent,
-  undoMaintenanceEvent,
+  deleteMaintenanceEvent,
+  updateMaintenanceEvent,
   type CreateEventOutcome,
+  type UpdateEventOutcome,
   type MaintenanceEventData,
   type MaintenanceLineData,
 } from "./maintenance";

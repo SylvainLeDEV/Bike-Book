@@ -10,16 +10,22 @@ import { WearDetailSheet } from "@/components/bike/wear-detail-sheet";
 import { MaintenanceSheet } from "@/components/maintenance/maintenance-sheet";
 import { RulesSheet } from "@/components/plan/rules-sheet";
 import { useTaskSheet } from "@/components/plan/task-sheet";
+import { useQuickRide } from "@/components/rides/quick-ride";
 import { Crumb, PageBody, Topbar } from "@/components/shell/topbar";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
-import type { ComponentFormVM, MaintenanceLineInput } from "@/lib/view-models";
+import type { ComponentFormVM, MaintenanceEditVM, MaintenanceLineInput } from "@/lib/view-models";
 import {
   replacePartAction,
   saveComponentAction,
   undoReplacePartAction,
 } from "@/server/actions/components";
-import { saveMaintenanceAction, undoMaintenanceAction } from "@/server/actions/maintenance";
+import {
+  deleteMaintenanceAction,
+  saveMaintenanceAction,
+  undoMaintenanceAction,
+  updateMaintenanceAction,
+} from "@/server/actions/maintenance";
 import { saveRuleAction, snoozeRuleAction, undoSnoozeAction } from "@/server/actions/rules";
 import type { BikePage } from "@/server/views/bikes";
 import { useSnooze } from "../../use-snooze";
@@ -31,10 +37,13 @@ export function BikeView({
   page,
   doneRuleId,
   replaceItemId,
+  editEventId,
 }: {
   page: BikePage;
   doneRuleId: number | null;
   replaceItemId: number | null;
+  /** ?event=<id>: an entry of Activité opens its edit sheet here (D-70). */
+  editEventId: number | null;
 }) {
   const bikeSheet = useBikeSheet();
   const toast = useToast();
@@ -43,24 +52,35 @@ export function BikeView({
   const snooze = useSnooze(snoozeRuleAction, undoSnoozeAction);
   const taskSheet = useTaskSheet();
   const taskDone = useTaskDone();
+  const quickRide = useQuickRide();
   const [componentSheet, setComponentSheet] = React.useState<{
     open: boolean;
     component: ComponentFormVM | null;
   }>({ open: false, component: null });
   // "C'est fait" from the dashboard lands here with ?done=<rule>: the prefilled sheet opens.
-  const [maintenance, setMaintenance] = React.useState<{ open: boolean; prefill: Prefill }>(() => {
+  const [maintenance, setMaintenance] = React.useState<{
+    open: boolean;
+    prefill: Prefill;
+    edit: MaintenanceEditVM | null;
+  }>(() => {
+    const edit = editEventId == null ? undefined : page.edits.maintenance[editEventId];
+    if (edit) return { open: true, prefill: null, edit };
     const prefill = doneRuleId == null ? undefined : page.done[doneRuleId];
-    return prefill ? { open: true, prefill } : { open: false, prefill: null };
+    return prefill
+      ? { open: true, prefill, edit: null }
+      : { open: false, prefill: null, edit: null };
   });
   const [rulesOpen, setRulesOpen] = React.useState(false);
   const [wearOpen, setWearOpen] = React.useState(false);
   const edit = (focus?: "status") => bikeSheet.open({ bike: page.form, focus });
   const bikeId = page.vm.bike.id;
 
-  // Drop ?done from the address once used, so a reload does not reopen the sheet.
+  // Drop ?done, ?replace and ?event from the address once used, so a reload does not reopen the sheet.
   React.useEffect(() => {
-    if (doneRuleId != null || replaceItemId != null) router.replace(pathname, { scroll: false });
-  }, [doneRuleId, replaceItemId, pathname, router]);
+    if (doneRuleId != null || replaceItemId != null || editEventId != null) {
+      router.replace(pathname, { scroll: false });
+    }
+  }, [doneRuleId, replaceItemId, editEventId, pathname, router]);
 
   return (
     <>
@@ -86,9 +106,18 @@ export function BikeView({
           }}
           actions={{
             onEditBike: edit,
-            onAddMaintenance: () => setMaintenance({ open: true, prefill: null }),
+            onAddMaintenance: () => setMaintenance({ open: true, prefill: null, edit: null }),
             onRuleDone: (rule) =>
-              setMaintenance({ open: true, prefill: page.done[rule.id] ?? null }),
+              setMaintenance({ open: true, prefill: page.done[rule.id] ?? null, edit: null }),
+            onEditHistoryItem: (item) => {
+              if (item.kind === "ride") {
+                const ride = page.edits.rides[item.id];
+                if (ride) quickRide.edit(item.id, ride);
+                return;
+              }
+              const edit = page.edits.maintenance[item.id];
+              if (edit) setMaintenance({ open: true, prefill: null, edit });
+            },
             onRuleSnooze: (rule) => snooze(rule.id, rule.title),
             onTaskDone: (task) => taskDone(task.id, task.title),
             workshopItemHref: (id) => `/workshop?item=${id}`,
@@ -119,6 +148,7 @@ export function BikeView({
         onOpenChange={(open) => setMaintenance((state) => ({ ...state, open }))}
         vm={page.maintenance}
         prefill={maintenance.prefill}
+        edit={maintenance.edit}
         onSubmit={async (input) => {
           const result = await saveMaintenanceAction(input);
           if (result.ok) {
@@ -126,6 +156,16 @@ export function BikeView({
               undo: async () => toast((await undoMaintenanceAction(result.undoEventId)).message),
             });
           }
+          return result;
+        }}
+        onUpdate={async (eventId, input) => {
+          const result = await updateMaintenanceAction(eventId, input);
+          if (result.ok) toast(result.message);
+          return result;
+        }}
+        onDelete={async (eventId) => {
+          const result = await deleteMaintenanceAction(eventId);
+          if (result.ok) toast(result.message);
           return result;
         }}
       />

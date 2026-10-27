@@ -30,8 +30,14 @@ export default async function BikePage({ params, searchParams }: PageProps<"/bik
     const n = Number(value);
     return Number.isSafeInteger(n) && n > 0 ? n : null;
   };
-  // ?done=<rule>: "C'est fait" from the dashboard; ?replace=<item>: "Monter sur…" from the workshop.
+  // ?done=<rule>: "C'est fait" from the dashboard; ?replace=<item>: "Monter sur…" from the workshop;
+  // ?event=<maintenance event>: an entry of Activité to edit (D-70).
   return (
-    <BikeView page={page} doneRuleId={number(query.done)} replaceItemId={number(query.replace)} />
+    <BikeView
+      page={page}
+      doneRuleId={number(query.done)}
+      replaceItemId={number(query.replace)}
+      editEventId={number(query.event)}
+    />
   );
 }

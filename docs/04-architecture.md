@@ -84,9 +84,10 @@ src/
 │   ├── export/            # ZIP writer, CSV, data dictionary for the export (D-68)
 │   ├── theme.ts           # Reads the theme cookie
 │   ├── time.ts            # "Today" in the configured TZ
+│   ├── startup.ts         # Server start: configuration, database (migrations); exit on failure
 │   └── env.ts             # Configuration, validated with Zod
 │   # Later: files/ (uploads, feature 10), jobs/ (1.5), integrations/ (2)
-└── instrumentation.ts     # Opens the database (migrations) at startup; scheduler later
+└── instrumentation.ts     # Runs server/startup.ts at startup; scheduler later
 ```
 
 ### Design system (phase 1 step A)
@@ -124,7 +125,7 @@ of the navigation shows a "Bientôt ici" page rather than a 404.
 |-----|--------|-------|
 | `/` | Accueil | "À prévoir", "À racheter", bikes, latest activity |
 | `/bikes` | Vélos | Active bikes as cards; stored, sold, stolen and retired bikes folded; "Ajouter un vélo" (sheet) |
-| `/bikes/[bikeId]` | Page vélo | `?tab=` selects the tab below 1024 px (deep links from the viewer) |
+| `/bikes/[bikeId]` | Page vélo | `?tab=` selects the tab below 1024 px (deep links from the viewer); `?done=<rule>`, `?replace=<item>` and `?event=<maintenance event>` (D-70) open a sheet on arrival |
 | `/activity` | Activité | Rides and maintenance log (features 4 and 5) |
 | `/workshop` | Atelier | `?tab=rebuy`, `?bike=`, `?q=` keep the filters in the URL |
 | `/workshop/[itemId]` | Fiche d'un objet | Under 1024 px it replaces the list; from 1024 px the list stays beside it |
@@ -146,7 +147,8 @@ routes: they open from any screen and keep it underneath.
 - Built by GitHub Actions on each tag and published as a public image on GHCR
   (`ghcr.io/<owner>/bike-book:<version>`, lowercase). Deployments should pin a version.
 - Database migrations run when the container starts (the app applies them when it opens the
-  database, D-28). Back up `/data` before upgrading.
+  database, D-28), with foreign keys off, then checked (D-69). Back up `/data` before upgrading:
+  a migration that breaks a reference stops the app, and the way back is that backup.
 - Image built for `linux/amd64` only for now; `linux/arm64` can be added to the release
   workflow if needed.
 
@@ -154,6 +156,10 @@ routes: they open from any screen and keep it underneath.
 
 Everything is configured through environment variables; nothing installation-specific is
 baked into the image or the repository.
+
+The configuration is checked when the server starts. In production, a missing or invalid value,
+an unwritable `DATA_DIR` or a failed migration stops the process with exit code 1 and the reason
+in the logs (D-28): the container exits instead of answering HTTP 500.
 
 | Variable | Required | Purpose |
 |----------|----------|---------|
@@ -281,7 +287,13 @@ Backing up is the operator's job (D-12); the app makes it easy:
    a native library. Test with a real iPhone photo first (H-11).
 5. **Garmin key expiry (phase 2).** The Personal API key lasts one year at most: the app shows
    its expiry date and warns 30 days before.
-6. **Docker inside Proxmox LXC containers**, a common self-hosting setup: a November 2025
+6. **SQLite table rebuilds in migrations.** drizzle-kit changes a column by recreating the
+   table and dropping the old one; with foreign keys on, the drop cascades and empties the child
+   tables. `openDatabase` therefore migrates with foreign keys off and checks them afterwards
+   (D-69, tested in `src/server/db/client.test.ts`). When writing a migration: never edit or
+   delete one already released (drizzle compares dates, not content), prefer additive changes,
+   and read any generated rebuild before committing it.
+7. **Docker inside Proxmox LXC containers**, a common self-hosting setup: a November 2025
    containerd/runc security update broke it (AppArmor), reported fixed in Proxmox VE 9.1.x
    (**Secondary**). Keep the host updated and test after upgrades.
 

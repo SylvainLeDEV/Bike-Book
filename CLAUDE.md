@@ -81,7 +81,8 @@ src/
 │                   # api/auth/[...all] (Better Auth), api/healthz, api/export (ZIP, D-68);
 │                   # api/uploads with feature 10.
 │                   # Routes: /, /bikes, /bikes/[bikeId], /activity, /workshop (D-54), /settings;
-│                   # /bikes/[id]?done=<rule> and ?replace=<item> open a sheet on arrival
+│                   # /bikes/[id]?done=<rule>, ?replace=<item> and ?event=<id> (edit,
+│                   # D-70) open a sheet on arrival
 │                   # globals.css = the design tokens (D-30, D-31)
 ├── server/         # server-only
 │   ├── db/         # schema, migrations/, seed, data-access layer (index.ts = public API)
