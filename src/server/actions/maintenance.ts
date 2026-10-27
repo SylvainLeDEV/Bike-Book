@@ -9,6 +9,7 @@ import {
   deleteMaintenanceEvent,
   updateMaintenanceEvent,
 } from "@/server/db";
+import { getEnv } from "@/server/env";
 import { today } from "@/server/time";
 import { maintenanceSchema } from "./maintenance-input";
 
@@ -48,7 +49,7 @@ export async function saveMaintenanceAction(input: unknown): Promise<SaveMainten
 
 const eventIdSchema = z.number().int().positive();
 
-/** "Modifier l'entretien" (D-70): its replacements stay as they are. */
+/** "Modifier l'entretien" (D-70): its replacements keep their parts and follow a new date. */
 export async function updateMaintenanceAction(
   eventId: unknown,
   input: unknown,
@@ -61,15 +62,20 @@ export async function updateMaintenanceAction(
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Saisie invalide." };
   }
   const data = parsed.data;
-  const outcome = updateMaintenanceEvent(ctx, id.data, {
-    performedOn: data.on,
-    title: data.title,
-    performedBy: data.performedBy,
-    shop: data.performedBy === "shop" ? data.shop : null,
-    totalCostCents: data.totalCostCents,
-    notes: data.notes,
-    lines: data.lines,
-  });
+  const outcome = updateMaintenanceEvent(
+    ctx,
+    id.data,
+    {
+      performedOn: data.on,
+      title: data.title,
+      performedBy: data.performedBy,
+      shop: data.performedBy === "shop" ? data.shop : null,
+      totalCostCents: data.totalCostCents,
+      notes: data.notes,
+      lines: data.lines,
+    },
+    getEnv().timeZone,
+  );
   if (!outcome.ok) {
     return {
       ok: false,
@@ -77,7 +83,8 @@ export async function updateMaintenanceAction(
         not_found: "Entretien introuvable.",
         unknown_part: "Pièce introuvable sur ce vélo.",
         unknown_rule: "Règle introuvable sur ce vélo.",
-        date_locked: "Cet entretien contient un remplacement : sa date ne peut pas changer.",
+        before_fitting: "La pièce remplacée a été montée après cette date.",
+        after_removal: "La pièce montée par cet entretien a été remplacée avant cette date.",
       }[outcome.reason],
     };
   }
@@ -85,7 +92,7 @@ export async function updateMaintenanceAction(
   return { ok: true, message: `Entretien modifié : ${data.title}` };
 }
 
-/** "Supprimer l'entretien" (D-70), confirmed in the sheet. */
+/** "Supprimer l'entretien" (D-70), confirmed in the sheet: its replacements are undone too. */
 export async function deleteMaintenanceAction(eventId: unknown): Promise<EditResult> {
   const ctx = await requireAccessContext();
   const id = eventIdSchema.safeParse(eventId);
@@ -96,7 +103,7 @@ export async function deleteMaintenanceAction(eventId: unknown): Promise<EditRes
       ok: false,
       error:
         outcome.reason === "too_late"
-          ? "Cet entretien contient un remplacement : il ne peut pas être supprimé."
+          ? "La pièce montée par cet entretien a été remplacée ou entretenue depuis : modifie d'abord ces entretiens-là."
           : "Entretien introuvable.",
     };
   }
@@ -109,7 +116,7 @@ export async function undoMaintenanceAction(eventId: unknown): Promise<{ message
   const ctx = await requireAccessContext();
   const id = eventIdSchema.safeParse(eventId);
   if (!id.success) return { message: "Rien à annuler." };
-  const outcome = deleteMaintenanceEvent(ctx, id.data);
+  const outcome = deleteMaintenanceEvent(ctx, id.data, { keepReplacements: true });
   if (!outcome.ok) {
     return {
       message:

@@ -2,9 +2,11 @@ import "server-only";
 import { and, eq, inArray, ne } from "drizzle-orm";
 import type { MaintenanceAction, MeasurementUnit, ShopKind } from "@/lib/enums";
 import type { LocalDate } from "@/lib/format";
+import { eventInstant } from "@/server/domain/time";
 import type { AccessContext } from "./access-context";
 import { getDb, type Tx } from "./client";
 import { bikes, components, maintenanceEvents, maintenanceItems } from "./schema";
+import { moveEventReplacements, undoEventReplacements } from "./components";
 import { ruleOfBike } from "./rules";
 import { resolveShopId } from "./shops";
 
@@ -102,17 +104,22 @@ export function createMaintenanceEvent(
 
 export type UpdateEventOutcome =
   | { ok: true }
-  | { ok: false; reason: "not_found" | "unknown_part" | "unknown_rule" | "date_locked" };
+  | {
+      ok: false;
+      reason: "not_found" | "unknown_part" | "unknown_rule" | "before_fitting" | "after_removal";
+    };
 
 /**
  * "Modifier l'entretien" (D-70): rewrites the event and its lines, except its replacements, which
- * stay as they are (undone from their own toast only). An event holding a replacement keeps its
- * date: the parts were fitted and removed at its instant. The bike and `created_at` never change.
+ * keep their parts. A new date moves them too, to the new date's instant (D-61): refused when the
+ * old part was fitted after it or the new one already removed. The bike and `created_at` never
+ * change.
  */
 export function updateMaintenanceEvent(
   ctx: AccessContext,
   eventId: number,
   data: Omit<MaintenanceEventData, "bikeId" | "recordedAt">,
+  timeZone: string,
 ): UpdateEventOutcome {
   return getDb().transaction((tx) => {
     const event = tx
@@ -120,17 +127,20 @@ export function updateMaintenanceEvent(
         id: maintenanceEvents.id,
         bikeId: maintenanceEvents.bikeId,
         on: maintenanceEvents.performedOn,
+        createdAt: maintenanceEvents.createdAt,
       })
       .from(maintenanceEvents)
       .innerJoin(bikes, eq(bikes.id, maintenanceEvents.bikeId))
       .where(and(eq(maintenanceEvents.id, eventId), eq(bikes.workspaceId, ctx.workspace.id)))
       .get();
     if (!event) return { ok: false, reason: "not_found" };
-    if (data.performedOn !== event.on && hasReplacement(tx, eventId)) {
-      return { ok: false, reason: "date_locked" };
-    }
     const refused = checkLines(tx, event.bikeId, data.lines);
     if (refused) return { ok: false, reason: refused };
+    if (data.performedOn !== event.on) {
+      const at = eventInstant(data.performedOn, event.createdAt.getTime(), timeZone);
+      const moved = moveEventReplacements(tx, eventId, at);
+      if (moved) return { ok: false, reason: moved };
+    }
     tx.update(maintenanceEvents)
       .set({
         performedOn: data.performedOn,
@@ -165,12 +175,15 @@ function hasReplacement(tx: Tx, eventId: number): boolean {
 }
 
 /**
- * Deletes an event and its lines: "Annuler" after "Entretien enregistré" (D-60) and "Supprimer
- * l'entretien" (D-70). Refused once it holds a replacement (its parts are on the bike).
+ * Deletes an event and its lines. "Supprimer l'entretien" (D-70) also undoes its replacements
+ * (old parts back on the bike, new parts deleted, stock given back), all or none: refused
+ * (`too_late`) when a part it fitted was replaced or named by another event since. "Annuler"
+ * after "Entretien enregistré" (D-60, `keepReplacements`) is refused once a replacement joined it.
  */
 export function deleteMaintenanceEvent(
   ctx: AccessContext,
   eventId: number,
+  options: { keepReplacements?: boolean } = {},
 ): { ok: true } | { ok: false; reason: "not_found" | "too_late" } {
   return getDb().transaction((tx) => {
     const event = tx
@@ -180,7 +193,11 @@ export function deleteMaintenanceEvent(
       .where(and(eq(maintenanceEvents.id, eventId), eq(bikes.workspaceId, ctx.workspace.id)))
       .get();
     if (!event) return { ok: false, reason: "not_found" };
-    if (hasReplacement(tx, eventId)) return { ok: false, reason: "too_late" };
+    if (options.keepReplacements) {
+      if (hasReplacement(tx, eventId)) return { ok: false, reason: "too_late" };
+    } else if (!undoEventReplacements(tx, eventId)) {
+      return { ok: false, reason: "too_late" };
+    }
     tx.delete(maintenanceEvents).where(eq(maintenanceEvents.id, eventId)).run();
     return { ok: true };
   });

@@ -64,6 +64,13 @@
       "when": 1793025759045,
       "tag": "0008_workshop",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1793105564089,
+      "tag": "0009_bearing_types",
+      "breakpoints": true
     }
   ]
 }

@@ -4,6 +4,7 @@ import {
   createBike,
   createComponent,
   createMaintenanceEvent,
+  listComponents,
   listMaintenanceEvents,
   listShops,
   replaceComponent,
@@ -93,6 +94,30 @@ const event = (bikeId: number, forkId: number): MaintenanceEventData => ({
   ],
 });
 
+const TZ = "Europe/Paris";
+
+/** Replaces a fork on a past day (its last millisecond in Paris); returns the new fork's id. */
+function replaceFork(
+  ctx: ReturnType<typeof setup>["ctx"],
+  removedComponentId: number,
+  eventId: number | null,
+  on: string,
+): number {
+  const replaced = replaceComponent(ctx, {
+    removedComponentId,
+    on,
+    recordedAt: Date.parse("2026-03-05T18:00:00Z"),
+    at: Date.parse(`${on}T22:59:59.999Z`),
+    reason: "worn",
+    removalNote: null,
+    newPart: { brand: "RockShox", model: "Zeb", priceCents: 90_000 },
+    eventTitle: "Fourche remplacée",
+    eventId,
+  });
+  if (!replaced.ok) throw new Error(replaced.reason);
+  return replaced.newComponentId;
+}
+
 /** The event as "Modifier l'entretien" sends it: no bike, no recording time. */
 function edited(bikeId: number, forkId: number) {
   const { performedOn, title, performedBy, shop, totalCostCents, notes, lines } = event(
@@ -155,7 +180,10 @@ describe("maintenance events", () => {
       eventId: again.eventId,
     });
     expect(replaced.ok).toBe(true);
-    expect(deleteMaintenanceEvent(ctx, again.eventId)).toEqual({ ok: false, reason: "too_late" });
+    expect(deleteMaintenanceEvent(ctx, again.eventId, { keepReplacements: true })).toEqual({
+      ok: false,
+      reason: "too_late",
+    });
   });
 
   it("only joins a replacement to an event of the same day", () => {
@@ -177,7 +205,7 @@ describe("maintenance events", () => {
     ).toEqual({ ok: false, reason: "event_not_found" });
   });
 
-  it("edits an event and its lines, keeping its replacements, which fix its date", () => {
+  it("edits an event and its lines, keeping its replacements", () => {
     const { ctx, bikeId, forkId } = setup("Edit");
     const created = createMaintenanceEvent(ctx, event(bikeId, forkId));
     if (!created.ok) throw new Error(created.reason);
@@ -191,7 +219,7 @@ describe("maintenance events", () => {
       totalCostCents: null,
       lines: [{ ...base.lines[0], costCents: 1500 }],
     };
-    expect(updateMaintenanceEvent(ctx, created.eventId, edit)).toEqual({ ok: true });
+    expect(updateMaintenanceEvent(ctx, created.eventId, edit, TZ)).toEqual({ ok: true });
     const [saved] = listMaintenanceEvents(ctx, bikeId);
     expect(saved).toMatchObject({
       performedOn: "2026-03-01",
@@ -203,27 +231,70 @@ describe("maintenance events", () => {
     });
     expect(saved.items.map((item) => [item.action, item.costCents])).toEqual([["serviced", 1500]]);
 
-    const replaced = replaceComponent(ctx, {
-      removedComponentId: forkId,
-      on: "2026-03-01",
-      recordedAt: Date.parse("2026-03-05T18:00:00Z"),
-      at: Date.parse("2026-03-01T22:59:59.999Z"),
-      reason: "worn",
-      removalNote: null,
-      newPart: { brand: "RockShox", model: "Zeb", priceCents: 90_000 },
-      eventTitle: "Fourche remplacée",
-      eventId: created.eventId,
-    });
-    if (!replaced.ok) throw new Error(replaced.reason);
-    expect(updateMaintenanceEvent(ctx, created.eventId, { ...edit, lines: [] })).toEqual({
+    replaceFork(ctx, forkId, created.eventId, "2026-03-01");
+    expect(updateMaintenanceEvent(ctx, created.eventId, { ...edit, lines: [] }, TZ)).toEqual({
       ok: true,
     });
     expect(listMaintenanceEvents(ctx, bikeId)[0].items.map((item) => item.action)).toEqual([
       "replaced",
     ]);
+  });
+
+  it("moves its replacements with a new date, within the parts' lives", () => {
+    const { ctx, bikeId, forkId } = setup("Move");
+    const created = createMaintenanceEvent(ctx, event(bikeId, forkId));
+    if (!created.ok) throw new Error(created.reason);
+    const zebId = replaceFork(ctx, forkId, created.eventId, "2026-03-02");
+    const base = edited(bikeId, forkId);
+
     expect(
-      updateMaintenanceEvent(ctx, created.eventId, { ...edit, performedOn: "2026-03-02" }),
-    ).toEqual({ ok: false, reason: "date_locked" });
+      updateMaintenanceEvent(ctx, created.eventId, { ...base, performedOn: "2026-02-20" }, TZ),
+    ).toEqual({ ok: true });
+    const parts = new Map(listComponents(ctx, bikeId).map((part) => [part.id, part]));
+    // A past day: the last millisecond of 20 February in Paris (D-61).
+    const at = Date.parse("2026-02-20T22:59:59.999Z");
+    expect(parts.get(forkId)?.removedAt).toBe(at);
+    expect(parts.get(zebId)?.installedAt).toBe(at);
+
+    // The Lyrik was fitted on 14 March 2024.
+    expect(
+      updateMaintenanceEvent(ctx, created.eventId, { ...base, performedOn: "2024-03-01" }, TZ),
+    ).toEqual({ ok: false, reason: "before_fitting" });
+    // The Zeb is replaced on 1 March: the event cannot move after that.
+    replaceFork(ctx, zebId, null, "2026-03-01");
+    expect(
+      updateMaintenanceEvent(ctx, created.eventId, { ...base, performedOn: "2026-03-02" }, TZ),
+    ).toEqual({ ok: false, reason: "after_removal" });
+    expect(listMaintenanceEvents(ctx, bikeId).find((e) => e.id === created.eventId)).toMatchObject({
+      performedOn: "2026-02-20",
+    });
+  });
+
+  it("deletes an event with its replacements, unless a part it fitted was replaced since", () => {
+    const { ctx, bikeId, forkId } = setup("Delete");
+    const created = createMaintenanceEvent(ctx, event(bikeId, forkId));
+    if (!created.ok) throw new Error(created.reason);
+    const zebId = replaceFork(ctx, forkId, created.eventId, "2026-03-02");
+    // A line of the same event naming the new part does not hold it back.
+    const base = edited(bikeId, forkId);
+    updateMaintenanceEvent(
+      ctx,
+      created.eventId,
+      { ...base, lines: [{ ...base.lines[0], componentId: zebId }] },
+      TZ,
+    );
+    expect(deleteMaintenanceEvent(ctx, created.eventId)).toEqual({ ok: true });
+    expect(listMaintenanceEvents(ctx, bikeId)).toEqual([]);
+    expect(listComponents(ctx, bikeId).map((part) => [part.id, part.removedAt])).toEqual([
+      [forkId, null],
+    ]);
+
+    const again = createMaintenanceEvent(ctx, event(bikeId, forkId));
+    if (!again.ok) throw new Error(again.reason);
+    const secondZeb = replaceFork(ctx, forkId, again.eventId, "2026-03-02");
+    replaceFork(ctx, secondZeb, null, "2026-03-04");
+    expect(deleteMaintenanceEvent(ctx, again.eventId)).toEqual({ ok: false, reason: "too_late" });
+    expect(listMaintenanceEvents(ctx, bikeId)).toHaveLength(2);
   });
 
   it("refuses a part or a rule of another bike when editing", () => {
@@ -233,10 +304,12 @@ describe("maintenance events", () => {
     if (!created.ok) throw new Error(created.reason);
     const base = edited(bikeId, forkId);
     expect(
-      updateMaintenanceEvent(ctx, created.eventId, {
-        ...base,
-        lines: [{ ...base.lines[0], componentId: otherFork }],
-      }),
+      updateMaintenanceEvent(
+        ctx,
+        created.eventId,
+        { ...base, lines: [{ ...base.lines[0], componentId: otherFork }] },
+        TZ,
+      ),
     ).toEqual({ ok: false, reason: "unknown_part" });
     expect(listMaintenanceEvents(ctx, bikeId)[0].items).toHaveLength(2);
   });
@@ -255,9 +328,9 @@ describe("maintenance events", () => {
       reason: "not_found",
     });
     const base = edited(bikeId, forkId);
-    expect(updateMaintenanceEvent(intruder, created.eventId, { ...base, title: "Pirate" })).toEqual(
-      { ok: false, reason: "not_found" },
-    );
+    expect(
+      updateMaintenanceEvent(intruder, created.eventId, { ...base, title: "Pirate" }, TZ),
+    ).toEqual({ ok: false, reason: "not_found" });
     expect(listMaintenanceEvents(owner, bikeId)).toHaveLength(1);
   });
 });

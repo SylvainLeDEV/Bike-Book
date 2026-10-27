@@ -8,7 +8,7 @@ import { Chip, ChipRow } from "@/components/ui/chip";
 import { Field, FieldError, Fieldset, Input, NativeSelect, Textarea } from "@/components/ui/field";
 import { Sheet, SheetBody, SheetContent, SheetFooter, SheetForm } from "@/components/ui/sheet";
 import { MAINTENANCE_LINE_ACTIONS, MEASUREMENT_UNITS, type MeasurementUnit } from "@/lib/enums";
-import { addDays, formatDate, formatDecimal, formatMoney } from "@/lib/format";
+import { addDays, formatDecimal, formatMoney } from "@/lib/format";
 import { MAINTENANCE_ACTION_LABELS, SHOP_KIND_LABELS } from "@/lib/labels";
 import { nameKey } from "@/lib/names";
 import { decimalText, parseDecimalInput, parseMoneyInput } from "@/lib/parse";
@@ -27,7 +27,7 @@ import type {
  * then the interventions, each with its part, detail, cost and an optional measurement. The total
  * is the sum of the lines unless an invoice total is typed. Replacements have their own sheet.
  * "Modifier l'entretien" (D-70) reopens it filled; the event's replacements are listed, not
- * editable, and fix its date.
+ * editable: a new date moves them, deleting the event undoes them.
  */
 
 const UNIT_LABELS: Record<MeasurementUnit, string> = { percent: "%", mm: "mm" };
@@ -78,7 +78,7 @@ export function MaintenanceSheet({
               return result.ok ? null : result.error;
             }}
             onDelete={
-              editing && onDelete && !editing.replacements.length
+              editing && onDelete
                 ? async () => {
                     const result = await onDelete(editing.eventId);
                     if (result.ok) onOpenChange(false);
@@ -179,7 +179,7 @@ function MaintenanceForm({
   prefill: MaintenanceSheetProps["prefill"];
   edit: MaintenanceEditVM | null;
   onSubmit: (input: MaintenanceInput) => Promise<string | null>;
-  /** Shown when editing an event without replacement; resolves with an error or null. */
+  /** Shown when editing; resolves with an error or null. */
   onDelete?: () => Promise<string | null>;
 }) {
   const initial = edit?.input ?? null;
@@ -191,10 +191,8 @@ function MaintenanceForm({
         ? "yesterday"
         : "other";
   const replacements = edit?.replacements ?? [];
-  // The parts were fitted and removed at the event's instant: its date stays (D-70).
-  const dateLocked = replacements.length > 0;
   // An event made by "Remplacer une pièce" may hold no other line.
-  const minLines = dateLocked ? 0 : 1;
+  const minLines = replacements.length ? 0 : 1;
   const parts = [...vm.parts, ...(edit?.formerParts ?? [])];
   const [when, setWhen] = React.useState<When>(initialWhen);
   const [otherDate, setOtherDate] = React.useState(
@@ -291,14 +289,7 @@ function MaintenanceForm({
     try {
       const error = await onSubmit({
         bikeId: vm.bike.id,
-        on:
-          dateLocked && initial
-            ? initial.on
-            : when === "today"
-              ? vm.today
-              : when === "yesterday"
-                ? addDays(vm.today, -1)
-                : otherDate,
+        on: when === "today" ? vm.today : when === "yesterday" ? addDays(vm.today, -1) : otherDate,
         title: title.trim(),
         performedBy,
         shop:
@@ -321,53 +312,38 @@ function MaintenanceForm({
     <SheetForm ref={formRef} onSubmit={submit}>
       <SheetBody>
         {errors.form ? <FieldError>{errors.form}</FieldError> : null}
-        {dateLocked && initial ? (
-          <Fieldset legend="Date">
-            <p className="text-[15px] font-semibold">
-              {formatDate(initial.on, {
-                weekday: "long",
-                month: "long",
-                year: "auto",
-                today: vm.today,
-                capitalized: true,
-              })}
-            </p>
-            <p className="hint">Fixée par le remplacement de pièce de cet entretien.</p>
-          </Fieldset>
-        ) : (
-          <Fieldset legend="Date">
-            <ChipRow>
-              {(
-                [
-                  ["today", "Aujourd'hui"],
-                  ["yesterday", "Hier"],
-                  ["other", "Autre date"],
-                ] as const
-              ).map(([value, label]) => (
-                <Chip
-                  key={value}
-                  name="when"
-                  value={value}
-                  checked={when === value}
-                  onChange={() => setWhen(value)}
-                >
-                  {value === "other" ? <Calendar aria-hidden /> : null}
-                  {label}
-                </Chip>
-              ))}
-            </ChipRow>
-            {when === "other" ? (
-              <Field label="Date de l'entretien">
-                <Input
-                  type="date"
-                  max={vm.today}
-                  value={otherDate}
-                  onChange={(e) => setOtherDate(e.target.value)}
-                />
-              </Field>
-            ) : null}
-          </Fieldset>
-        )}
+        <Fieldset legend="Date">
+          <ChipRow>
+            {(
+              [
+                ["today", "Aujourd'hui"],
+                ["yesterday", "Hier"],
+                ["other", "Autre date"],
+              ] as const
+            ).map(([value, label]) => (
+              <Chip
+                key={value}
+                name="when"
+                value={value}
+                checked={when === value}
+                onChange={() => setWhen(value)}
+              >
+                {value === "other" ? <Calendar aria-hidden /> : null}
+                {label}
+              </Chip>
+            ))}
+          </ChipRow>
+          {when === "other" ? (
+            <Field label="Date de l'entretien">
+              <Input
+                type="date"
+                max={vm.today}
+                value={otherDate}
+                onChange={(e) => setOtherDate(e.target.value)}
+              />
+            </Field>
+          ) : null}
+        </Fieldset>
 
         <Field label="Titre" id="mt-title" error={errors.title}>
           <Input
@@ -447,8 +423,8 @@ function MaintenanceForm({
                   <span className="min-w-0 flex-1">
                     {replacement.label}
                     <span className="block hint">
-                      Remplacement : ne se modifie pas ici. Pour le défaire, utilise « Annuler »
-                      juste après l&apos;avoir enregistré.
+                      Remplacement : les pièces ne se modifient pas ici. Une nouvelle date déplace
+                      aussi la pose ; supprimer l&apos;entretien remet l&apos;ancienne pièce.
                     </span>
                   </span>
                   {replacement.costCents != null ? (
@@ -635,7 +611,11 @@ function MaintenanceForm({
       <SheetFooter className="grid gap-2">
         {confirmDelete && onDelete ? (
           <DeleteConfirm
-            question="Supprimer cet entretien et ses interventions ? Les règles qu'il remettait à zéro reprennent leur compte précédent."
+            question={
+              replacements.length
+                ? "Supprimer cet entretien ? Les pièces qu'il a remplacées reviennent sur le vélo, celles prises dans l'atelier y retournent, et les règles reprennent leur compte précédent."
+                : "Supprimer cet entretien et ses interventions ? Les règles qu'il remettait à zéro reprennent leur compte précédent."
+            }
             confirmLabel="Supprimer l'entretien"
             pending={pending}
             onCancel={() => setConfirmDelete(false)}

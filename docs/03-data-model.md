@@ -185,13 +185,15 @@ needs a data migration and an entry in `COMPONENT_TYPE_CODES` (`src/lib/enums.ts
 | `rotor` | brakes | front/rear | Brake rotor |
 | `wheel` | wheels | front/rear | Wheel (rim, hub, spokes) |
 | `tire` | wheels | front/rear | Tyre |
+| `hub_bearings` | wheels | front/rear | Hub bearings (added by migration `0009`, D-71) |
 | `handlebar` | cockpit | | Handlebar |
 | `stem` | cockpit | | Stem |
 | `grips` | cockpit | | Grips or bar tape |
 | `saddle` | cockpit | | Saddle |
 | `dropper_post` | cockpit | | Dropper seatpost |
-| `frame` | frame | | Frame (and rear triangle bearings) |
+| `frame` | frame | | Frame |
 | `headset` | frame | | Headset |
+| `frame_bearings` | frame | | Frame pivot and linkage bearings (added by migration `0009`, D-71) |
 | `motor` | electric | | E-bike motor |
 | `battery` | electric | | E-bike battery |
 | `display` | electric | | E-bike display or remote |
@@ -347,8 +349,9 @@ Status: **Built** in phase 1 feature 3 (2026-10-26, migration `0004`): a replace
 (D-63). The entry sheet ("Nouvel entretien", D-63) was built in feature 5: a required title, up to
 20 lines (replacements excluded), the total summed from the lines unless typed. "Annuler" deletes
 the event and its lines, unless a replacement joined it since (D-60). "Modifier l'entretien" rewrites the
-event and its lines except replacements, which fix its date; "Supprimer l'entretien" follows the
-rule of "Annuler" (D-70).
+event and its lines except replacements, which follow a new date (`removed_at` of the old part,
+`installed_at` of the new one, the stock movement); "Supprimer l'entretien" also undoes its
+replacements (D-70).
 
 One visit to the shop or one session in the garage.
 

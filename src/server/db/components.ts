@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, desc, eq, inArray, or, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, ne, or, type SQL } from "drizzle-orm";
 import type {
   ComponentOrigin,
   ComponentPosition,
@@ -389,6 +389,75 @@ export function replaceComponent(ctx: AccessContext, data: ReplacementData): Rep
 
 export type UndoOutcome = { ok: true } | { ok: false; reason: "not_found" | "too_late" };
 
+type ReplacedLine = { id: number; eventId: number; oldId: number; newId: number };
+type Part = typeof components.$inferSelect;
+
+/**
+ * The two parts of a replacement when it can still be undone, else null: something was built on
+ * it since (the new part was removed or replaced, or a maintenance line outside `ownEventId`
+ * names it). `ownEventId`: lines of that event do not count (the whole event is going away).
+ */
+function undoableParts(
+  tx: Tx,
+  item: ReplacedLine,
+  ownEventId: number | null,
+): { fitted: Part; old: Part } | null {
+  const fitted = tx.select().from(components).where(eq(components.id, item.newId)).get();
+  const old = tx.select().from(components).where(eq(components.id, item.oldId)).get();
+  if (!fitted || !old) return null;
+  const builtOn =
+    fitted.removedAt != null ||
+    tx
+      .select({ id: components.id })
+      .from(components)
+      .where(eq(components.replacesComponentId, fitted.id))
+      .get() != null ||
+    tx
+      .select({ id: maintenanceItems.id, eventId: maintenanceItems.eventId })
+      .from(maintenanceItems)
+      .where(
+        or(
+          eq(maintenanceItems.componentId, fitted.id),
+          eq(maintenanceItems.newComponentId, fitted.id),
+        ),
+      )
+      .all()
+      .some((row) => row.id !== item.id && row.eventId !== ownEventId) ||
+    old.removedAt?.getTime() !== fitted.installedAt.getTime();
+  return builtOn ? null : { fitted, old };
+}
+
+/** Deletes the line, its stock movement and the part it fitted, and puts the old part back. */
+function applyUndo(tx: Tx, item: ReplacedLine, parts: { fitted: Part; old: Part }) {
+  // The stock movement goes first: it points to the line (D-60, all four together).
+  tx.delete(inventoryMovements).where(eq(inventoryMovements.maintenanceItemId, item.id)).run();
+  tx.delete(maintenanceItems).where(eq(maintenanceItems.id, item.id)).run();
+  tx.delete(components).where(eq(components.id, parts.fitted.id)).run();
+  tx.update(components)
+    .set({ removedAt: null, removalReason: null, removalNote: null })
+    .where(eq(components.id, parts.old.id))
+    .run();
+}
+
+/** The replacements recorded by an event. */
+function replacedLines(tx: Tx, eventId: number): ReplacedLine[] {
+  return tx
+    .select({
+      id: maintenanceItems.id,
+      eventId: maintenanceItems.eventId,
+      oldId: maintenanceItems.componentId,
+      newId: maintenanceItems.newComponentId,
+    })
+    .from(maintenanceItems)
+    .where(and(eq(maintenanceItems.eventId, eventId), eq(maintenanceItems.action, "replaced")))
+    .all()
+    .flatMap((row) =>
+      row.oldId == null || row.newId == null
+        ? []
+        : [{ ...row, oldId: row.oldId, newId: row.newId }],
+    );
+}
+
 /**
  * Undoes a replacement (D-60): deletes the `replaced` item, the part it fitted and the event if
  * nothing else is in it, and puts the old part back. Refused when something was built on it
@@ -396,7 +465,7 @@ export type UndoOutcome = { ok: true } | { ok: false; reason: "not_found" | "too
  */
 export function undoReplacement(ctx: AccessContext, itemId: number): UndoOutcome {
   return getDb().transaction((tx) => {
-    const item = tx
+    const row = tx
       .select({
         id: maintenanceItems.id,
         eventId: maintenanceItems.eventId,
@@ -409,42 +478,16 @@ export function undoReplacement(ctx: AccessContext, itemId: number): UndoOutcome
       .innerJoin(bikes, eq(bikes.id, maintenanceEvents.bikeId))
       .where(and(eq(maintenanceItems.id, itemId), eq(bikes.workspaceId, ctx.workspace.id)))
       .get();
-    if (!item || item.action !== "replaced" || item.oldId == null || item.newId == null) {
+    if (!row || row.action !== "replaced" || row.oldId == null || row.newId == null) {
       return { ok: false, reason: "not_found" };
     }
-    const fitted = tx.select().from(components).where(eq(components.id, item.newId)).get();
-    const old = tx.select().from(components).where(eq(components.id, item.oldId)).get();
-    if (!fitted || !old) return { ok: false, reason: "not_found" };
-
-    const builtOn =
-      fitted.removedAt != null ||
-      tx
-        .select({ id: components.id })
-        .from(components)
-        .where(eq(components.replacesComponentId, fitted.id))
-        .get() != null ||
-      tx
-        .select({ id: maintenanceItems.id })
-        .from(maintenanceItems)
-        .where(
-          or(
-            eq(maintenanceItems.componentId, fitted.id),
-            eq(maintenanceItems.newComponentId, fitted.id),
-          ),
-        )
-        .all()
-        .some((row) => row.id !== item.id) ||
-      old.removedAt?.getTime() !== fitted.installedAt.getTime();
-    if (builtOn) return { ok: false, reason: "too_late" };
-
-    // The stock movement goes first: it points to the line (D-60, all four together).
-    tx.delete(inventoryMovements).where(eq(inventoryMovements.maintenanceItemId, item.id)).run();
-    tx.delete(maintenanceItems).where(eq(maintenanceItems.id, item.id)).run();
-    tx.delete(components).where(eq(components.id, fitted.id)).run();
-    tx.update(components)
-      .set({ removedAt: null, removalReason: null, removalNote: null })
-      .where(eq(components.id, old.id))
-      .run();
+    const item = { ...row, oldId: row.oldId, newId: row.newId };
+    if (!tx.select().from(components).where(eq(components.id, item.newId)).get()) {
+      return { ok: false, reason: "not_found" };
+    }
+    const parts = undoableParts(tx, item, null);
+    if (!parts) return { ok: false, reason: "too_late" };
+    applyUndo(tx, item, parts);
     const remaining = tx
       .select({ id: maintenanceItems.id })
       .from(maintenanceItems)
@@ -454,6 +497,57 @@ export function undoReplacement(ctx: AccessContext, itemId: number): UndoOutcome
       tx.delete(maintenanceEvents).where(eq(maintenanceEvents.id, item.eventId)).run();
     return { ok: true };
   });
+}
+
+/**
+ * "Supprimer l'entretien" (D-70), inside the caller's transaction, before it deletes the event:
+ * removes the event's lines and undoes every replacement, all or none. False, with nothing
+ * changed, when one of them was built on since.
+ */
+export function undoEventReplacements(tx: Tx, eventId: number): boolean {
+  const items = replacedLines(tx, eventId);
+  const parts = items.map((item) => undoableParts(tx, item, eventId));
+  if (parts.some((p) => p == null)) return false;
+  // Its other lines may name a part it fitted, which is about to be deleted.
+  tx.delete(maintenanceItems)
+    .where(and(eq(maintenanceItems.eventId, eventId), ne(maintenanceItems.action, "replaced")))
+    .run();
+  items.forEach((item, index) => applyUndo(tx, item, parts[index]!));
+  return true;
+}
+
+/**
+ * A new date for an event (D-70): its replacements move to `at`, the instant of the new date
+ * (D-61), all or none: the old part is removed and the new one fitted then, the stock movement
+ * follows. Refused when the old part was fitted after `at`, or the new one removed before it.
+ */
+export function moveEventReplacements(
+  tx: Tx,
+  eventId: number,
+  at: number,
+): "before_fitting" | "after_removal" | null {
+  const items = replacedLines(tx, eventId);
+  for (const item of items) {
+    const old = tx.select().from(components).where(eq(components.id, item.oldId)).get();
+    const fitted = tx.select().from(components).where(eq(components.id, item.newId)).get();
+    if (old && at < old.installedAt.getTime()) return "before_fitting";
+    if (fitted?.removedAt && at > fitted.removedAt.getTime()) return "after_removal";
+  }
+  for (const item of items) {
+    tx.update(components)
+      .set({ removedAt: new Date(at) })
+      .where(eq(components.id, item.oldId))
+      .run();
+    tx.update(components)
+      .set({ installedAt: new Date(at) })
+      .where(eq(components.id, item.newId))
+      .run();
+    tx.update(inventoryMovements)
+      .set({ occurredAt: new Date(at) })
+      .where(eq(inventoryMovements.maintenanceItemId, item.id))
+      .run();
+  }
+  return null;
 }
 
 // --- Maintenance events (read) ----------------------------------------------------------------------
