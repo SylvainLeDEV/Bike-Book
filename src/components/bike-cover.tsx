@@ -59,11 +59,13 @@ export function BikeCover({
   className,
   children,
 }: BikeCoverProps) {
-  if (cover.photoUrl) {
+  // Small covers (bare) use the thumbnail; cards and the bike page the display size.
+  const photo = bare ? (cover.thumbUrl ?? cover.photoUrl) : cover.photoUrl;
+  if (photo) {
     return (
       <Tag className={cn("relative block overflow-hidden bg-surface-2", className)}>
         {/* eslint-disable-next-line @next/next/no-img-element -- served by the uploads handler */}
-        <img src={cover.photoUrl} alt="" className="absolute inset-0 size-full object-cover" />
+        <img src={photo} alt="" className="absolute inset-0 size-full object-cover" />
         {children}
       </Tag>
     );
@@ -101,6 +103,7 @@ export function BikeCover({
 /** A bike "pastille": a tiny round cover, for rows that name several bikes. */
 export function BikePip({ cover, className }: { cover: BikeCoverVM; className?: string }) {
   const [sky1, , far, near] = coverPalette(cover.artIndex);
+  const photo = cover.thumbUrl ?? cover.photoUrl;
   return (
     <span
       aria-hidden
@@ -109,8 +112,8 @@ export function BikePip({ cover, className }: { cover: BikeCoverVM; className?: 
         className,
       )}
       style={{
-        background: cover.photoUrl
-          ? `center / cover url(${JSON.stringify(cover.photoUrl)})`
+        background: photo
+          ? `center / cover url(${JSON.stringify(photo)})`
           : `linear-gradient(170deg, ${sky1} 0 46%, ${far} 46% 72%, ${near} 72%)`,
       }}
     />

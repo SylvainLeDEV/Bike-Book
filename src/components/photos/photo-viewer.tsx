@@ -6,34 +6,40 @@ import {
   Calendar,
   ChevronLeft,
   ChevronRight,
+  ClipboardList,
   Cog,
+  Download,
   Image as ImageIcon,
   Mountain,
+  Package,
   Pencil,
-  Trash2,
   Wrench,
   X,
 } from "lucide-react";
 import { Dialog } from "radix-ui";
+import { AttachmentEditor, coverLabel } from "@/components/attachments/attachment-editor";
+import { originLabel } from "@/components/attachments/origin";
+import { useAttachmentService } from "@/components/attachments/service";
 import { Button } from "@/components/ui/button";
-import { Field, Input } from "@/components/ui/field";
 import { formatDate } from "@/lib/format";
-import type { PhotoOrigin, PhotoVM } from "@/lib/view-models";
+import { ATTACHMENT_KIND_LABELS } from "@/lib/labels";
+import type { AttachmentVM, PhotoOrigin } from "@/lib/view-models";
 
 /*
  * Full-screen photo viewer (D-45): previous and next by buttons, arrow keys and swipe, Escape
  * closes, and the focus returns to the thumbnail that opened it, even if a re-render replaced
- * it. Delete goes through the caller, which shows the undo toast.
+ * it. "Modifier" edits the caption, kind, date taken and cover, and deletes after a
+ * confirmation (feature 10), through the attachment service: read-only without one.
  */
 
-export type PhotoSequence = { title: string; photos: PhotoVM[] };
+/** Images only: PDFs open in a new tab instead. */
+export type PhotoSequence = { title: string; photos: AttachmentVM[] };
 
 export type PhotoViewerActions = {
-  onDelete?: (photo: PhotoVM) => void;
-  onSetCover?: (photo: PhotoVM) => void;
-  onCaptionSave?: (photo: PhotoVM, caption: string | null) => void;
   /** Shows the element the photo belongs to (record, component, history entry). */
-  onShowOrigin?: (photo: PhotoVM) => void;
+  onShowOrigin?: (photo: AttachmentVM) => void;
+  /** After an edit or a delete, for lists that hold their own data (the block of a sheet). */
+  onChanged?: () => void;
 };
 
 type ViewerContextValue = { open: (sequence: PhotoSequence, photoId: number) => void };
@@ -48,22 +54,18 @@ const ORIGIN_ICONS: Record<PhotoOrigin, typeof Bike> = {
   component: Cog,
   maintenance_event: Wrench,
   ride: Mountain,
+  task: ClipboardList,
+  inventory_item: Package,
 };
 
-const SHOW_ORIGIN_LABELS: Record<PhotoOrigin, string> = {
+const SHOW_ORIGIN_LABELS: Partial<Record<PhotoOrigin, string>> = {
   bike: "Voir la fiche du vélo",
   component: "Voir dans les composants",
   maintenance_event: "Voir dans l'historique",
   ride: "Voir dans l'historique",
 };
 
-export function originLabel(photo: PhotoVM): string {
-  const { kind, on } = photo.origin;
-  if (kind === "bike") return "Vélo";
-  if (kind === "component") return "Composant";
-  const day = on ? formatDate(on, { month: "short", year: "never" }) : "";
-  return kind === "maintenance_event" ? `Entretien du ${day}` : `Sortie du ${day}`;
-}
+export { originLabel };
 
 export function PhotoViewerProvider({
   children,
@@ -76,6 +78,7 @@ export function PhotoViewerProvider({
   const opener = React.useRef<HTMLElement | null>(null);
   const captionRef = React.useRef<HTMLHeadingElement>(null);
   const swipeStart = React.useRef<{ x: number; y: number } | null>(null);
+  const service = useAttachmentService();
 
   const open = React.useCallback((next: PhotoSequence, photoId: number) => {
     opener.current = document.activeElement as HTMLElement | null;
@@ -109,25 +112,38 @@ export function PhotoViewerProvider({
 
   const close = () => setSequence(null);
 
-  function remove() {
-    if (!sequence || !photo) return;
-    const rest = sequence.photos.filter((p) => p.id !== photo.id);
-    actions.onDelete?.(photo);
+  const focusCaption = () =>
+    requestAnimationFrame(() => captionRef.current?.focus({ preventScroll: true }));
+
+  function removed(gone: AttachmentVM) {
+    if (!sequence) return;
+    actions.onChanged?.();
+    setEditing(false);
+    const rest = sequence.photos.filter((p) => p.id !== gone.id);
     if (!rest.length) return close();
     setSequence({ ...sequence, photos: rest });
     setIndex(Math.min(index, rest.length - 1));
-    requestAnimationFrame(() => captionRef.current?.focus({ preventScroll: true }));
+    setAnnouncement("Photo supprimée");
+    focusCaption();
   }
 
-  function saveCaption(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!sequence || !photo) return;
-    const value = String(new FormData(event.currentTarget).get("caption") ?? "").trim() || null;
-    const updated = { ...photo, caption: value };
-    setSequence({ ...sequence, photos: photos.map((p) => (p.id === photo.id ? updated : p)) });
-    actions.onCaptionSave?.(photo, value);
+  function saved(updated: AttachmentVM) {
+    if (!sequence) return;
+    actions.onChanged?.();
+    // Only one cover per element: the others of the sequence lose it.
+    const photos = sequence.photos.map((p) =>
+      p.id === updated.id
+        ? updated
+        : updated.isCover &&
+            p.origin.kind === updated.origin.kind &&
+            p.origin.id === updated.origin.id
+          ? { ...p, isCover: false }
+          : p,
+    );
+    setSequence({ ...sequence, photos });
     setEditing(false);
-    requestAnimationFrame(() => captionRef.current?.focus({ preventScroll: true }));
+    setAnnouncement("Modifications enregistrées");
+    focusCaption();
   }
 
   const OriginIcon = photo ? ORIGIN_ICONS[photo.origin.kind] : Bike;
@@ -227,28 +243,19 @@ export function PhotoViewerProvider({
                 </div>
 
                 <div className="grid content-start gap-[18px] p-4 pb-[max(28px,env(safe-area-inset-bottom))] lg:overflow-y-auto lg:border-l lg:border-border lg:bg-surface lg:p-5">
-                  <div>
-                    {editing ? (
-                      <form onSubmit={saveCaption} className="grid gap-2">
-                        <Field label="Légende">
-                          <Input
-                            name="caption"
-                            defaultValue={photo.caption ?? ""}
-                            autoComplete="off"
-                            placeholder="Ex. Joints racleurs encrassés"
-                            autoFocus
-                          />
-                        </Field>
-                        <div className="flex flex-wrap gap-2">
-                          <Button type="submit" size="sm">
-                            Enregistrer
-                          </Button>
-                          <Button variant="ghost" size="sm" onClick={() => setEditing(false)}>
-                            Annuler
-                          </Button>
-                        </div>
-                      </form>
-                    ) : (
+                  {editing ? (
+                    <AttachmentEditor
+                      key={photo.id}
+                      attachment={photo}
+                      onSaved={saved}
+                      onDeleted={removed}
+                      onCancel={() => {
+                        setEditing(false);
+                        focusCaption();
+                      }}
+                    />
+                  ) : (
+                    <div>
                       <div className="flex items-start gap-2">
                         <h3
                           ref={captionRef}
@@ -261,28 +268,45 @@ export function PhotoViewerProvider({
                         >
                           {photo.caption ?? "Sans légende"}
                         </h3>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          aria-label={photo.caption ? "Modifier la légende" : "Ajouter une légende"}
-                          onClick={() => setEditing(true)}
-                        >
-                          <Pencil />
-                        </Button>
+                        {service ? (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            aria-label="Modifier la photo"
+                            onClick={() => setEditing(true)}
+                          >
+                            <Pencil />
+                          </Button>
+                        ) : null}
                       </div>
-                    )}
-                    {photo.caption ? null : (
-                      <p className="mt-1 hint">
-                        Lu par les lecteurs d&apos;écran : « {photo.alt} ».
-                      </p>
-                    )}
-                  </div>
+                      {photo.caption ? null : (
+                        <p className="mt-1 hint">
+                          Lu par les lecteurs d&apos;écran : « {photo.alt} ».
+                        </p>
+                      )}
+                    </div>
+                  )}
 
                   <ul className="m-0 grid list-none gap-2.5 p-0 text-sm [&_svg]:mt-px [&_svg]:size-[18px] [&_svg]:shrink-0 [&_svg]:text-fg-muted">
-                    <li className="flex items-start gap-2.5">
-                      <Calendar aria-hidden />
-                      <span>Prise le {formatDate(photo.takenOn, { month: "short" })}</span>
-                    </li>
+                    {photo.takenOn ? (
+                      <li className="flex items-start gap-2.5">
+                        <Calendar aria-hidden />
+                        <span>
+                          Prise le {formatDate(photo.takenOn, { month: "short" })}
+                          {photo.takenTime ? ` à ${photo.takenTime.replace(":", " h ")}` : ""}
+                        </span>
+                      </li>
+                    ) : null}
+                    {photo.kind !== "photo" || photo.isCover ? (
+                      <li className="flex items-start gap-2.5">
+                        <ImageIcon aria-hidden />
+                        <span>
+                          {photo.kind !== "photo"
+                            ? ATTACHMENT_KIND_LABELS[photo.kind]
+                            : (coverLabel(photo) ?? "")}
+                        </span>
+                      </li>
+                    ) : null}
                     <li className="flex items-start gap-2.5">
                       <OriginIcon aria-hidden />
                       <span>
@@ -294,7 +318,7 @@ export function PhotoViewerProvider({
                             <b className="font-semibold">{photo.origin.title}</b>
                           </>
                         )}
-                        {actions.onShowOrigin ? (
+                        {actions.onShowOrigin && SHOW_ORIGIN_LABELS[photo.origin.kind] ? (
                           <>
                             <br />
                             <Button
@@ -310,25 +334,21 @@ export function PhotoViewerProvider({
                         ) : null}
                       </span>
                     </li>
-                    <li className="flex items-start gap-2.5">
-                      <Bike aria-hidden />
-                      <span>{photo.bikeName}</span>
-                    </li>
+                    {photo.bikeName && photo.origin.kind !== "bike" ? (
+                      <li className="flex items-start gap-2.5">
+                        <Bike aria-hidden />
+                        <span>{photo.bikeName}</span>
+                      </li>
+                    ) : null}
                   </ul>
 
                   <div className="flex flex-wrap gap-2">
-                    {photo.origin.kind === "bike" && actions.onSetCover ? (
-                      <Button variant="ghost" size="sm" onClick={() => actions.onSetCover?.(photo)}>
-                        <ImageIcon />
-                        Photo principale
-                      </Button>
-                    ) : null}
-                    {actions.onDelete ? (
-                      <Button variant="ghost" size="sm" onClick={remove}>
-                        <Trash2 />
-                        Supprimer la photo
-                      </Button>
-                    ) : null}
+                    <Button variant="ghost" size="sm" asChild>
+                      <a href={photo.downloadUrl} download={photo.name}>
+                        <Download />
+                        Télécharger l&apos;original
+                      </a>
+                    </Button>
                   </div>
                 </div>
               </div>

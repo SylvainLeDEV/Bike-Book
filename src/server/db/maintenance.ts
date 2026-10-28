@@ -4,6 +4,7 @@ import type { MaintenanceAction, MeasurementUnit, ShopKind } from "@/lib/enums";
 import type { LocalDate } from "@/lib/format";
 import { eventInstant } from "@/server/domain/time";
 import type { AccessContext } from "./access-context";
+import { bikeAttachmentPaths, withFileCleanup } from "./attachments";
 import { getDb, type Tx } from "./client";
 import { bikes, components, maintenanceEvents, maintenanceItems } from "./schema";
 import { moveEventReplacements, undoEventReplacements } from "./components";
@@ -185,20 +186,36 @@ export function deleteMaintenanceEvent(
   eventId: number,
   options: { keepReplacements?: boolean } = {},
 ): { ok: true } | { ok: false; reason: "not_found" | "too_late" } {
-  return getDb().transaction((tx) => {
-    const event = tx
-      .select({ id: maintenanceEvents.id })
+  // Its attachments, and those of the parts its replacements fitted, go with it.
+  const files = bikeAttachmentPaths(eventBikeId(ctx, eventId));
+  return withFileCleanup(files, () =>
+    getDb().transaction((tx) => {
+      const event = tx
+        .select({ id: maintenanceEvents.id })
+        .from(maintenanceEvents)
+        .innerJoin(bikes, eq(bikes.id, maintenanceEvents.bikeId))
+        .where(and(eq(maintenanceEvents.id, eventId), eq(bikes.workspaceId, ctx.workspace.id)))
+        .get();
+      if (!event) return { ok: false, reason: "not_found" };
+      if (options.keepReplacements) {
+        if (hasReplacement(tx, eventId)) return { ok: false, reason: "too_late" };
+      } else if (!undoEventReplacements(tx, eventId)) {
+        return { ok: false, reason: "too_late" };
+      }
+      tx.delete(maintenanceEvents).where(eq(maintenanceEvents.id, eventId)).run();
+      return { ok: true };
+    }),
+  );
+}
+
+/** The bike of an event of the workspace, or null. */
+function eventBikeId(ctx: AccessContext, eventId: number): number | null {
+  return (
+    getDb()
+      .select({ bikeId: maintenanceEvents.bikeId })
       .from(maintenanceEvents)
       .innerJoin(bikes, eq(bikes.id, maintenanceEvents.bikeId))
       .where(and(eq(maintenanceEvents.id, eventId), eq(bikes.workspaceId, ctx.workspace.id)))
-      .get();
-    if (!event) return { ok: false, reason: "not_found" };
-    if (options.keepReplacements) {
-      if (hasReplacement(tx, eventId)) return { ok: false, reason: "too_late" };
-    } else if (!undoEventReplacements(tx, eventId)) {
-      return { ok: false, reason: "too_late" };
-    }
-    tx.delete(maintenanceEvents).where(eq(maintenanceEvents.id, eventId)).run();
-    return { ok: true };
-  });
+      .get()?.bikeId ?? null
+  );
 }

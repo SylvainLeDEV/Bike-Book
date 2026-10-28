@@ -1,23 +1,35 @@
 import "server-only";
 import type { ActivityVM, TimelineEdits } from "@/lib/view-models";
-import { listBikes, listMaintenanceEvents, listRides, type AccessContext } from "@/server/db";
+import {
+  listBikes,
+  listDoneTasks,
+  listMaintenanceEvents,
+  listRides,
+  type AccessContext,
+} from "@/server/db";
 import { getEnv } from "@/server/env";
 import { today } from "@/server/time";
 import { timeline, timelineEdits } from "./timeline";
 
-/** Every ride and maintenance event of the workspace, newest first, and what each one opens. */
+/**
+ * Every ride, maintenance event and done task of the workspace (general tasks included, D-77),
+ * newest first, and what each one opens.
+ */
 export function getActivityPage(ctx: AccessContext): { vm: ActivityVM; edits: TimelineEdits } {
   const { timeZone } = getEnv();
-  const names = new Map(listBikes(ctx).map((bike) => [bike.id, bike.name]));
+  const bikes = listBikes(ctx);
+  const names = new Map(bikes.map((bike) => [bike.id, bike.name]));
   const rides = listRides(ctx);
   const events = listMaintenanceEvents(ctx, null);
+  const tasks = listDoneTasks(ctx);
   return {
     vm: {
       today: today(),
-      items: timeline(rides, events, names, timeZone),
+      items: timeline(rides, events, tasks, names, timeZone),
       rideCount: rides.length,
       maintenanceCount: events.length,
+      doneTaskCount: tasks.length,
     },
-    edits: timelineEdits(rides, events, timeZone),
+    edits: timelineEdits(rides, events, tasks, bikes, timeZone),
   };
 }

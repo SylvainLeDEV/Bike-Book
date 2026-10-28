@@ -3,11 +3,11 @@
 Self-hosted web app to track bikes: rides, maintenance, components, and what is coming up
 (services due by hours, kilometres or date, parts to rebuy from the workshop).
 
-**Status:** Phase 1 step B in progress: features 1 to 9, 11 and 12 (bikes, reference data,
-components, rides, maintenance, rule engine, tasks, workshop, dashboard, bike page, ZIP export)
-done on 2026-10-26; feature 10 (attachments) is next (iPhone test done 2026-10-27: H-11, D-72).
-Phase 0 items still open are deployment-side (backups with a tested restore, a 10 MB upload
-through the proxy), planned before real data.
+**Status:** Phase 1 step B: features 1 to 12 done (bikes, reference data, components, rides,
+maintenance, rule engine, tasks, workshop, dashboard and bike page on 2026-10-26; attachments,
+feature 10, on 2026-10-27, D-73 to D-76). Left before real data: the phase 1 exit criteria, the
+real-iPhone check of the upload through the local network, and the deployment-side phase 0
+items (backups with a tested restore, a 10 MB upload through the proxy).
 
 ## Read first
 
@@ -78,8 +78,8 @@ through the proxy), planned before real data.
 src/
 ├── app/            # App Router: (app)/ signed-in pages, (auth)/ login + setup,
 │                   # design/ (development-only design system, D-32),
-│                   # api/auth/[...all] (Better Auth), api/healthz, api/export (ZIP, D-68);
-│                   # api/uploads with feature 10.
+│                   # api/auth/[...all] (Better Auth), api/healthz, api/export (ZIP, D-68),
+│                   # api/uploads (POST, raw body streamed) and api/uploads/[id] (GET, D-76).
 │                   # Routes: /, /bikes, /bikes/[bikeId], /activity, /workshop (D-54), /settings;
 │                   # /bikes/[id]?done=<rule>, ?replace=<item> and ?event=<id> (edit,
 │                   # D-70) open a sheet on arrival
@@ -89,13 +89,18 @@ src/
 │   ├── auth/       # Better Auth instance, sign-up policy, current user + workspace
 │   ├── actions/    # Server Actions, their Zod input schemas in *-input.ts
 │   ├── domain/     # pure, tested logic: bike status, total cost, wear (D-13), part history,
-│   │               # instants of dated entries (D-61), rule engine (D-65)
+│   │               # instants of dated entries (D-61), rule engine (D-65), attachments
+│   │               # (format from magic bytes, EXIF dates, storage paths, covers)
 │   ├── views/      # view models of the real pages (data-access layer + domain)
-│   ├── export/     # ZIP writer (node:zlib), CSV, dictionary.json from schema + docs/03 (D-68)
+│   ├── export/     # ZIP writer (node:zlib), CSV, dictionary.json from schema + docs/03 (D-68),
+│   │               # attachments' originals under uploads/
+│   ├── files/      # uploads on disk: streaming to a temp file, atomic rename, sharp copies in
+│   │               # cache/ (upright, no metadata), generated demo photos and PDFs (D-76)
 │   ├── env.ts      # configuration, validated with Zod (TZ included); time.ts: today in TZ
-│   └── (files/, jobs/, integrations/ come with features 10, 1.5 and phase 2)
+│   └── (jobs/, integrations/ come with 1.5 and phase 2)
 ├── components/     # Screens and building blocks, fed by view models (props);
-│                   # primitives in components/ui (shadcn/ui style, Radix), shell/ = app shell
+│                   # primitives in components/ui (shadcn/ui style, Radix), shell/ = app shell,
+│                   # attachments/ = the "Pièces jointes" block and its service context (D-74)
 ├── lib/            # client-safe: enums.ts (enum values, shared with the schema),
 │                   # format.ts / parse.ts (French formats), labels.ts (enum labels), names.ts,
 │                   # view-models.ts, display.ts, theme.ts, auth client
@@ -128,7 +133,7 @@ Toolchain: Node.js ≥ 24 (the image uses Node 24 LTS) and pnpm 12 (pinned in `p
 | `pnpm test` / `pnpm test:watch` | Vitest; each test file gets its own temporary database |
 | `pnpm db:generate` | Generate a migration from `src/server/db/schema.ts` (drizzle-kit) |
 | `pnpm db:migrate` | Apply migrations to `DATA_DIR` (the app also does it at startup) |
-| `pnpm db:seed` | Create the fictitious demo account and garage of `/design` (`demo@example.com`, see `src/server/db/seed.ts`), dates moved to the current week; `--reset` recreates it; refuses to run in production |
+| `pnpm db:seed` | Create the fictitious demo account and garage of `/design` (`demo@example.com`, see `src/server/db/seed.ts`), dates moved to the current week, with generated photos and PDFs written to `DATA_DIR`; `--reset` recreates it (and deletes the old files); refuses to run in production |
 | `pnpm db:studio` | Drizzle Studio on the dev database |
 | `docker compose up --build` | Build and run the production image locally (needs `.env`, see `docker-compose.yml`) |
 

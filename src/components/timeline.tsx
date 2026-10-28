@@ -1,5 +1,5 @@
 import { cn } from "cn";
-import { ChevronRight, Info, Paperclip, Wrench } from "lucide-react";
+import { Check, ChevronRight, Info, Paperclip, Wrench } from "lucide-react";
 import { RIDE_TYPE_ICONS } from "@/components/icons";
 import { PhotoThumbs } from "@/components/photos/photo-thumbs";
 import { maintenanceFigures, rideFigures } from "@/lib/display";
@@ -44,11 +44,11 @@ function TimelineEntry({
   today: LocalDate;
   withBike: boolean;
   relativeDates: boolean;
-  addPhotos?: (eventId: number, title: string, hasPhotos: boolean) => React.ReactNode;
+  addPhotos?: (item: TimelineItemVM) => React.ReactNode;
   onEdit?: (item: TimelineItemVM) => void;
 }) {
   const isRide = item.kind === "ride";
-  const Icon = isRide ? RIDE_TYPE_ICONS[item.rideType] : Wrench;
+  const Icon = isRide ? RIDE_TYPE_ICONS[item.rideType] : item.kind === "task" ? Check : Wrench;
   const date = relativeDates
     ? formatDayLabel(item.on, today)
     : formatDate(item.on, {
@@ -58,16 +58,28 @@ function TimelineEntry({
         today,
         capitalized: true,
       });
-  const kindLabel = isRide
-    ? RIDE_TYPE_LABELS[item.rideType]
-    : item.performedBy === "shop"
-      ? `Atelier ${item.shopName ?? ""}`.trim()
-      : withBike
-        ? "Entretien"
-        : "Entretien maison";
-  const figures = isRide
-    ? rideFigures(item)
-    : maintenanceFigures(item.totalCostCents, item.performedBy);
+  const kindLabel =
+    item.kind === "ride"
+      ? RIDE_TYPE_LABELS[item.rideType]
+      : item.kind === "task"
+        ? "Tâche faite"
+        : item.performedBy === "shop"
+          ? `Atelier ${item.shopName ?? ""}`.trim()
+          : withBike
+            ? "Entretien"
+            : "Entretien maison";
+  const figures =
+    item.kind === "ride"
+      ? rideFigures(item)
+      : item.kind === "maintenance"
+        ? maintenanceFigures(item.totalCostCents, item.performedBy)
+        : null;
+  const editLabel =
+    item.kind === "ride"
+      ? "Modifier la sortie"
+      : item.kind === "task"
+        ? "Modifier la tâche"
+        : "Modifier l'entretien";
 
   const tags: React.ReactNode[] = [];
   if (isRide && item.conditions) tags.push(<Tag key="c">{CONDITIONS_LABELS[item.conditions]}</Tag>);
@@ -78,18 +90,16 @@ function TimelineEntry({
         Usure comptée : {formatDuration(item.wearS)} de descente
       </Tag>,
     );
-  if (!isRide) {
-    for (const invoice of item.invoices)
-      tags.push(
-        <Tag key={`i${invoice.id}`}>
-          <Paperclip aria-hidden />
-          {invoice.name}
-        </Tag>,
-      );
-    if (item.note) tags.push(<Tag key="n">{item.note}</Tag>);
-  }
+  for (const document of item.documents)
+    tags.push(
+      <Tag key={`d${document.id}`}>
+        <Paperclip aria-hidden />
+        {document.caption ?? document.name}
+      </Tag>,
+    );
+  if (item.kind !== "ride" && item.note) tags.push(<Tag key="n">{item.note}</Tag>);
 
-  const showPhotos = !withBike && (item.photos.length > 0 || (!isRide && addPhotos));
+  const showPhotos = !withBike && (item.photos.length > 0 || addPhotos);
 
   return (
     <li
@@ -104,7 +114,11 @@ function TimelineEntry({
       <span
         className={cn(
           "grid size-9 place-items-center rounded-full [&_svg]:size-[18px]",
-          isRide ? "bg-surface-2 text-fg-muted" : "bg-brand-soft text-brand-ink",
+          isRide
+            ? "bg-surface-2 text-fg-muted"
+            : item.kind === "task"
+              ? "bg-ok-soft text-ok-ink"
+              : "bg-brand-soft text-brand-ink",
         )}
       >
         <Icon aria-hidden />
@@ -113,7 +127,7 @@ function TimelineEntry({
         <p className="flex flex-wrap items-baseline gap-1.5 text-[13px] text-fg-muted">
           <b className="font-semibold text-fg">{date}</b>
           <span>
-            · {withBike ? `${item.bikeName} · ` : ""}
+            · {withBike ? `${item.bikeName ?? "Général"} · ` : ""}
             {kindLabel}
           </span>
         </p>
@@ -125,9 +139,7 @@ function TimelineEntry({
               onClick={() => onEdit(item)}
               className="text-left outline-none group-hover:underline group-hover:underline-offset-3 after:absolute after:-inset-x-2 after:-top-1.5 after:bottom-2.5 after:rounded-lg group-last:after:-bottom-1.5 focus-visible:after:ring-2 focus-visible:after:ring-ring"
             >
-              <span className="sr-only">
-                {isRide ? "Modifier la sortie" : "Modifier l'entretien"} :{" "}
-              </span>
+              <span className="sr-only">{editLabel} : </span>
               {item.title}
             </button>
           ) : (
@@ -143,9 +155,7 @@ function TimelineEntry({
             <PhotoThumbs
               photos={item.photos}
               title={`${date} · ${item.title}`}
-              extra={
-                !isRide && addPhotos ? addPhotos(item.id, item.title, item.photos.length > 0) : null
-              }
+              extra={addPhotos ? addPhotos(item) : null}
             />
           </div>
         ) : null}
@@ -161,7 +171,7 @@ function TimelineEntry({
 }
 
 /**
- * Rides and maintenance, newest first. `groupByMonth` adds month headings (bike history);
+ * Rides, maintenance and done tasks (D-77), newest first. `groupByMonth` adds month headings (bike history);
  * `withBike` names the bike on each entry (dashboard).
  */
 export function Timeline({
@@ -178,8 +188,8 @@ export function Timeline({
   withBike?: boolean;
   groupByMonth?: boolean;
   relativeDates?: boolean;
-  /** Renders the "add photos" control of a maintenance event (bike page). */
-  addPhotos?: (eventId: number, title: string, hasPhotos: boolean) => React.ReactNode;
+  /** Renders the "add photos" control of a ride, a maintenance event or a task (bike page). */
+  addPhotos?: (item: TimelineItemVM) => React.ReactNode;
   /** Makes each entry open its edit sheet (D-70). */
   onEdit?: (item: TimelineItemVM) => void;
 }) {

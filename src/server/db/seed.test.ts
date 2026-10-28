@@ -1,6 +1,10 @@
+import { existsSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { dataPath } from "@/server/files/storage";
 import {
   findAccessContext,
+  getBike,
+  listBikeAttachments,
   listBikes,
   listComponents,
   listMaintenanceEvents,
@@ -76,9 +80,27 @@ describe("demo seed", () => {
     });
   });
 
+  it("attaches generated photos and PDFs, the first bike photo as its cover", () => {
+    const ctx = demoContext()!;
+    const spectral = listBikes(ctx)[0];
+    const files = listBikeAttachments(ctx, spectral.id)!;
+    expect(new Set(files.map((a) => a.owner.kind))).toEqual(
+      new Set(["bike", "maintenance_event", "ride", "component", "task"]),
+    );
+    expect(files.some((a) => a.mimeType === "application/pdf")).toBe(true);
+    expect(getBike(ctx, spectral.id)?.coverAttachmentId).toBe(
+      files.find((a) => a.caption?.startsWith("Premier tour"))?.id,
+    );
+    for (const file of files) expect(existsSync(dataPath(file.storagePath))).toBe(true);
+  });
+
   it("leaves an existing demo account alone, unless asked to reset it", async () => {
     expect(await seedDemoData()).toMatchObject({ created: false });
     const before = demoContext()!.workspace.id;
+    const oldFiles = listBikes(demoContext()!).flatMap(
+      (bike) => listBikeAttachments(demoContext()!, bike.id) ?? [],
+    );
+    expect(oldFiles.length).toBeGreaterThan(0);
     expect(await seedDemoData({ reset: true, today: "2026-10-25" })).toMatchObject({
       created: true,
     });
@@ -86,5 +108,7 @@ describe("demo seed", () => {
     expect(after.workspace.id).not.toBe(before);
     expect(listBikes(after)).toHaveLength(3);
     expect(listBikes(after)[0].purchasedOn).toBe("2024-03-14");
+    // The old workspace's files went with it (feature 10).
+    for (const file of oldFiles) expect(existsSync(dataPath(file.storagePath))).toBe(false);
   });
 });

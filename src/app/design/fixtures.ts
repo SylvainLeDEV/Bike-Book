@@ -7,6 +7,7 @@
  * procedure or photo label appears (D-45, D-47).
  */
 import type {
+  AttachmentVM,
   BikePageVM,
   ComponentTypeOption,
   BikeRef,
@@ -158,22 +159,104 @@ const pivotsTask: TaskRowVM = {
   bike: SPECTRAL,
   title: "Vérifier le serrage des pivots",
   dueOn: "2026-10-31",
+  notes: null,
+  doneOn: null,
 };
 const truingTask: TaskRowVM = {
   id: 2,
   bike: GRAVEL,
   title: "Dévoiler la roue arrière",
   dueOn: null,
+  notes: "Voile léger depuis la sortie du plateau.",
+  doneOn: null,
 };
 
 // --- Photos ----------------------------------------------------------------------------------------
 
-type PhotoSeed = Omit<PhotoVM, "thumbUrl" | "url" | "bikeName"> & { art: string };
+type PhotoSeed = Pick<PhotoVM, "id" | "caption" | "alt" | "takenOn" | "origin"> & {
+  art: string;
+  isCover?: boolean;
+};
 
 function photo(seed: PhotoSeed, bikeName = "Spectral"): PhotoVM {
-  const { art, ...rest } = seed;
-  return { ...rest, thumbUrl: art, url: art, bikeName };
+  const { art, isCover = false, ...rest } = seed;
+  return {
+    ...rest,
+    kind: "photo",
+    isImage: true,
+    name: `IMG_${rest.id}.jpeg`,
+    sizeBytes: 3_400_000,
+    takenTime: "10:30",
+    addedOn: rest.takenOn,
+    thumbUrl: art,
+    url: art,
+    downloadUrl: art,
+    bikeName,
+    isCover,
+  };
 }
+
+/** A PDF of the bike or of one of its elements (the links lead nowhere in /design). */
+function doc(
+  seed: Pick<AttachmentVM, "id" | "name" | "sizeBytes" | "addedOn" | "origin"> &
+    Partial<Pick<AttachmentVM, "kind" | "caption">>,
+): AttachmentVM {
+  return {
+    kind: "invoice",
+    caption: null,
+    alt: seed.name,
+    ...seed,
+    isImage: false,
+    takenOn: null,
+    takenTime: null,
+    thumbUrl: null,
+    url: `#document-${seed.id}`,
+    downloadUrl: `#document-${seed.id}`,
+    bikeName: "Spectral",
+    isCover: false,
+  };
+}
+
+const SPECTRAL_ORIGIN = { kind: "bike", id: 1, title: "Spectral", on: null } as const;
+
+export const SPECTRAL_DOCUMENTS: AttachmentVM[] = [
+  doc({
+    id: 401,
+    name: "Facture d'achat.pdf",
+    sizeBytes: 412_000,
+    addedOn: "2024-03-14",
+    origin: SPECTRAL_ORIGIN,
+  }),
+  doc({
+    id: 402,
+    kind: "other",
+    caption: "Certificat de garantie du cadre",
+    name: "Certificat de garantie du cadre.pdf",
+    sizeBytes: 1_100_000,
+    addedOn: "2024-03-14",
+    origin: SPECTRAL_ORIGIN,
+  }),
+  doc({
+    id: 301,
+    name: "facture.pdf",
+    sizeBytes: 96_000,
+    addedOn: "2026-10-12",
+    origin: {
+      kind: "maintenance_event",
+      id: 9,
+      title: "Chaîne et plaquettes avant remplacées",
+      on: "2026-10-12",
+    },
+  }),
+  doc({
+    id: 403,
+    kind: "manual",
+    name: "Notice RockShox Super Deluxe.pdf",
+    sizeBytes: 2_300_000,
+    addedOn: "2025-04-02",
+    origin: { kind: "component", id: 11, title: "Amortisseur RockShox Super Deluxe", on: null },
+  }),
+];
 
 const p = {
   firstRide: photo({
@@ -187,6 +270,7 @@ const p = {
     ]),
     caption: "Premier tour, au retour du Salève",
     alt: "Photo du Spectral",
+    isCover: true,
     takenOn: "2024-04-02",
     origin: { kind: "bike", id: 1, title: "Spectral", on: null },
   }),
@@ -471,6 +555,7 @@ const bauges: TimelineItemVM = {
   wearS: null,
   conditions: "mud",
   photos: [p.bauges],
+  documents: [],
 };
 
 const SPECTRAL_HISTORY: TimelineItemVM[] = [
@@ -490,6 +575,7 @@ const SPECTRAL_HISTORY: TimelineItemVM[] = [
     wearS: null,
     conditions: "dry",
     photos: [],
+    documents: [],
   },
   {
     kind: "maintenance",
@@ -501,7 +587,7 @@ const SPECTRAL_HISTORY: TimelineItemVM[] = [
     title: "Chaîne et plaquettes avant remplacées",
     totalCostCents: 6890,
     note: null,
-    invoices: [{ id: 301, name: "facture.pdf" }],
+    documents: SPECTRAL_DOCUMENTS.filter((d) => d.id === 301),
     photos: [p.chainGauge, p.newChain, p.torque],
   },
   {
@@ -514,7 +600,7 @@ const SPECTRAL_HISTORY: TimelineItemVM[] = [
     title: "Purge des freins avant et arrière",
     totalCostCents: 4500,
     note: null,
-    invoices: [],
+    documents: [],
     photos: [],
   },
   {
@@ -527,7 +613,7 @@ const SPECTRAL_HISTORY: TimelineItemVM[] = [
     title: "Dérailleur et pneu arrière remplacés",
     totalCostCents: 43030,
     note: "Après la chute des Gets",
-    invoices: [],
+    documents: [],
     photos: [p.newDerailleur],
   },
   {
@@ -545,6 +631,7 @@ const SPECTRAL_HISTORY: TimelineItemVM[] = [
     wearS: 2 * H + 10 * 60,
     conditions: "dust",
     photos: [p.lesGets],
+    documents: [],
   },
 ];
 
@@ -559,6 +646,7 @@ function item(
 ): InventoryItemVM {
   return {
     kind: "part",
+    photoUrl: null,
     location: null,
     state: null,
     brand: null,
@@ -1158,6 +1246,7 @@ export const DASHBOARD: DashboardVM = {
       wearS: null,
       conditions: null,
       photos: [],
+      documents: [],
     },
     {
       kind: "maintenance",
@@ -1169,7 +1258,7 @@ export const DASHBOARD: DashboardVM = {
       title: "Plaquettes arrière remplacées",
       totalCostCents: 3800,
       note: null,
-      invoices: [],
+      documents: [],
       photos: [],
     },
   ],
@@ -1460,6 +1549,7 @@ export const SPECTRAL_PAGE: BikePageVM = {
       return {
         id: it.id,
         name: it.name,
+        photoUrl: it.photoUrl,
         category: it.category,
         bikes: it.bikes,
         location: it.location,
@@ -1493,22 +1583,7 @@ export const SPECTRAL_PAGE: BikePageVM = {
       initialWearS: 0,
     },
     frameSerial: "CN24 7Q3M 8K41",
-    documents: [
-      {
-        id: 401,
-        name: "Facture d'achat.pdf",
-        sizeBytes: 412_000,
-        addedOn: "2024-03-14",
-        url: "#facture-achat",
-      },
-      {
-        id: 402,
-        name: "Certificat de garantie du cadre.pdf",
-        sizeBytes: 1_100_000,
-        addedOn: "2024-03-14",
-        url: "#garantie-cadre",
-      },
-    ],
+    documents: SPECTRAL_DOCUMENTS,
     status: "active",
     statusChangedOn: "2024-03-14",
     cost: {

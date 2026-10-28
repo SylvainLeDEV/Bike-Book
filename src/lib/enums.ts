@@ -189,3 +189,25 @@ export type MovementKind = (typeof MOVEMENT_KINDS)[number];
 
 export const MAINTENANCE_PERFORMERS = ["self", "shop"] as const;
 export type MaintenancePerformer = (typeof MAINTENANCE_PERFORMERS)[number];
+
+/**
+ * What an attachment is (D-45, D-74). `track` is a ride file (FIT, phase 2), not offered yet.
+ * A photo is always an image; an image may also be an invoice, a manual or another document.
+ */
+export const ATTACHMENT_KINDS = ["photo", "invoice", "manual", "track", "other"] as const;
+export type AttachmentKind = (typeof ATTACHMENT_KINDS)[number];
+
+/** The kinds offered in phase 1, whatever the file. */
+export const DOCUMENT_KINDS = ["invoice", "manual", "other"] as const satisfies AttachmentKind[];
+export type DocumentKind = (typeof DOCUMENT_KINDS)[number];
+
+/** The element an attachment belongs to: exactly one of them (D-45). */
+export const ATTACHMENT_OWNERS = [
+  "bike",
+  "component",
+  "maintenance_event",
+  "ride",
+  "task",
+  "inventory_item",
+] as const;
+export type AttachmentOwnerKind = (typeof ATTACHMENT_OWNERS)[number];

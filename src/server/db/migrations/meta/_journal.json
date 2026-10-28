@@ -71,6 +71,13 @@
       "when": 1793105564089,
       "tag": "0009_bearing_types",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1793133094518,
+      "tag": "0010_attachments",
+      "breakpoints": true
     }
   ]
 }

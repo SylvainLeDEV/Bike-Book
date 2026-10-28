@@ -18,6 +18,7 @@ import {
 } from "drizzle-orm/sqlite-core";
 // Relative path: drizzle-kit loads this file without the "@" alias.
 import {
+  ATTACHMENT_KINDS,
   BIKE_STATUSES,
   COMPONENT_GROUPS,
   COMPONENT_ORIGINS,
@@ -224,6 +225,11 @@ export const bikes = sqliteTable(
     notes: text("notes"),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
+    /** The main photo: a photo of this bike (feature 10, added by ALTER TABLE, D-57). */
+    coverAttachmentId: integer("cover_attachment_id").references(
+      (): AnySQLiteColumn => attachments.id,
+      { onDelete: "set null" },
+    ),
   },
   (table) => [
     uniqueIndex("bikes_workspace_id_name_unique").on(table.workspaceId, table.name),
@@ -346,6 +352,11 @@ export const inventoryItems = sqliteTable(
     archivedAt: integer("archived_at", { mode: "timestamp_ms" }),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
+    /** Its photo: a photo of this item (feature 10, added by ALTER TABLE, D-57). */
+    photoAttachmentId: integer("photo_attachment_id").references(
+      (): AnySQLiteColumn => attachments.id,
+      { onDelete: "set null" },
+    ),
   },
   (table) => [
     index("inventory_items_workspace_id_idx").on(table.workspaceId),
@@ -757,6 +768,71 @@ export const maintenanceItems = sqliteTable(
     check(
       "maintenance_items_cost_check",
       sql`${table.costCents} is null or ${table.costCents} >= 0`,
+    ),
+  ],
+);
+
+// --- Attachments (feature 10, D-45, D-72 to D-75) -----------------------------------------------
+
+/**
+ * A photo or a document (PDF) of exactly one element. The file lives under the data directory
+ * (`storage_path`), never in the database; derived copies go to `cache/`. Deleting the element
+ * deletes the row (cascade); the data-access layer deletes the files.
+ */
+export const attachments = sqliteTable(
+  "attachments",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    bikeId: integer("bike_id").references(() => bikes.id, { onDelete: "cascade" }),
+    componentId: integer("component_id").references(() => components.id, { onDelete: "cascade" }),
+    maintenanceEventId: integer("maintenance_event_id").references(() => maintenanceEvents.id, {
+      onDelete: "cascade",
+    }),
+    rideId: integer("ride_id").references(() => rides.id, { onDelete: "cascade" }),
+    taskId: integer("task_id").references(() => tasks.id, { onDelete: "cascade" }),
+    inventoryItemId: integer("inventory_item_id").references(() => inventoryItems.id, {
+      onDelete: "cascade",
+    }),
+    kind: text("kind", { enum: ATTACHMENT_KINDS }).notNull(),
+    /** Relative to the data directory: `uploads/YYYY/MM/<random>.<ext>`. */
+    storagePath: text("storage_path").notNull(),
+    /** The file name sent by the browser, shown and used for downloads. */
+    originalName: text("original_name").notNull(),
+    /** Detected from the content, never taken from the browser. */
+    mimeType: text("mime_type").notNull(),
+    sizeBytes: integer("size_bytes").notNull(),
+    /** Hex SHA-256 of the original, computed while it is received. */
+    sha256: text("sha256").notNull(),
+    /** Images only, as displayed (EXIF orientation applied). */
+    widthPx: integer("width_px"),
+    heightPx: integer("height_px"),
+    /** Images only: EXIF date taken, else the file's last change, else the upload (D-73). */
+    takenAt: integer("taken_at", { mode: "timestamp_ms" }),
+    caption: text("caption"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    uniqueIndex("attachments_storage_path_unique").on(table.storagePath),
+    index("attachments_bike_id_idx").on(table.bikeId),
+    index("attachments_component_id_idx").on(table.componentId),
+    index("attachments_maintenance_event_id_idx").on(table.maintenanceEventId),
+    index("attachments_ride_id_idx").on(table.rideId),
+    index("attachments_task_id_idx").on(table.taskId),
+    index("attachments_inventory_item_id_idx").on(table.inventoryItemId),
+    enumCheck("attachments_kind_check", table.kind, ATTACHMENT_KINDS),
+    // Exactly one owner (D-45). CASE rather than adding booleans, so PostgreSQL accepts it too.
+    check(
+      "attachments_owner_check",
+      sql`(case when ${table.bikeId} is null then 0 else 1 end) + (case when ${table.componentId} is null then 0 else 1 end) + (case when ${table.maintenanceEventId} is null then 0 else 1 end) + (case when ${table.rideId} is null then 0 else 1 end) + (case when ${table.taskId} is null then 0 else 1 end) + (case when ${table.inventoryItemId} is null then 0 else 1 end) = 1`,
+    ),
+    check(
+      "attachments_photo_check",
+      sql`${table.kind} <> 'photo' or ${table.mimeType} like 'image/%'`,
+    ),
+    check(
+      "attachments_size_check",
+      sql`${table.sizeBytes} > 0 and (${table.widthPx} is null or ${table.widthPx} > 0) and (${table.heightPx} is null or ${table.heightPx} > 0)`,
     ),
   ],
 );

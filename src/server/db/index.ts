@@ -68,7 +68,15 @@ export {
   type Rule,
   type RuleData,
 } from "./rules";
-export { createTask, listOpenTasks, setTaskStatus, type Task, type TaskData } from "./tasks";
+export {
+  createTask,
+  listDoneTasks,
+  listOpenTasks,
+  setTaskStatus,
+  updateTask,
+  type Task,
+  type TaskData,
+} from "./tasks";
 export {
   addMovement,
   addPurchaseLink,
@@ -86,6 +94,24 @@ export {
   type ItemData,
   type RestockFields,
 } from "./inventory";
+export {
+  coverOf,
+  createAttachment,
+  describeOwner,
+  deleteAttachment,
+  getAttachment,
+  listAttachments,
+  listBikeAttachments,
+  listItemAttachments,
+  ownsAttachmentTarget,
+  setAttachmentCover,
+  updateAttachment,
+  type Attachment,
+  type AttachmentData,
+  type AttachmentOwner,
+  type AttachmentPatch,
+  type OwnerDescription,
+} from "./attachments";
 export {
   exportWorkspaceTables,
   NOT_EXPORTED_TABLES,

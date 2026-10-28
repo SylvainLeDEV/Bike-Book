@@ -3,9 +3,11 @@
 import * as React from "react";
 import Link from "next/link";
 import { Camera, ImagePlus, Paperclip, Plus, Replace, ShoppingCart, Wrench } from "lucide-react";
+import { UploadButton, UploadRows } from "@/components/attachments/upload-controls";
+import { useUploads } from "@/components/attachments/use-uploads";
 import { BikeCover } from "@/components/bike-cover";
 import { PhotoGallery } from "@/components/photos/photo-gallery";
-import { PhotoViewerProvider, type PhotoViewerActions } from "@/components/photos/photo-viewer";
+import { PhotoViewerProvider } from "@/components/photos/photo-viewer";
 import { PlanList, type PlanActions } from "@/components/plan/plan-list";
 import { useQuickRide } from "@/components/rides/quick-ride";
 import { Timeline } from "@/components/timeline";
@@ -17,9 +19,9 @@ import { InventoryRowContent, inventoryRowClasses } from "@/components/workshop/
 import { formatCount, formatDate, formatInteger, formatKilometres } from "@/lib/format";
 import { BIKE_STATUS_LABELS, DISCIPLINE_LABELS } from "@/lib/labels";
 import type {
+  AttachmentVM,
   BikePageVM,
   InventoryItemVM,
-  PhotoVM,
   ReplacePartInput,
   ReplacePartVM,
   TimelineItemVM,
@@ -28,24 +30,20 @@ import { BikeRecord, BIKE_STATUS_ICONS } from "./bike-record";
 import { BikeTabList, BikeTabPanel, BikeTabs, useBikeTabs } from "./bike-tabs";
 import { ComponentsSection } from "./components-section";
 
-export type BikeScreenActions = PlanActions &
-  Omit<PhotoViewerActions, "onShowOrigin"> & {
-    onReplacePart?: (
-      input: ReplacePartInput,
-      item: InventoryItemVM | null,
-    ) => void | Promise<void | { ok: false; error: string }>;
-    onAddComponent?: () => void;
-    onEditComponent?: (componentId: number) => void;
-    onChangeCover?: () => void;
-    onAddMaintenance?: () => void;
-    onEditBike?: (focus?: "status") => void;
-    onAddPhotos?: (suggestion?: string) => void;
-    onAttachDocument?: () => void;
-    onShowWearDetail?: () => void;
-    onShowRules?: () => void;
-    /** Opens an entry of the history in its edit sheet (D-70). */
-    onEditHistoryItem?: (item: TimelineItemVM) => void;
-  };
+export type BikeScreenActions = PlanActions & {
+  onReplacePart?: (
+    input: ReplacePartInput,
+    item: InventoryItemVM | null,
+  ) => void | Promise<void | { ok: false; error: string }>;
+  onAddComponent?: () => void;
+  onEditComponent?: (componentId: number) => void;
+  onAddMaintenance?: () => void;
+  onEditBike?: (focus?: "status") => void;
+  onShowWearDetail?: () => void;
+  onShowRules?: () => void;
+  /** Opens an entry of the history in its edit sheet (D-70). */
+  onEditHistoryItem?: (item: TimelineItemVM) => void;
+};
 
 export type BikeScreenLinks = {
   workshopItem: (itemId: number) => string;
@@ -152,9 +150,16 @@ function BikeScreenContent({
   const { bike, stats } = vm;
   const StatusIcon = BIKE_STATUS_ICONS[bike.status];
 
+  // Uploads of the bike itself (feature 10): cover, gallery, record documents.
+  const bikeOwner = React.useMemo(() => ({ kind: "bike" as const, id: bike.id }), [bike.id]);
+  const coverUploads = useUploads(bikeOwner);
+  const photoUploads = useUploads(bikeOwner);
+  const documentUploads = useUploads(bikeOwner);
+
   // "Voir dans l'historique" from the viewer: open the right tab, then focus the element.
-  const showOrigin = (photo: PhotoVM) => {
+  const showOrigin = (photo: AttachmentVM) => {
     const { kind, id } = photo.origin;
+    if (kind === "task" || kind === "inventory_item") return;
     const tab = kind === "bike" ? "record" : kind === "component" ? "components" : "history";
     tabs?.select(tab);
     const target =
@@ -171,26 +176,22 @@ function BikeScreenContent({
   };
 
   return (
-    <PhotoViewerProvider
-      onDelete={actions.onDelete}
-      onSetCover={actions.onSetCover}
-      onCaptionSave={actions.onCaptionSave}
-      onShowOrigin={showOrigin}
-    >
+    <PhotoViewerProvider onShowOrigin={showOrigin}>
       <BikeCover
         cover={bike.cover}
         className="-mx-4 -mt-4 aspect-[16/10] md:mx-0 md:mt-0 md:aspect-[3/1] md:rounded-card"
       >
         <span className="absolute inset-0 bg-[linear-gradient(to_top,var(--photo-shade),transparent_62%)]" />
-        {actions.onChangeCover ? (
-          <button
-            type="button"
-            onClick={actions.onChangeCover}
-            className="absolute top-3 right-3 inline-flex h-[34px] items-center gap-1.5 rounded-full bg-photo-glass px-3 text-[13px] leading-none font-semibold text-on-photo backdrop-blur-md pointer-coarse:h-11"
+        {coverUploads.enabled ? (
+          <UploadButton
+            single
+            variant="secondary"
+            onFiles={(files) => coverUploads.add(files, true)}
+            className="absolute top-3 right-3 h-[34px] gap-1.5 rounded-full border-0 bg-photo-glass px-3 text-[13px] leading-none text-on-photo shadow-none backdrop-blur-md hover:bg-photo-glass pointer-coarse:h-11"
           >
             <Camera className="size-4" aria-hidden />
-            Changer la photo
-          </button>
+            {bike.cover.photoUrl ? "Changer la photo" : "Ajouter une photo"}
+          </UploadButton>
         ) : null}
         <div className="absolute inset-x-4 bottom-3.5 text-on-photo md:bottom-5 md:left-6">
           <div className="flex flex-wrap gap-1.5">
@@ -218,6 +219,7 @@ function BikeScreenContent({
         </div>
       </BikeCover>
 
+      <UploadRows rows={coverUploads.rows} onDismiss={coverUploads.dismiss} className="mt-3" />
       <div className="my-4 flex flex-wrap gap-2">
         <Button onClick={() => openQuickRide(bike.id)}>
           <Plus />
@@ -367,18 +369,27 @@ function BikeScreenContent({
                   </>
                 }
                 side={
-                  vm.photos.length ? (
-                    <Button variant="secondary" size="sm" onClick={() => actions.onAddPhotos?.()}>
+                  vm.photos.length && photoUploads.enabled ? (
+                    <UploadButton
+                      variant="secondary"
+                      size="sm"
+                      onFiles={(files) => photoUploads.add(files)}
+                    >
                       <Camera />
                       Ajouter
-                    </Button>
+                    </UploadButton>
                   ) : null
                 }
+              />
+              <UploadRows
+                rows={photoUploads.rows}
+                onDismiss={photoUploads.dismiss}
+                className="mb-3"
               />
               <PhotoGallery
                 bikeName={bike.name}
                 photos={vm.photos}
-                onAddPhotos={actions.onAddPhotos}
+                onAddFiles={photoUploads.enabled ? (files) => photoUploads.add(files) : undefined}
               />
             </section>
           </BikeTabPanel>
@@ -402,11 +413,20 @@ function BikeScreenContent({
                 record={vm.record}
                 today={vm.today}
                 documentAction={
-                  actions.onAttachDocument ? (
-                    <Button variant="ghost" size="sm" onClick={actions.onAttachDocument}>
-                      <Paperclip />
-                      Joindre un document
-                    </Button>
+                  documentUploads.enabled ? (
+                    <div className="mt-1 grid gap-2">
+                      <UploadRows rows={documentUploads.rows} onDismiss={documentUploads.dismiss} />
+                      <div>
+                        <UploadButton
+                          variant="ghost"
+                          size="sm"
+                          onFiles={(files) => documentUploads.add(files)}
+                        >
+                          <Paperclip />
+                          Joindre un document
+                        </UploadButton>
+                      </div>
+                    </div>
                   ) : undefined
                 }
                 statusAction={
@@ -425,7 +445,7 @@ function BikeScreenContent({
               <SectionHead
                 id="bike-history-title"
                 title="Historique"
-                side={<span className="hint">Sorties et entretiens</span>}
+                side={<span className="hint">Sorties, entretiens et tâches faites</span>}
               />
               <Card padded>
                 <Timeline
@@ -434,20 +454,8 @@ function BikeScreenContent({
                   groupByMonth
                   onEdit={actions.onEditHistoryItem}
                   addPhotos={
-                    actions.onAddPhotos
-                      ? (eventId, title, hasPhotos) => (
-                          <Button
-                            key={`add-${eventId}`}
-                            variant="secondary"
-                            size="sm"
-                            className="h-8 rounded-full border-dashed px-3 font-medium text-fg-muted shadow-none"
-                            aria-label={`Ajouter des photos à « ${title} »`}
-                            onClick={() => actions.onAddPhotos?.()}
-                          >
-                            <ImagePlus />
-                            {hasPhotos ? null : "Photos"}
-                          </Button>
-                        )
+                    photoUploads.enabled
+                      ? (item) => <EntryUpload key={`${item.kind}-${item.id}`} item={item} />
                       : undefined
                   }
                 />
@@ -465,5 +473,32 @@ function BikeScreenContent({
         onSubmit={async (input, item) => actions.onReplacePart?.(input, item)}
       />
     </PhotoViewerProvider>
+  );
+}
+
+/** "Photos" on a history entry: photos (or an invoice) of that ride, maintenance event or task. */
+function EntryUpload({ item }: { item: TimelineItemVM }) {
+  const owner = React.useMemo(
+    () => ({
+      kind: item.kind === "maintenance" ? ("maintenance_event" as const) : item.kind,
+      id: item.id,
+    }),
+    [item.kind, item.id],
+  );
+  const uploads = useUploads(owner);
+  return (
+    <>
+      <UploadButton
+        variant="secondary"
+        size="sm"
+        className="h-8 rounded-full border-dashed px-3 font-medium text-fg-muted shadow-none"
+        aria-label={`Ajouter des photos ou un document à « ${item.title} »`}
+        onFiles={(files) => uploads.add(files)}
+      >
+        <ImagePlus />
+        {item.photos.length ? null : "Photos"}
+      </UploadButton>
+      <UploadRows rows={uploads.rows} onDismiss={uploads.dismiss} className="basis-full" />
+    </>
   );
 }

@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { CableCar, Calendar, Check, ChevronRight, Trash2 } from "lucide-react";
+import { AttachmentsBlock } from "@/components/attachments/attachments-block";
 import { BikeCover } from "@/components/bike-cover";
 import { DeleteConfirm } from "@/components/delete-confirm";
 import { Button } from "@/components/ui/button";
@@ -87,6 +88,7 @@ export function QuickRideProvider({
             vm={vm}
             initialBikeId={state.bikeId ?? vm.defaultBikeId ?? vm.bikes[0]?.id ?? null}
             initial={editing?.ride ?? null}
+            rideId={editing?.id ?? null}
             onDone={async (input) => {
               const result = editing ? await onUpdate?.(editing.id, input) : await onSubmit(input);
               if (result && !result.ok) return result.error;
@@ -189,6 +191,7 @@ function QuickRideForm({
   vm,
   initialBikeId,
   initial,
+  rideId,
   onDone,
   onDelete,
 }: {
@@ -196,6 +199,8 @@ function QuickRideForm({
   initialBikeId: number | null;
   /** The ride being edited; null for a new one. */
   initial: QuickRideInput | null;
+  /** Its id when editing: its photos and invoices (feature 10). */
+  rideId: number | null;
   /** Resolves with the server's error message, or null once saved. */
   onDone: (input: QuickRideInput) => Promise<string | null>;
   /** Shown when editing: resolves with the server's error message, or null once deleted. */
@@ -538,6 +543,8 @@ function QuickRideForm({
             </Field>
           </div>
         </details>
+        {/* The quick entry stays short (principle 1): files come once the ride exists. */}
+        {rideId != null ? <AttachmentsBlock owner={{ kind: "ride", id: rideId }} /> : null}
       </SheetBody>
       <SheetFooter className="grid gap-2">
         {confirmDelete && onDelete ? (

@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { formatDate, localDateOf } from "@/lib/format";
 import type { ExportTable } from "@/server/db";
+import { getEnv } from "@/server/env";
 import packageJson from "../../../package.json";
 import { toCsv } from "./csv";
 import { parseDataModel, type ColumnDoc } from "./data-model";
@@ -10,8 +11,8 @@ import { zip, type ZipEntry, type ZipTime } from "./zip";
 
 /*
  * The export archive (feature 12, D-12, D-50): each table as CSV and JSON, the data dictionary
- * (dictionary.json, built from the schema and the notes of docs/03) and docs/03 itself.
- * Attachments join it with feature 10.
+ * (dictionary.json, built from the schema and the notes of docs/03), docs/03 itself, then the
+ * attachments' original files under uploads/, at their `storage_path` (feature 10, D-72).
  */
 
 /** Traced into the standalone output (next.config.ts) and copied into the image (Dockerfile). */
@@ -31,6 +32,8 @@ export function columnUnit(name: string): string | null {
     [/_days$/, "days"],
     [/_count$/, "count"],
     [/_ratio$/, "ratio (1 = 100 %)"],
+    [/_bytes$/, "bytes"],
+    [/_px$/, "pixels"],
   ];
   return units.find(([suffix]) => suffix.test(name))?.[1] ?? null;
 }
@@ -125,6 +128,10 @@ function readme(meta: ExportMeta, hasDataModel: boolean) {
     "- csv/ : une table par fichier, pour un tableur (UTF-8, séparateur virgule).",
     "- json/ : les mêmes données avec leurs types (nombres, true/false, null).",
     "- dictionary.json : chaque table et chaque colonne, avec son type, son unité, ses valeurs permises et son sens.",
+    "- uploads/ : les photos et documents joints, tels qu'ils ont été envoyés. La table attachments relie",
+    "  chaque fichier (colonne storage_path) à son vélo, composant, entretien, sortie, tâche ou objet de l'atelier.",
+    "  Ce sont les originaux : une photo garde ses informations d'appareil, position GPS comprise si le",
+    "  téléphone l'a enregistrée. Ne partage pas l'export sans y penser.",
     ...(hasDataModel ? ["- data-model.md : le modèle de données complet (en anglais)."] : []),
     "",
     "Unités",
@@ -134,7 +141,6 @@ function readme(meta: ExportMeta, hasDataModel: boolean) {
     "Le stock, l'usure, l'état des règles et le coût total ne sont pas enregistrés : ils se recalculent",
     "à partir des mouvements de stock, des sorties et des entretiens.",
     "Les comptes, mots de passe et sessions ne sont jamais exportés.",
-    "Les photos et documents rejoindront l'export avec les pièces jointes.",
     "",
     "Ouvrir un CSV dans Excel : Données > À partir d'un fichier texte/CSV, origine UTF-8, délimiteur virgule.",
     "",
@@ -171,6 +177,62 @@ export function exportEntries(
   return entries;
 }
 
+/** An attachment's original, as the export copies it. */
+export type ExportFile = { storagePath: string; sizeBytes: number; mimeType: string };
+
+/**
+ * The attachments' originals, read one at a time (25 MB at most each) while the archive
+ * streams. A file missing on disk is listed in `fichiers-manquants.txt` instead of failing the
+ * export. Images are stored as they are: compressing a JPEG again gains nothing.
+ */
+export async function* fileEntries(
+  files: ExportFile[],
+  read: (storagePath: string) => Promise<Uint8Array> = (p) =>
+    fs.promises.readFile(path.resolve(getEnv().dataDir, p)),
+): AsyncGenerator<ZipEntry> {
+  const missing: string[] = [];
+  for (const file of files) {
+    try {
+      const data = await read(file.storagePath);
+      yield { name: file.storagePath, data, compress: !file.mimeType.startsWith("image/") };
+    } catch {
+      missing.push(file.storagePath);
+    }
+  }
+  if (missing.length) {
+    const text = [
+      "Ces fichiers sont dans la table attachments mais n'ont pas été trouvés sur le disque :",
+      ...missing,
+      "",
+    ].join("\r\n");
+    yield { name: "fichiers-manquants.txt", data: new TextEncoder().encode(text) };
+  }
+}
+
+/** ZIP without ZIP64 (zip.ts): what the archive can hold, with room for headers. */
+export const MAX_ARCHIVE_BYTES = 0xffff_ffff - 16 * 1024 * 1024;
+
+/**
+ * An upper bound of the archive's size, checked before the first byte: past 4 GiB the export
+ * is refused with a clear message instead of a download that breaks halfway.
+ */
+export function estimatedArchiveBytes(entries: ZipEntry[], files: ExportFile[]): number {
+  const perEntry = 30 + 46 + 200; // local and central headers, a long name
+  return (
+    entries.reduce((sum, entry) => sum + entry.data.length + perEntry, 0) +
+    files.reduce((sum, file) => sum + file.sizeBytes + perEntry, 0)
+  );
+}
+
+/** The table entries, then the files: one stream, consumed lazily by the ZIP writer. */
+export async function* archiveEntries(
+  entries: ZipEntry[],
+  files: AsyncIterable<ZipEntry>,
+): AsyncGenerator<ZipEntry> {
+  yield* entries;
+  yield* files;
+}
+
 export function readDataModel(): string | null {
   try {
     return fs.readFileSync(DATA_MODEL_PATH, "utf8");
@@ -187,7 +249,10 @@ export function exportFileName(meta: ExportMeta) {
 }
 
 /** The archive as a byte stream, for the Route Handler. */
-export function exportStream(entries: ZipEntry[], meta: ExportMeta): ReadableStream<Uint8Array> {
+export function exportStream(
+  entries: Iterable<ZipEntry> | AsyncIterable<ZipEntry>,
+  meta: ExportMeta,
+): ReadableStream<Uint8Array> {
   const chunks = zip(entries, wallClock(meta.exportedAt, meta.timeZone));
   return new ReadableStream<Uint8Array>({
     async pull(controller) {

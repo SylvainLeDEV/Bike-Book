@@ -2,12 +2,14 @@
 
 import * as React from "react";
 import { Camera, X } from "lucide-react";
+import { originLabel } from "@/components/attachments/origin";
+import { UploadButton } from "@/components/attachments/upload-controls";
 import { EmptyState } from "@/components/empty-state";
 import { Button } from "@/components/ui/button";
 import { NativeSelect } from "@/components/ui/field";
 import { formatDate, formatMonthYear } from "@/lib/format";
 import type { PhotoOrigin, PhotoVM } from "@/lib/view-models";
-import { originLabel, usePhotoViewer } from "./photo-viewer";
+import { usePhotoViewer } from "./photo-viewer";
 
 const ORIGIN_FILTERS: [PhotoOrigin | "", string][] = [
   ["", "Toutes origines"],
@@ -15,6 +17,7 @@ const ORIGIN_FILTERS: [PhotoOrigin | "", string][] = [
   ["component", "Composants"],
   ["maintenance_event", "Entretiens"],
   ["ride", "Sorties"],
+  ["task", "Tâches"],
 ];
 
 const CAMERA_ART = (
@@ -42,6 +45,7 @@ function tileLabel(photo: PhotoVM): string {
       : photo.origin.kind === "component"
         ? `composant : ${photo.origin.title}`
         : `${originLabel(photo)} : ${photo.origin.title}`;
+  // Photos of a general task or the workshop never reach a bike's gallery.
   return `${photo.caption ?? photo.alt}. ${where}, ${formatDate(photo.takenOn)}`;
 }
 
@@ -52,20 +56,21 @@ function tileLabel(photo: PhotoVM): string {
 export function PhotoGallery({
   bikeName,
   photos,
-  onAddPhotos,
+  onAddFiles,
 }: {
   bikeName: string;
   photos: PhotoVM[];
-  onAddPhotos?: (suggestion?: string) => void;
+  /** Files picked from the empty state: photos or PDFs of the bike itself. */
+  onAddFiles?: (files: File[]) => void;
 }) {
   const viewer = usePhotoViewer();
   const [origin, setOrigin] = React.useState<PhotoOrigin | "">("");
   const [order, setOrder] = React.useState<"desc" | "asc">("desc");
 
-  if (!photos.length && !onAddPhotos) {
+  if (!photos.length && !onAddFiles) {
     return (
       <EmptyState compact art={CAMERA_ART} title={`Aucune photo pour ${bikeName}`}>
-        L&apos;ajout de photos et de documents arrive dans une prochaine version.
+        Les photos du vélo, de ses composants, entretiens et sorties se rangent ici.
       </EmptyState>
     );
   }
@@ -77,21 +82,21 @@ export function PhotoGallery({
         title={`Aucune photo pour ${bikeName}`}
         action={
           <>
-            <Button onClick={() => onAddPhotos?.()}>
+            <UploadButton onFiles={(files) => onAddFiles?.(files)}>
               <Camera />
               Ajouter des photos
-            </Button>
+            </UploadButton>
             <p className="hint">Ou commence par :</p>
             <div className="flex flex-wrap justify-center gap-2">
               {["Numéro de cadre", "Facture d'achat", "Le vélo en entier"].map((label) => (
-                <Button
+                <UploadButton
                   key={label}
                   variant="secondary"
                   size="sm"
-                  onClick={() => onAddPhotos?.(label)}
+                  onFiles={(files) => onAddFiles?.(files)}
                 >
                   {label}
-                </Button>
+                </UploadButton>
               ))}
             </div>
           </>

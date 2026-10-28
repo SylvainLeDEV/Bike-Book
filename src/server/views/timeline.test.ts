@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Component, MaintenanceEvent, Ride } from "@/server/db";
-import { maintenanceEdit, rideForm } from "./timeline";
+import { maintenanceEdit, rideForm, timeline, timelineEdits, type DoneTask } from "./timeline";
 
 const TZ = "Europe/Paris";
 
@@ -135,5 +135,80 @@ describe("maintenanceEdit", () => {
     ]);
     expect(edit.formerParts).toEqual([{ id: 12, label: "Cassette · XG-1275 (déposée)" }]);
     expect(edit.input).toMatchObject({ on: "2026-10-27", notes: "fait maison", shop: null });
+  });
+});
+
+describe("timeline", () => {
+  const task = (id: number, fields: Partial<DoneTask>): DoneTask => ({
+    id,
+    bikeId: 2,
+    title: `Tâche ${id}`,
+    dueOn: null,
+    status: "done",
+    doneAt: 0,
+    notes: null,
+    ...fields,
+  });
+  const event: MaintenanceEvent = {
+    id: 5,
+    bikeId: 2,
+    performedOn: "2026-10-23",
+    title: "Purge des freins",
+    performedBy: "self",
+    shop: null,
+    totalCostCents: null,
+    notes: null,
+    createdAt: Date.parse("2026-10-24T18:00:00Z"), // recorded the next day: end of the 23rd
+    items: [],
+  };
+  const pivots = task(1, {
+    title: "Pivots",
+    notes: "Serrés au couple",
+    doneAt: Date.parse("2026-10-24T15:00:00Z"),
+  });
+  const pump = task(2, {
+    bikeId: null,
+    title: "Pompe",
+    doneAt: Date.parse("2026-10-23T05:00:00Z"),
+  });
+
+  it("places done tasks at done_at among rides and maintenance (D-77)", () => {
+    const items = timeline([ride], [event], [pump, pivots], new Map([[2, "Spectral"]]), TZ);
+    expect(items.map((entry) => `${entry.kind}:${entry.id}`)).toEqual([
+      "task:1", // 24 Oct, 17:00 in Paris
+      "ride:7", // 24 Oct, noon
+      "maintenance:5", // end of 23 Oct
+      "task:2", // 23 Oct, 07:00
+    ]);
+    expect(items[0]).toEqual({
+      kind: "task",
+      id: 1,
+      on: "2026-10-24",
+      bikeName: "Spectral",
+      title: "Pivots",
+      note: "Serrés au couple",
+      documents: [],
+      photos: [],
+    });
+    expect(items[3]).toMatchObject({ kind: "task", bikeName: null, on: "2026-10-23" });
+  });
+
+  it("dates a done task in the configured time zone and opens it as 'Modifier la tâche'", () => {
+    const late = task(3, { doneAt: Date.parse("2026-10-24T22:30:00Z") }); // 00:30 on the 25th
+    expect(timeline([], [], [late], new Map([[2, "Spectral"]]), TZ)[0]?.on).toBe("2026-10-25");
+    const edits = timelineEdits(
+      [],
+      [],
+      [late, pump],
+      [{ id: 2, name: "Spectral", coverAttachmentId: null }],
+      TZ,
+    );
+    expect(edits.tasks[3]).toMatchObject({
+      id: 3,
+      bike: { id: 2, name: "Spectral" },
+      title: "Tâche 3",
+      doneOn: "2026-10-25",
+    });
+    expect(edits.tasks[2]).toMatchObject({ bike: null, doneOn: "2026-10-23" });
   });
 });

@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { Calendar, Check, Plus, Repeat, Trash2 } from "lucide-react";
+import { AttachmentsBlock, AttachmentsLater } from "@/components/attachments/attachments-block";
 import { DeleteConfirm } from "@/components/delete-confirm";
 import { Button } from "@/components/ui/button";
 import { Chip, ChipRow } from "@/components/ui/chip";
@@ -607,6 +608,11 @@ function MaintenanceForm({
         <Field label="Notes">
           <Textarea maxLength={2000} value={notes} onChange={(e) => setNotes(e.target.value)} />
         </Field>
+        {edit ? (
+          <AttachmentsBlock owner={{ kind: "maintenance_event", id: edit.eventId }} />
+        ) : (
+          <AttachmentsLater />
+        )}
       </SheetBody>
       <SheetFooter className="grid gap-2">
         {confirmDelete && onDelete ? (

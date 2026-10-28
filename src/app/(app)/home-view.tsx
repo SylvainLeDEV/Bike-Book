@@ -27,6 +27,7 @@ export function HomeView({ vm }: { vm: DashboardVM }) {
             onRuleDone: (rule) => router.push(`/bikes/${rule.bike.id}?done=${rule.id}`),
             onRuleSnooze: (rule) => snooze(rule.id, rule.title),
             onTaskDone: (task) => taskDone(task.id, task.title),
+            onTaskEdit: (task) => taskSheet.edit(task),
             onAddTask: () => taskSheet.open(),
             workshopItemHref: (id) => `/workshop?item=${id}`,
           }}

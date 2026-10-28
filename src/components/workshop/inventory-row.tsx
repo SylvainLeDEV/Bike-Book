@@ -51,7 +51,7 @@ export function BikesMeta({ bikes, all }: { bikes: BikeRef[] | "all"; all: BikeR
 }
 
 /**
- * One dense workshop row: category icon, name, bikes (or storage place), quantity and at most
+ * One dense workshop row: photo or category icon, name, bikes (or storage place), quantity and at most
  * one badge. Rendered inside a link or a button by the caller (`as`).
  */
 export function InventoryRowContent({
@@ -72,7 +72,13 @@ export function InventoryRowContent({
   const [one, many] = UNIT_LABELS[row.unit];
   return (
     <>
-      <CategoryIcon category={row.category} className="row-span-2" />
+      {row.photoUrl ? (
+        // The item's photo (D-75), else its category icon.
+        // eslint-disable-next-line @next/next/no-img-element -- served by the uploads handler
+        <img src={row.photoUrl} alt="" className="row-span-2 size-9 rounded-[10px] object-cover" />
+      ) : (
+        <CategoryIcon category={row.category} className="row-span-2" />
+      )}
       <span className="col-start-2 min-w-0 text-[14.5px] leading-[1.35] font-semibold">
         {row.name}
       </span>

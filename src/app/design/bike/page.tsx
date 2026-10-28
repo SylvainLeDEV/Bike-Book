@@ -9,12 +9,33 @@ import { useToast } from "@/components/ui/toast";
 import { formatStock } from "@/lib/display";
 import type { PhotoVM } from "@/lib/view-models";
 import { useDemoPlanActions } from "../demo-actions";
+import { useDemoAttachments } from "../demo-attachments";
 import { REPLACE_ON_SPECTRAL, SPECTRAL_PAGE } from "../fixtures";
 
 export default function DesignBikePage() {
   const toast = useToast();
   const { tasks, actions: planActions } = useDemoPlanActions(SPECTRAL_PAGE.tasks);
-  const [photos, setPhotos] = React.useState<PhotoVM[]>(SPECTRAL_PAGE.photos);
+  // Photos and documents live in the demo service (feature 10): uploads and edits show here.
+  const attachments = useDemoAttachments();
+  const photos = attachments.filter(
+    (a): a is PhotoVM => a.isImage && a.kind === "photo" && a.thumbUrl != null && a.takenOn != null,
+  );
+  const documents = attachments.filter((a) => !photos.includes(a as PhotoVM));
+  const cover = photos.find((p) => p.isCover && p.origin.kind === "bike");
+  const vm = {
+    ...SPECTRAL_PAGE,
+    tasks,
+    photos,
+    record: { ...SPECTRAL_PAGE.record, documents },
+    bike: {
+      ...SPECTRAL_PAGE.bike,
+      cover: {
+        ...SPECTRAL_PAGE.bike.cover,
+        photoUrl: cover?.url ?? null,
+        thumbUrl: cover?.thumbUrl,
+      },
+    },
+  };
   const later = (what: string) => () => toast(`${what} : arrive avec la phase 1, étape B`);
 
   return (
@@ -36,7 +57,7 @@ export default function DesignBikePage() {
       />
       <PageBody>
         <BikeScreen
-          vm={{ ...SPECTRAL_PAGE, tasks, photos }}
+          vm={vm}
           replace={REPLACE_ON_SPECTRAL}
           links={{
             workshopItem: (id) => `/design/workshop?item=${id}`,
@@ -49,23 +70,8 @@ export default function DesignBikePage() {
             workshopItemHref: (id) => `/design/workshop?item=${id}`,
             onShowRules: later("Règles du vélo"),
             onShowWearDetail: later("Détail des sorties comptées"),
-            onChangeCover: later("Changer la photo"),
             onAddMaintenance: later("Saisie d'un entretien"),
             onEditBike: later("Modifier le vélo"),
-            onAddPhotos: later("Ajout de photos"),
-            onAttachDocument: later("Joindre un document"),
-            onSetCover: () => toast("Photo principale du vélo changée"),
-            onCaptionSave: () => toast("Légende enregistrée"),
-            onDelete: (photo) => {
-              const index = photos.findIndex((p) => p.id === photo.id);
-              setPhotos((list) => list.filter((p) => p.id !== photo.id));
-              toast("Photo supprimée", {
-                undo: () => {
-                  setPhotos((list) => [...list.slice(0, index), photo, ...list.slice(index)]);
-                  toast("Photo restaurée");
-                },
-              });
-            },
             onReplacePart: (input, item) => {
               const slot = REPLACE_ON_SPECTRAL.slots.find(
                 (s) => s.componentId === input.removedComponentId,

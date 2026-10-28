@@ -68,6 +68,7 @@ export function loadGarage(ctx: AccessContext): Garage {
           id: bike.id,
           name: bike.name,
           trackingStartAt: startOfLocalDay(trackedSince, timeZone),
+          coverAttachmentId: bike.coverAttachmentId,
         },
         rules: listRules(ctx, bike.id),
         resets: listRuleResets(ctx, bike.id),
@@ -176,6 +177,8 @@ function itemVM(
     id: item.id,
     kind: "part",
     name: item.name,
+    photoUrl:
+      item.photoAttachmentId == null ? null : `/api/uploads/${item.photoAttachmentId}?size=thumb`,
     brand: item.brand,
     reference: item.reference,
     category: item.category,
@@ -274,9 +277,10 @@ export function bikeStock(items: InventoryItemVM[], bikeId: number) {
       (a, b) =>
         Number(b.state != null) - Number(a.state != null) || a.name.localeCompare(b.name, "fr"),
     )
-    .map(({ id, name, category, bikes, location, quantity, unit, state }) => ({
+    .map(({ id, name, photoUrl, category, bikes, location, quantity, unit, state }) => ({
       id,
       name,
+      photoUrl,
       category,
       bikes,
       location,

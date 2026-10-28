@@ -43,8 +43,24 @@ type RowProps = {
 };
 
 function FittedRow({ component, today, onEdit }: RowProps) {
-  const content = (
-    <>
+  // The whole row opens the sheet, through a button laid over it; the thumbnails sit above
+  // that button (a button cannot contain the thumbnails' own buttons).
+  return (
+    <li
+      className={
+        onEdit
+          ? "relative flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-[color-mix(in_oklch,var(--surface-2),var(--surface)_40%)]"
+          : "flex items-center gap-3 px-4 py-2.5"
+      }
+    >
+      {onEdit ? (
+        <button
+          type="button"
+          onClick={() => onEdit(component.id)}
+          aria-label={`Modifier ${component.typeLabel} : ${component.model}`}
+          className="absolute inset-0 focus-visible:-outline-offset-3"
+        />
+      ) : null}
       <div className="min-w-0 flex-1">
         <p className="flex items-center gap-2 text-[14.5px] font-semibold">
           {component.typeLabel}
@@ -53,26 +69,17 @@ function FittedRow({ component, today, onEdit }: RowProps) {
           ) : null}
         </p>
         <p className="truncate text-[13px] text-fg-muted">{component.model}</p>
-        <PhotoThumbs photos={component.photos} title={component.typeLabel} />
+        {component.photos.length ? (
+          <div className="relative z-10 w-fit">
+            <PhotoThumbs photos={component.photos} title={component.typeLabel} />
+          </div>
+        ) : null}
       </div>
       <div className="shrink-0 text-right">
         <span className="num text-[17px] font-semibold">{formatQuantity(component.counter)}</span>
         <span className="block text-xs text-fg-muted">{sinceText(component, today)}</span>
       </div>
       {onEdit ? <ChevronRight className="size-4 shrink-0 text-fg-muted" aria-hidden /> : null}
-    </>
-  );
-  if (!onEdit) return <li className="flex items-center gap-3 px-4 py-2.5">{content}</li>;
-  return (
-    <li>
-      <button
-        type="button"
-        onClick={() => onEdit(component.id)}
-        aria-label={`Modifier ${component.typeLabel} : ${component.model}`}
-        className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-[color-mix(in_oklch,var(--surface-2),var(--surface)_40%)] focus-visible:-outline-offset-3"
-      >
-        {content}
-      </button>
     </li>
   );
 }

@@ -1,12 +1,19 @@
 import "server-only";
 import { startOfLocalDay } from "@/lib/format";
 import type { BikeCardVM, DashboardVM, RuleRowVM } from "@/lib/view-models";
-import { listMaintenanceEvents, listOpenTasks, listRides, type AccessContext } from "@/server/db";
+import {
+  listDoneTasks,
+  listMaintenanceEvents,
+  listOpenTasks,
+  listRides,
+  type AccessContext,
+} from "@/server/db";
 import { ridingSince } from "@/server/domain/rides";
 import { byUrgency } from "@/server/domain/rules";
 import { getEnv } from "@/server/env";
 import { today } from "@/server/time";
-import { bikeCard, taskRow } from "./bikes";
+import { bikeCard } from "./bikes";
+import { taskRow } from "./refs";
 import { timeline } from "./timeline";
 import { loadGarage, rebuyRows } from "./workshop";
 
@@ -49,12 +56,13 @@ export function getDashboardVM(ctx: AccessContext): DashboardVM {
       toRebuy: rebuy.length,
     },
     rules,
-    tasks: listOpenTasks(ctx).map((task) => taskRow(task, garage.bikes)),
+    tasks: listOpenTasks(ctx).map((task) => taskRow(task, garage.bikes, timeZone)),
     bikes: cards,
     rebuy,
     activity: timeline(
       listRides(ctx, { limit: 6 }),
       listMaintenanceEvents(ctx, null).slice(0, 6),
+      listDoneTasks(ctx, { limit: 6 }),
       names,
       timeZone,
     ).slice(0, 6),

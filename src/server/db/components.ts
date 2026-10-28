@@ -13,6 +13,7 @@ import type {
 import type { LocalDate } from "@/lib/format";
 import { occupiedSlot, replacementOrigin } from "@/server/domain/components";
 import type { AccessContext } from "./access-context";
+import { bikeAttachmentPaths, withFileCleanup } from "./attachments";
 import { getDb, type Tx } from "./client";
 import {
   bikes,
@@ -464,39 +465,56 @@ function replacedLines(tx: Tx, eventId: number): ReplacedLine[] {
  * since (the new part was replaced or used by another maintenance line).
  */
 export function undoReplacement(ctx: AccessContext, itemId: number): UndoOutcome {
-  return getDb().transaction((tx) => {
-    const row = tx
-      .select({
-        id: maintenanceItems.id,
-        eventId: maintenanceItems.eventId,
-        action: maintenanceItems.action,
-        oldId: maintenanceItems.componentId,
-        newId: maintenanceItems.newComponentId,
-      })
+  // The part it fitted, and maybe its event, may have attachments: their files go with them.
+  const files = bikeAttachmentPaths(itemBikeId(ctx, itemId));
+  return withFileCleanup(files, () =>
+    getDb().transaction((tx): UndoOutcome => {
+      const row = tx
+        .select({
+          id: maintenanceItems.id,
+          eventId: maintenanceItems.eventId,
+          action: maintenanceItems.action,
+          oldId: maintenanceItems.componentId,
+          newId: maintenanceItems.newComponentId,
+        })
+        .from(maintenanceItems)
+        .innerJoin(maintenanceEvents, eq(maintenanceEvents.id, maintenanceItems.eventId))
+        .innerJoin(bikes, eq(bikes.id, maintenanceEvents.bikeId))
+        .where(and(eq(maintenanceItems.id, itemId), eq(bikes.workspaceId, ctx.workspace.id)))
+        .get();
+      if (!row || row.action !== "replaced" || row.oldId == null || row.newId == null) {
+        return { ok: false, reason: "not_found" };
+      }
+      const item = { ...row, oldId: row.oldId, newId: row.newId };
+      if (!tx.select().from(components).where(eq(components.id, item.newId)).get()) {
+        return { ok: false, reason: "not_found" };
+      }
+      const parts = undoableParts(tx, item, null);
+      if (!parts) return { ok: false, reason: "too_late" };
+      applyUndo(tx, item, parts);
+      const remaining = tx
+        .select({ id: maintenanceItems.id })
+        .from(maintenanceItems)
+        .where(eq(maintenanceItems.eventId, item.eventId))
+        .get();
+      if (!remaining)
+        tx.delete(maintenanceEvents).where(eq(maintenanceEvents.id, item.eventId)).run();
+      return { ok: true };
+    }),
+  );
+}
+
+/** The bike of a maintenance line of the workspace, or null. */
+function itemBikeId(ctx: AccessContext, itemId: number): number | null {
+  return (
+    getDb()
+      .select({ bikeId: maintenanceEvents.bikeId })
       .from(maintenanceItems)
       .innerJoin(maintenanceEvents, eq(maintenanceEvents.id, maintenanceItems.eventId))
       .innerJoin(bikes, eq(bikes.id, maintenanceEvents.bikeId))
       .where(and(eq(maintenanceItems.id, itemId), eq(bikes.workspaceId, ctx.workspace.id)))
-      .get();
-    if (!row || row.action !== "replaced" || row.oldId == null || row.newId == null) {
-      return { ok: false, reason: "not_found" };
-    }
-    const item = { ...row, oldId: row.oldId, newId: row.newId };
-    if (!tx.select().from(components).where(eq(components.id, item.newId)).get()) {
-      return { ok: false, reason: "not_found" };
-    }
-    const parts = undoableParts(tx, item, null);
-    if (!parts) return { ok: false, reason: "too_late" };
-    applyUndo(tx, item, parts);
-    const remaining = tx
-      .select({ id: maintenanceItems.id })
-      .from(maintenanceItems)
-      .where(eq(maintenanceItems.eventId, item.eventId))
-      .get();
-    if (!remaining)
-      tx.delete(maintenanceEvents).where(eq(maintenanceEvents.id, item.eventId)).run();
-    return { ok: true };
-  });
+      .get()?.bikeId ?? null
+  );
 }
 
 /**

@@ -36,7 +36,7 @@ you have backed up everything.
 | Validation and forms | **Zod** + React Hook Form | The same schemas validate forms and Server Actions | Valibot, Conform |
 | UI | **Tailwind CSS** + **shadcn/ui** (Radix) | Accessible components, responsive by default, easy dark mode | Skeleton, DaisyUI |
 | Charts and motion | Recharts (shadcn/ui charts), Motion | Statistics per bike and per month, polished transitions | Apache ECharts, Tremor |
-| Images | **sharp** | Resizing, thumbnails, EXIF orientation | — |
+| Images | **sharp**, installed with feature 10 | Resizing, thumbnails, EXIF orientation, copies without metadata (D-72). Prebuilt binaries for linux/amd64 (glibc) come as an optional dependency, installed by `pnpm install` inside the image build | — |
 | FIT parsing (phase 2) | **`@garmin/fitsdk`** | Garmin's official JavaScript FIT SDK on npm, decode only (**Verified 2026-10-24**) | fit-file-parser |
 | Scheduled jobs | In-process scheduler (e.g. croner) started from Next.js `instrumentation.ts` | Reminders (phase 1.5) and Garmin sync (phase 2) need no queue | System cron calling a protected route |
 | Authentication | **Better Auth** (email + password, Drizzle adapter, SQLite) | Supports several users from day one; roles, invitations, organisations and passkeys can be switched on later without a rewrite (D-25). Plugin availability to confirm at scaffold time | Auth.js; a hand-rolled single password (simplest, but a rewrite once there are several users) |
@@ -45,8 +45,8 @@ you have backed up everything.
 
 Versions are not fixed here on purpose: the versions picked at scaffold time, and why, are in
 D-29 (`package.json` and `pnpm-lock.yaml` are the source of truth). React Hook Form, Recharts,
-Motion, sharp and Playwright are not installed yet: each one comes with the feature that needs
-it, once approved. The step A forms use React state and native validation attributes; the
+Motion and Playwright are not installed yet: each one comes with the feature that needs it, once
+approved (sharp came with feature 10). The step A forms use React state and native validation attributes; the
 Server Actions validate with Zod.
 
 ### Application structure
@@ -66,12 +66,13 @@ src/
 │   └── api/
 │       ├── auth/[...all]/ # Better Auth endpoints
 │       ├── healthz/       # Health check for Docker and monitoring
-│       ├── export/        # The ZIP export (feature 12, D-68)
-│       └── uploads/       # Phase 1: Route Handler streaming files to disk
+│       ├── export/        # The ZIP export (feature 12, D-68), attachments' files included
+│       └── uploads/       # POST streams one file to disk; [id]/ serves it (feature 10)
 ├── components/            # Screens and building blocks, data received as view models (props)
 │   ├── ui/                # Primitives (shadcn/ui style, Radix): button, field, chip, sheet, toast…
 │   ├── shell/             # App shell: sidebar / rail / bottom bar, top bar, theme, account
 │   ├── dashboard/ bike/ workshop/ rides/ plan/ photos/
+│   ├── attachments/       # "Pièces jointes" block, upload rows, editor, service context
 │   └── …                  # Shared: wear bar and badges, timeline, bike cover, empty state
 ├── lib/                   # Client-safe: enum values (enums.ts), French formatting and parsing,
 │                          # enum labels, name comparison, view-model types, theme
@@ -82,11 +83,12 @@ src/
 │   ├── domain/            # Pure, tested logic: bike status, total cost, (wear, rules, stock…)
 │   ├── views/             # View models of the real pages, from the data-access layer + domain
 │   ├── export/            # ZIP writer, CSV, data dictionary for the export (D-68)
+│   ├── files/             # Uploads on disk: streaming, atomic rename, sharp copies (feature 10)
 │   ├── theme.ts           # Reads the theme cookie
 │   ├── time.ts            # "Today" in the configured TZ
 │   ├── startup.ts         # Server start: configuration, database (migrations); exit on failure
 │   └── env.ts             # Configuration, validated with Zod
-│   # Later: files/ (uploads, feature 10), jobs/ (1.5), integrations/ (2)
+│   # Later: jobs/ (1.5), integrations/ (2)
 └── instrumentation.ts     # Runs server/startup.ts at startup; scheduler later
 ```
 
@@ -126,12 +128,12 @@ of the navigation shows a "Bientôt ici" page rather than a 404.
 | `/` | Accueil | "À prévoir", "À racheter", bikes, latest activity |
 | `/bikes` | Vélos | Active bikes as cards; stored, sold, stolen and retired bikes folded; "Ajouter un vélo" (sheet) |
 | `/bikes/[bikeId]` | Page vélo | `?tab=` selects the tab below 1024 px (deep links from the viewer); `?done=<rule>`, `?replace=<item>` and `?event=<maintenance event>` (D-70) open a sheet on arrival |
-| `/activity` | Activité | Rides and maintenance log (features 4 and 5) |
+| `/activity` | Activité | Rides, maintenance and done tasks log (features 4, 5 and 7; D-77) |
 | `/workshop` | Atelier | `?tab=rebuy`, `?bike=`, `?q=` keep the filters in the URL |
 | `/workshop/[itemId]` | Fiche d'un objet | Under 1024 px it replaces the list; from 1024 px the list stays beside it |
 | `/settings` | Réglages | Account and sign-out, theme of this device, "Exporter mes données" (feature 12, D-68) |
 | `/login`, `/setup` | Connexion, premier lancement | Unchanged |
-| `/api/uploads`, `/api/uploads/[id]` | Pièces jointes | Streaming upload (POST); scoped download with `nosniff` (GET) |
+| `/api/uploads`, `/api/uploads/[id]` | Pièces jointes | `POST /api/uploads?owner=<kind>&id=<n>&lastModified=<ms>[&cover=1]`: the raw file as body, its name in `X-File-Name` (URI-encoded), 201 `{ id }` or an error `{ error, message }` (401, 404, 413, 415). `GET /api/uploads/<id>[?size=thumb\|display][&download=1]`: signed in, scoped, `nosniff`, private cache revalidated by ETag (D-76) |
 | `/api/export` | Export ZIP | Current workspace only, auth tables never included; 401 when signed out (D-68) |
 | `/design` | Design system | Development only |
 
@@ -212,7 +214,9 @@ services:
 
 - Never put the data directory on NFS or SMB: the official SQLite docs warn that locks can
   misbehave on network filesystems, which has led to corruption.
-- Derived files go to `cache/` and can be regenerated, so backups can skip them.
+- Derived files go to `cache/` and can be regenerated, so backups can skip them: WebP copies of
+  each photo under `cache/<storage path without extension>/` (D-76), made again on first
+  request if the folder is deleted. Partial uploads live in `uploads/.tmp/`, emptied at start.
 
 Volume (**Estimate**, based on H-03):
 
@@ -236,7 +240,8 @@ Backing up is the operator's job (D-12); the app makes it easy:
   SQLite in WAL mode normally recovers from a crash-consistent copy), or make a consistent copy
   first with `sqlite3 bikebook.db ".backup copy.db"` (or `VACUUM INTO`) while the app runs.
 - **Built-in export (MVP):** Réglages › "Exporter mes données": one ZIP with every table as CSV
-  and JSON and the data dictionary (D-68), plus the uploads once feature 10 exists. A portable,
+  and JSON, the data dictionary (D-68) and the attachments' originals under `uploads/` (feature
+  10; 4 GiB at most, pitfall 10). A portable,
   readable copy you can keep anywhere, and a safety net for mistakes noticed late. The app
   cannot import it back, so it complements the backup of the data directory, it does not
   replace it.
@@ -255,9 +260,17 @@ Backing up is the operator's job (D-12); the app makes it easy:
   a reverse proxy in front must overwrite that header, not append to what the client sent.
 - **Every query is scoped** by the current user and workspace in the data-access layer
   (`src/server/db`); pages and actions never query tables directly (D-25).
-- Uploads: size limit (25 MB), type checked from the file content (magic bytes), random file
-  names, stored outside any static folder, served with `X-Content-Type-Options: nosniff`.
-  Accepted: JPEG, PNG, WebP, HEIC and PDF (D-46).
+- Uploads (feature 10, D-73 to D-76): one Route Handler streaming the raw body to disk, never a
+  Server Action; the element is checked against the workspace before anything is written; size
+  limit (25 MB) counted while the body streams, not read from `Content-Length`; type checked
+  from the file content (magic bytes), never from the name or the browser's type; random file
+  names; temporary file then atomic rename, removed on failure; stored under the data
+  directory, outside any static folder. Accepted: JPEG, PNG, WebP and PDF; HEIC refused with its
+  own message (D-73). Served signed in and scoped, with `X-Content-Type-Options: nosniff`, a
+  `Content-Disposition` (inline, or `attachment` for downloads) and `Cache-Control: private,
+  no-cache`. Pages show only the copies made by sharp, without metadata (D-72); the original,
+  GPS included, is served only as an explicit download. PDFs open in the browser's own viewer:
+  the files are the user's own, on a private network (D-09).
 - Container: non-root user, read-only root filesystem, `no-new-privileges`.
 - **Public repository (D-22):** no secrets, no real data, no installation details. `.gitignore`
   covers `data/`, `.env*` and uploads; seed data is fictitious; GitHub secret scanning and push
@@ -280,14 +293,13 @@ Backing up is the operator's job (D-12); the app makes it easy:
 3. **Time.** Store UTC, display in the configured timezone: daylight-saving changes are where
    date bugs hide.
 4. **iPhone photos in HEIC.** sharp's prebuilt binaries read JPEG, PNG, WebP, AVIF, TIFF, GIF
-   and SVG, not HEIC (**Verified 2026-10-25** on sharp's install page). Safari on iOS converts
-   HEIC to JPEG when the file input's `accept` leaves HEIC out, and the order of `accept` steers
-   the target format (**Secondary**: WebKit bug reports, behaviour varies across iOS versions).
-   D-46: `accept` lists JPEG first and no HEIC, and a HEIC that still arrives is decoded without
-   a native library. Tested on 2026-10-27 (H-11, iOS 27): Safari sent JPEG whatever `accept`
-   said, with the date taken, its UTC offset and the GPS position (D-72: kept in the original only); every photo had EXIF
-   orientation 6, so thumbnails must apply it (sharp's `rotate()`); camera captures from the
-   picker carry no date.
+   and SVG, not HEIC (**Verified 2026-10-25** on sharp's install page). Tested on 2026-10-27
+   (H-11, iOS 27): Safari sent JPEG whatever `accept` said, with the date taken, its UTC offset
+   and the GPS position (D-72: kept in the original only); every photo had EXIF orientation 6,
+   so the copies apply it (sharp's `rotate()`); camera captures from the picker carry no EXIF
+   date (their `lastModified` is the upload time). A HEIC that arrives from a Mac or the Files
+   app is therefore **refused** with a message saying how to get a JPEG (D-73), not decoded.
+   A file named `.jpg` that is something else is refused too: only the content counts.
 5. **Garmin key expiry (phase 2).** The Personal API key lasts one year at most: the app shows
    its expiry date and warns 30 days before.
 6. **SQLite table rebuilds in migrations.** drizzle-kit changes a column by recreating the
@@ -299,6 +311,21 @@ Backing up is the operator's job (D-12); the app makes it easy:
 7. **Docker inside Proxmox LXC containers**, a common self-hosting setup: a November 2025
    containerd/runc security update broke it (AppArmor), reported fixed in Proxmox VE 9.1.x
    (**Secondary**). Keep the host updated and test after upgrades.
+8. **drizzle-kit and `ALTER TABLE … ADD COLUMN … REFERENCES`.** drizzle-kit 0.31 writes the
+   added column's `REFERENCES` without its `ON DELETE` clause, although the snapshot has it
+   (**Verified 2026-10-27** on migration `0010_attachments`, fixed by hand before release). Read
+   every generated `ALTER TABLE … ADD` with a foreign key; a test checks that deleting an
+   attachment clears the covers through the key itself.
+9. **A `proxy.ts` would cut uploads.** With a proxy (the former middleware), Next.js buffers each
+   request body to clone it, up to `experimental.proxyClientMaxBodySize` (10 MB by default), and
+   silently hands only that much to the Route Handler (**Verified 2026-10-27** in the Next.js
+   16.4 docs). The app has no proxy; adding one means raising that limit above 25 MB or
+   excluding `/api/uploads` from its matcher.
+10. **ZIP export over 4 GiB.** The in-house ZIP writer has no ZIP64 (D-68). With originals of
+    about 1 GB a year (D-20), an export of several years of photos can pass 4 GiB: the export
+    then answers 413 with a French message before the first byte, and the data directory
+    backup (D-12) is the way to copy everything. ZIP64 (or a library) is the fix when it
+    happens.
 
 ## Local development
 

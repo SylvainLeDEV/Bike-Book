@@ -34,11 +34,13 @@ export type Bike = {
   statusChangedOn: LocalDate | null;
   salePriceCents: number | null;
   notes: string | null;
+  /** The main photo (feature 10, D-75), changed through the attachments only. */
+  coverAttachmentId: number | null;
   createdAt: Date;
 };
 
 /** What a save writes: validated input plus the resolved status columns. */
-export type BikeData = Omit<Bike, "id" | "purchaseShop" | "createdAt"> & {
+export type BikeData = Omit<Bike, "id" | "purchaseShop" | "createdAt" | "coverAttachmentId"> & {
   /** Matched by name among the workspace's shops; a new name creates the shop. */
   purchaseShop: { name: string; kind: ShopKind } | null;
 };
@@ -71,6 +73,7 @@ const bikeColumns = {
   statusChangedOn: bikes.statusChangedOn,
   salePriceCents: bikes.salePriceCents,
   notes: bikes.notes,
+  coverAttachmentId: bikes.coverAttachmentId,
   createdAt: bikes.createdAt,
   shopId: shops.id,
   shopName: shops.name,

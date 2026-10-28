@@ -67,6 +67,8 @@ export type InventoryItem = {
   location: string | null;
   notes: string | null;
   archivedAt: number | null;
+  /** Its photo (feature 10, D-75), changed through the attachments only. */
+  photoAttachmentId: number | null;
   movements: InventoryMovement[];
   links: InventoryLink[];
 };
@@ -193,6 +195,7 @@ export function listInventory(ctx: AccessContext): InventoryItem[] {
     location: item.location,
     notes: item.notes,
     archivedAt: item.archivedAt?.getTime() ?? null,
+    photoAttachmentId: item.photoAttachmentId,
     links: links
       .filter((link) => link.itemId === item.id)
       .map((link) => ({

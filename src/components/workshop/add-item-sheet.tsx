@@ -296,7 +296,7 @@ function AddItemForm({
               className="size-[18px] transition-transform group-open:rotate-90"
               aria-hidden
             />
-            Plus de détails <span className="hint">rangement, photo, lien d&apos;achat, notes</span>
+            Plus de détails <span className="hint">rangement, lien d&apos;achat, notes</span>
           </summary>
           <div className="grid gap-4 pt-1.5">
             <Field label="Rangement">
@@ -307,13 +307,12 @@ function AddItemForm({
                 defaultValue={editing?.location ?? ""}
               />
             </Field>
-            <div>
-              <Button variant="secondary" disabled>
-                <Camera />
-                Ajouter une photo
-              </Button>
-              <p className="mt-1 hint">Les photos arrivent avec les pièces jointes.</p>
-            </div>
+            <p className="flex items-start gap-1.5 hint">
+              <Camera className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+              {editing
+                ? "Sa photo, ses factures et notices se gèrent sur la fiche de l'objet."
+                : "Sa photo, ses factures et notices : sur la fiche de l'objet, une fois ajouté."}
+            </p>
             {editing ? null : (
               <Fieldset legend="Lien d'achat" hint="affiché, jamais consulté par l'app">
                 <div className="grid grid-cols-2 gap-2.5">

@@ -3,9 +3,12 @@ import { createTestContext } from "@/test/context";
 import { createBike, exportWorkspaceTables, type BikeData } from "@/server/db";
 import {
   columnUnit,
+  estimatedArchiveBytes,
   exportEntries,
   exportFileName,
   exportStream,
+  fileEntries,
+  MAX_ARCHIVE_BYTES,
   readDataModel,
   type ExportMeta,
 } from "./archive";
@@ -150,5 +153,47 @@ describe("exportEntries", () => {
     const archive = Buffer.concat(chunks);
     expect(archive.readUInt32LE(0)).toBe(0x04034b50);
     expect(archive.readUInt16LE(archive.length - 12)).toBe(entries.length);
+  });
+
+  it("adds the attachments' originals at their storage path, and lists the missing ones", async () => {
+    const stored = new Map([
+      ["uploads/2026/10/aaaa.jpg", new Uint8Array([0xff, 0xd8, 0xff, 1, 2, 3])],
+      ["uploads/2026/10/bbbb.pdf", new TextEncoder().encode("%PDF-1.4 facture")],
+    ]);
+    const files = [
+      { storagePath: "uploads/2026/10/aaaa.jpg", sizeBytes: 6, mimeType: "image/jpeg" },
+      { storagePath: "uploads/2026/10/bbbb.pdf", sizeBytes: 16, mimeType: "application/pdf" },
+      { storagePath: "uploads/2026/10/gone.pdf", sizeBytes: 9, mimeType: "application/pdf" },
+    ];
+    const read = async (p: string) => {
+      const data = stored.get(p);
+      if (!data) throw new Error("ENOENT");
+      return data;
+    };
+    const entries = [];
+    for await (const entry of fileEntries(files, read)) entries.push(entry);
+    expect(entries.map((e) => [e.name, e.compress])).toEqual([
+      ["uploads/2026/10/aaaa.jpg", false],
+      ["uploads/2026/10/bbbb.pdf", true],
+      ["fichiers-manquants.txt", undefined],
+    ]);
+    expect(text(entries[2].data)).toContain("uploads/2026/10/gone.pdf");
+  });
+
+  it("refuses an archive over 4 GiB before the first byte", () => {
+    const { entries } = setup();
+    const small = [{ storagePath: "uploads/x.jpg", sizeBytes: 5_000_000, mimeType: "image/jpeg" }];
+    const huge = Array.from({ length: 180 }, (_, i) => ({
+      storagePath: `uploads/${i}.jpg`,
+      sizeBytes: 25 * 1024 * 1024,
+      mimeType: "image/jpeg",
+    }));
+    expect(estimatedArchiveBytes(entries, small)).toBeLessThan(MAX_ARCHIVE_BYTES);
+    expect(estimatedArchiveBytes(entries, huge)).toBeGreaterThan(MAX_ARCHIVE_BYTES);
+  });
+
+  it("names the units of the attachment columns", () => {
+    expect(columnUnit("size_bytes")).toBe("bytes");
+    expect(columnUnit("width_px")).toBe("pixels");
   });
 });

@@ -6,8 +6,10 @@ import { addDays, daysBetween, type LocalDate } from "@/lib/format";
 import { getEnv } from "@/server/env";
 import { today as currentDay } from "@/server/time";
 import { findAccessContext } from "./accounts";
+import { withFileCleanup, workspaceAttachmentPaths } from "./attachments";
 import { createBike, type BikeData } from "./bikes";
 import { getDb } from "./client";
+import { seedDemoAttachments } from "./demo-files";
 import { seedDemoParts } from "./demo-garage";
 import { seedDemoRides } from "./demo-rides";
 import { accounts, memberships, users, workspaces } from "./schema";
@@ -104,16 +106,19 @@ const DEMO_BIKES: DemoBike[] = [
 /** Removes the demo user and the workspaces they own (everything below cascades). */
 function deleteDemoAccount(userId: string): void {
   const db = getDb();
-  db.transaction((tx) => {
-    const owned = tx
-      .select({ id: memberships.workspaceId })
-      .from(memberships)
-      .where(eq(memberships.userId, userId))
-      .all()
-      .map((row) => row.id);
-    if (owned.length) tx.delete(workspaces).where(inArray(workspaces.id, owned)).run();
-    tx.delete(users).where(eq(users.id, userId)).run();
-  });
+  const owned = db
+    .select({ id: memberships.workspaceId })
+    .from(memberships)
+    .where(eq(memberships.userId, userId))
+    .all()
+    .map((row) => row.id);
+  // The attachments' rows cascade with the workspace; their files are deleted after it.
+  withFileCleanup(workspaceAttachmentPaths(owned), () =>
+    db.transaction((tx) => {
+      if (owned.length) tx.delete(workspaces).where(inArray(workspaces.id, owned)).run();
+      tx.delete(users).where(eq(users.id, userId)).run();
+    }),
+  );
 }
 
 /**
@@ -181,6 +186,8 @@ export async function seedDemoData(
   // Rides first: the demo rules are dated from them.
   seedDemoRides({ ctx, bikes, day: moved, timeZone });
   seedDemoParts({ ctx, bikes, day: moved, now: Date.now(), timeZone });
+  // Generated photos and PDFs, written to DATA_DIR like uploads (feature 10).
+  await seedDemoAttachments({ ctx, bikes, day: moved, timeZone });
 
   return { created: true, email: DEMO_ACCOUNT.email };
 }

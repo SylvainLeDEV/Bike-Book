@@ -2,8 +2,10 @@ import "server-only";
 import { asc, eq, getTableColumns, getTableName, inArray, isNull, or, type SQL } from "drizzle-orm";
 import { getTableConfig, type SQLiteColumn, type SQLiteTable } from "drizzle-orm/sqlite-core";
 import type { AccessContext } from "./access-context";
+import { workspaceScope } from "./attachments";
 import { getDb } from "./client";
 import {
+  attachments,
   bikes,
   components,
   componentTypes,
@@ -133,6 +135,7 @@ export function exportWorkspaceTables(ctx: AccessContext): ExportTable[] {
       [maintenanceEvents, inArray(maintenanceEvents.bikeId, bikeIds)],
       [maintenanceItems, inArray(maintenanceItems.eventId, eventIds)],
       [inventoryMovements, inArray(inventoryMovements.itemId, itemIds)],
+      [attachments, workspaceScope(tx, [workspaceId])],
     ];
 
     return sources.map(([table, where]) => {

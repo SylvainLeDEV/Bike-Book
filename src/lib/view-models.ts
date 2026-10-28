@@ -7,6 +7,8 @@
  * turned into local dates on the server, in TZ). Labels and formats are the screens' job.
  */
 import type {
+  AttachmentKind,
+  AttachmentOwnerKind,
   BikeStatus,
   ComponentGroup,
   ComponentOrigin,
@@ -61,8 +63,11 @@ export type Quantity =
   | { unit: "duration_s"; value: number }
   | { unit: "days"; value: number };
 
-/** Placeholder art until the bike has a photo: one of the cover palettes. */
-export type BikeCoverVM = { photoUrl: string | null; artIndex: number };
+/**
+ * The bike's cover photo (D-75): display size, and a thumbnail for pastilles and small covers.
+ * Placeholder art until the bike has one: one of the cover palettes.
+ */
+export type BikeCoverVM = { photoUrl: string | null; thumbUrl?: string | null; artIndex: number };
 
 export type BikeRef = { id: number; name: string; cover: BikeCoverVM };
 
@@ -112,25 +117,48 @@ export type TaskRowVM = {
   bike: BikeRef | null;
   title: string;
   dueOn: LocalDate | null;
+  /** Shown by "Modifier la tâche", with its attachments (feature 10). */
+  notes: string | null;
+  /** Local date of `done_at` for a done task (history, D-77), which the sheet offers to reopen. */
+  doneOn: LocalDate | null;
 };
 
 // --- Timeline (rides and maintenance) ------------------------------------------------------------
 
-export type PhotoOrigin = "bike" | "component" | "maintenance_event" | "ride";
+/** The element an attachment belongs to (D-45). */
+export type PhotoOrigin = AttachmentOwnerKind;
 
-export type PhotoVM = {
+/** An attachment as the screens show it (feature 10): a photo, or a document (PDF or image). */
+export type AttachmentVM = {
   id: number;
-  /** Square thumbnail and full-size image. */
-  thumbUrl: string;
-  url: string;
+  kind: AttachmentKind;
+  /** JPEG, PNG or WebP: has thumbnails and opens in the viewer. False: a PDF. */
+  isImage: boolean;
+  /** The file name sent by the browser. */
+  name: string;
+  sizeBytes: number;
   caption: string | null;
   /** Alternative text when there is no caption, generated from the linked element. */
   alt: string;
-  takenOn: LocalDate;
-  /** The one element the photo belongs to (D-45). */
+  /** Images: when it was taken, as a date and a "HH:MM" time in TZ. */
+  takenOn: LocalDate | null;
+  takenTime: string | null;
+  addedOn: LocalDate;
+  /** Square thumbnail (images only). */
+  thumbUrl: string | null;
+  /** What opens: an image's display copy (no metadata, D-72), a PDF inline. */
+  url: string;
+  /** The original file, as a download. */
+  downloadUrl: string;
+  /** The one element the attachment belongs to (D-45). */
   origin: { kind: PhotoOrigin; id: number; title: string; on: LocalDate | null };
-  bikeName: string;
+  bikeName: string | null;
+  /** The bike's cover or the workshop item's photo (D-75). */
+  isCover: boolean;
 };
+
+/** A photo: an image attachment of kind `photo`, shown in galleries and the viewer. */
+export type PhotoVM = AttachmentVM & { thumbUrl: string; takenOn: LocalDate };
 
 export type RideItemVM = {
   kind: "ride";
@@ -149,6 +177,7 @@ export type RideItemVM = {
   wearS: number | null;
   conditions: RideConditions | null;
   photos: PhotoVM[];
+  documents: AttachmentVM[];
 };
 
 export type MaintenanceItemVM = {
@@ -161,11 +190,25 @@ export type MaintenanceItemVM = {
   title: string;
   totalCostCents: number | null;
   note: string | null;
-  invoices: { id: number; name: string }[];
+  documents: AttachmentVM[];
   photos: PhotoVM[];
 };
 
-export type TimelineItemVM = RideItemVM | MaintenanceItemVM;
+/** A done task, placed at `done_at` (D-77). */
+export type TaskItemVM = {
+  kind: "task";
+  id: number;
+  /** Local date of `done_at`. */
+  on: LocalDate;
+  /** null: a general task. */
+  bikeName: string | null;
+  title: string;
+  note: string | null;
+  documents: AttachmentVM[];
+  photos: PhotoVM[];
+};
+
+export type TimelineItemVM = RideItemVM | MaintenanceItemVM | TaskItemVM;
 
 // --- Dashboard -----------------------------------------------------------------------------------
 
@@ -276,7 +319,8 @@ export type BikeRecordVM = {
     initialWearS: number;
   };
   frameSerial: string | null;
-  documents: { id: number; name: string; sizeBytes: number; addedOn: LocalDate; url: string }[];
+  /** Documents of the bike and of its elements, each with its origin. */
+  documents: AttachmentVM[];
   status: BikeStatus;
   statusChangedOn: LocalDate | null;
   cost: TotalCostVM;
@@ -285,6 +329,8 @@ export type BikeRecordVM = {
 export type InventoryRowVM = {
   id: number;
   name: string;
+  /** Thumbnail of its photo (D-75), else the category icon. */
+  photoUrl: string | null;
   category: InventoryCategory;
   bikes: BikeRef[] | "all";
   location: string | null;
@@ -440,16 +486,21 @@ export type EditResult = { ok: true; message: string } | { ok: false; error: str
 
 export type ActivityVM = {
   today: LocalDate;
-  /** Rides and maintenance of every bike, newest first. */
+  /** Rides, maintenance and done tasks of every bike (general tasks included), newest first. */
   items: TimelineItemVM[];
   rideCount: number;
   maintenanceCount: number;
+  doneTaskCount: number;
 };
 
-/** What a timeline entry opens when tapped (D-70): a ride's sheet values, an event's bike. */
+/**
+ * What a timeline entry opens when tapped (D-70, D-77): a ride's sheet values, an event's bike,
+ * a done task as "Modifier la tâche" shows it.
+ */
 export type TimelineEdits = {
   rides: Record<number, QuickRideInput>;
   eventBikeIds: Record<number, number>;
+  tasks: Record<number, TaskRowVM>;
 };
 
 // --- Bikes list and bike sheet ----------------------------------------------------------------------

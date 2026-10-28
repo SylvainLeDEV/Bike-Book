@@ -4,7 +4,8 @@ import type { RideConditions, RideSource, RideType } from "@/lib/enums";
 import type { RideUsage } from "@/server/domain/wear";
 import type { AccessContext } from "./access-context";
 import { getDb } from "./client";
-import { bikes, rides } from "./schema";
+import { attachmentPaths, withFileCleanup } from "./attachments";
+import { attachments, bikes, rides } from "./schema";
 
 // Rides of the workspace's bikes; they inherit the workspace through `bike_id` (D-25).
 
@@ -162,21 +163,25 @@ export function updateRide(
 
 /**
  * Deletes a ride of the workspace entered by hand: "Annuler" after "Sortie ajoutée" (D-60) and
- * "Supprimer la sortie" (D-70). A hard delete that only fixes a mistake.
+ * "Supprimer la sortie" (D-70). A hard delete that only fixes a mistake; its attachments and
+ * their files go with it.
  */
 export function deleteRide(
   ctx: AccessContext,
   rideId: number,
 ): { ok: true } | { ok: false; reason: "not_found" } {
-  return getDb().transaction((tx) => {
-    const ride = tx
-      .select({ id: rides.id, source: rides.source })
-      .from(rides)
-      .innerJoin(bikes, eq(bikes.id, rides.bikeId))
-      .where(and(eq(rides.id, rideId), eq(bikes.workspaceId, ctx.workspace.id)))
-      .get();
-    if (!ride || ride.source !== "manual") return { ok: false, reason: "not_found" };
-    tx.delete(rides).where(eq(rides.id, ride.id)).run();
-    return { ok: true };
-  });
+  const files = attachmentPaths(() => eq(attachments.rideId, rideId));
+  return withFileCleanup(files, () =>
+    getDb().transaction((tx) => {
+      const ride = tx
+        .select({ id: rides.id, source: rides.source })
+        .from(rides)
+        .innerJoin(bikes, eq(bikes.id, rides.bikeId))
+        .where(and(eq(rides.id, rideId), eq(bikes.workspaceId, ctx.workspace.id)))
+        .get();
+      if (!ride || ride.source !== "manual") return { ok: false, reason: "not_found" };
+      tx.delete(rides).where(eq(rides.id, ride.id)).run();
+      return { ok: true };
+    }),
+  );
 }

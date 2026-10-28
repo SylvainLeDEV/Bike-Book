@@ -5,8 +5,6 @@ import {
   Calculator,
   CircleCheck,
   CircleSlash,
-  ExternalLink,
-  FileText,
   HandCoins,
   type LucideIcon,
   Paperclip,
@@ -15,14 +13,13 @@ import {
   ShieldCheck,
   Wallet,
 } from "lucide-react";
+import { DocumentList } from "@/components/attachments/document-list";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
   formatDate,
   formatDecimal,
   formatDistance,
-  formatFileSize,
   formatHours,
   formatMoney,
   type LocalDate,
@@ -189,32 +186,12 @@ export function BikeRecord({
           )}
         </Block>
         <Block label="Factures et documents">
-          <ul className="m-0 mt-1 list-none divide-y divide-border p-0">
-            {record.documents.map((doc) => (
-              <li key={doc.id} className="flex min-h-[60px] items-center gap-3 py-2.5">
-                <span className="grid size-9 shrink-0 place-items-center rounded-[10px] bg-surface-2 text-fg-muted">
-                  <FileText className="size-[18px]" aria-hidden />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="text-[14.5px] font-semibold [overflow-wrap:anywhere]">{doc.name}</p>
-                  <p className="text-[13px] text-fg-muted">
-                    PDF · {formatFileSize(doc.sizeBytes)} ·{" "}
-                    {formatDate(doc.addedOn, { month: "short" })}
-                  </p>
-                </div>
-                <Button variant="ghost" size="icon" asChild>
-                  <a
-                    href={doc.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    aria-label={`Ouvrir ${doc.name}, nouvel onglet`}
-                  >
-                    <ExternalLink />
-                  </a>
-                </Button>
-              </li>
-            ))}
-          </ul>
+          {record.documents.length ? (
+            <p className="hint">Ceux du vélo, de ses composants, entretiens, sorties et tâches.</p>
+          ) : null}
+          <div className="mt-1">
+            <DocumentList documents={record.documents} showOrigin />
+          </div>
           {documentAction ??
             (record.documents.length ? null : (
               <p className="mt-1 flex items-center gap-1.5 hint">

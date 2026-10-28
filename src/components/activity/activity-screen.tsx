@@ -7,8 +7,8 @@ import { formatCount } from "@/lib/format";
 import type { ActivityVM, TimelineItemVM } from "@/lib/view-models";
 
 /**
- * "Activité": the ride and maintenance log of every bike, by month, newest first. `onEdit` makes
- * each entry open its edit sheet (D-70).
+ * "Activité": the rides, maintenance and done tasks of every bike (D-77), by month, newest
+ * first. `onEdit` makes each entry open its edit sheet (D-70).
  */
 export function ActivityScreen({
   vm,
@@ -26,6 +26,9 @@ export function ActivityScreen({
           <p className="eyebrow">
             {formatCount(vm.rideCount, "sortie", "sorties")} ·{" "}
             {formatCount(vm.maintenanceCount, "entretien", "entretiens")}
+            {vm.doneTaskCount
+              ? ` · ${formatCount(vm.doneTaskCount, "tâche faite", "tâches faites")}`
+              : null}
           </p>
           <h1 className="mt-1 text-[28px] leading-[1.15] font-[650] tracking-[-0.02em]">
             Activité

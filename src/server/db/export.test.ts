@@ -111,6 +111,18 @@ function otherGarage() {
       maintenanceItemId: line.id,
     })
     .run();
+  const file = (owner: Partial<typeof schema.attachments.$inferInsert>, n: number) => ({
+    ...owner,
+    kind: "invoice" as const,
+    storagePath: `uploads/2026/10/${String(workspaceId * 10 + n).padStart(32, "0")}.pdf`,
+    originalName: "facture.pdf",
+    mimeType: "application/pdf",
+    sizeBytes: 1200,
+    sha256: "0".repeat(64),
+  });
+  db.insert(schema.attachments)
+    .values([file({ maintenanceEventId: event.id }, 7), file({ inventoryItemId: item.id }, 8)])
+    .run();
   return ctx;
 }
 
@@ -180,7 +192,7 @@ describe("exportWorkspaceTables", () => {
         continue;
       }
       expect(shared, table.name).toEqual([]);
-      const expected = table.name === "inventory_movements" ? 2 : 1;
+      const expected = ["inventory_movements", "attachments"].includes(table.name) ? 2 : 1;
       expect(mine.size, table.name).toBe(expected);
     }
 

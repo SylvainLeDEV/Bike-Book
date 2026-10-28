@@ -13,6 +13,7 @@ import type {
   ComponentGroupVM,
   ComponentTypeChoice,
   ComponentVM,
+  PhotoVM,
   Quantity,
   ReplacePartVM,
   RuleTemplateChoice,
@@ -106,6 +107,8 @@ export function bikeComponents(
   timeZone: string,
   /** The worst status of the rules on each fitted part (feature 6). */
   statuses: Map<number, RuleStatus> = new Map(),
+  /** A part's photos (feature 10), fitted or removed. */
+  photosOf: (componentId: number) => PhotoVM[] = () => [],
 ): BikeComponents {
   const groupOf = new Map(types.map((type) => [type.code, type.componentGroup]));
   const slots = fittedSlots(components, rides).sort(
@@ -125,14 +128,14 @@ export function bikeComponents(
       status: statuses.get(fitted.id) ?? null,
       counter: quantity(group, fitted.counter),
       installedOn: fitted.origin === "stock" ? null : localDateOf(fitted.installedAt, timeZone),
-      photos: [],
+      photos: photosOf(fitted.id),
       lineage: slot.lineage.map((part) => ({
         model: componentName(part) || "Modèle non renseigné",
         removedOn: localDateOf(part.removedAt, timeZone),
         wearAtRemoval: quantity(group, part.counter),
         reason: part.removalReason ?? "other",
         note: part.removalNote,
-        photos: [],
+        photos: photosOf(part.id),
       })),
     };
     return { group, vm, fitted };

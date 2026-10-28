@@ -25,6 +25,7 @@ import {
   listBikes,
   listComponents,
   listComponentTypes,
+  listDoneTasks,
   listMaintenanceEvents,
   listOpenTasks,
   listRides,
@@ -35,13 +36,13 @@ import {
   type AccessContext,
   type Bike,
   type MaintenanceEvent,
-  type Task,
 } from "@/server/db";
 import { isListedFirst } from "@/server/domain/bikes";
 import { computeTotalCost, eventCostCents } from "@/server/domain/cost";
 import { rideWear, usageBetween } from "@/server/domain/wear";
 import { getEnv } from "@/server/env";
 import { today } from "@/server/time";
+import { bikeAttachments, isPhoto, ownerKey } from "./attachments";
 import { bikeComponents, componentTypeChoices, templateChoices } from "./components";
 import {
   donePrefill,
@@ -50,20 +51,14 @@ import {
   partStatuses,
   rulesSheet,
 } from "./rules";
-import { bikeRef } from "./refs";
+import { bikeRef, taskRow } from "./refs";
 import { maintenanceEdit, rideForm, timeline } from "./timeline";
 import { bikeStock, loadGarage, stockLine } from "./workshop";
 
 // Bike view models for the real pages, built from the data-access layer and the domain
-// functions. Same shapes as the /design fixtures. Photos and documents come with feature 10.
+// functions. Same shapes as the /design fixtures.
 
-export { bikeRef } from "./refs";
-
-/** A task as "À prévoir" shows it. */
-export function taskRow(task: Task, bikes: Pick<Bike, "id" | "name">[]): TaskRowVM {
-  const bike = bikes.find((b) => b.id === task.bikeId);
-  return { id: task.id, bike: bike ? bikeRef(bike) : null, title: task.title, dueOn: task.dueOn };
-}
+export { bikeRef, taskRow } from "./refs";
 
 export function bikeCard(bike: Bike): BikeCardVM {
   return {
@@ -141,10 +136,14 @@ export type BikePage = {
   form: BikeFormVM;
   replace: ReplacePartVM;
   maintenance: MaintenanceFormVM;
-  /** What the history's entries open (D-70): a ride's sheet values, an event's edit sheet. */
+  /**
+   * What the history's entries open (D-70, D-77): a ride's sheet values, an event's edit sheet,
+   * a done task's "Modifier la tâche".
+   */
   edits: {
     rides: Record<number, QuickRideInput>;
     maintenance: Record<number, MaintenanceEditVM>;
+    tasks: Record<number, TaskRowVM>;
   };
   /** "C'est fait" on a rule: the maintenance sheet prefilled (D-63). */
   done: Record<number, { title: string; lines: MaintenanceLineInput[] }>;
@@ -173,6 +172,7 @@ export function getBikePage(ctx: AccessContext, bikeId: number): BikePage | null
   const rides = listRides(ctx, { bikeId: bike.id });
   const usage = usageBetween(rides, null, null);
   const events = listMaintenanceEvents(ctx, bike.id);
+  const doneTasks = listDoneTasks(ctx, { bikeId: bike.id });
   const shops = listShops(ctx);
   const components = listComponents(ctx, bike.id);
   const types = listComponentTypes();
@@ -182,6 +182,7 @@ export function getBikePage(ctx: AccessContext, bikeId: number): BikePage | null
       id: bike.id,
       name: bike.name,
       trackingStartAt: startOfLocalDay(trackedSince, timeZone),
+      coverAttachmentId: bike.coverAttachmentId,
     },
     rules,
     resets: listRuleResets(ctx, bike.id),
@@ -197,12 +198,15 @@ export function getBikePage(ctx: AccessContext, bikeId: number): BikePage | null
   for (const entry of evaluated) {
     entry.row.stock = stockLine(entry.rule.componentTypeCode, bike.id, workshop);
   }
+  const attachments = bikeAttachments(ctx, bike);
   const parts = bikeComponents(
     components,
     types,
     rides,
     timeZone,
     partStatuses(evaluated, components),
+    (componentId) =>
+      (attachments.byOwner.get(ownerKey("component", componentId)) ?? []).filter(isPhoto),
   );
 
   const vm: BikePageVM = {
@@ -225,10 +229,17 @@ export function getBikePage(ctx: AccessContext, bikeId: number): BikePage | null
       trackedSince,
     },
     rules: evaluated.map((entry) => entry.row),
-    tasks: listOpenTasks(ctx, bike.id).map((task) => taskRow(task, [bike])),
+    tasks: listOpenTasks(ctx, bike.id).map((task) => taskRow(task, [bike], timeZone)),
     components: { purchasedOn: bike.purchasedOn, groups: parts.groups },
     stock: bikeStock(workshop, bike.id),
-    history: timeline(rides, events, new Map([[bike.id, bike.name]]), timeZone),
+    history: timeline(
+      rides,
+      events,
+      doneTasks,
+      new Map([[bike.id, bike.name]]),
+      timeZone,
+      attachments.byOwner,
+    ),
     record: {
       identity: {
         brand: bike.brand,
@@ -252,12 +263,12 @@ export function getBikePage(ctx: AccessContext, bikeId: number): BikePage | null
         initialWearS: bike.initialWearS,
       },
       frameSerial: bike.frameSerial,
-      documents: [],
+      documents: attachments.documents,
       status: bike.status,
       statusChangedOn: bike.statusChangedOn,
       cost: totalCost(bike, events, rides),
     },
-    photos: [],
+    photos: attachments.photos,
   };
   return {
     vm,
@@ -283,6 +294,9 @@ export function getBikePage(ctx: AccessContext, bikeId: number): BikePage | null
     },
     edits: {
       rides: Object.fromEntries(rides.map((ride) => [ride.id, rideForm(ride, timeZone)])),
+      tasks: Object.fromEntries(
+        doneTasks.map((task) => [task.id, taskRow(task, [bike], timeZone)]),
+      ),
       maintenance: Object.fromEntries(
         events.map((event) => [event.id, maintenanceEdit(event, components)]),
       ),

@@ -115,11 +115,17 @@ export function BikeView({
                 if (ride) quickRide.edit(item.id, ride);
                 return;
               }
+              if (item.kind === "task") {
+                const task = page.edits.tasks[item.id];
+                if (task) taskSheet.edit(task);
+                return;
+              }
               const edit = page.edits.maintenance[item.id];
               if (edit) setMaintenance({ open: true, prefill: null, edit });
             },
             onRuleSnooze: (rule) => snooze(rule.id, rule.title),
             onTaskDone: (task) => taskDone(task.id, task.title),
+            onTaskEdit: (task) => taskSheet.edit(task),
             workshopItemHref: (id) => `/workshop?item=${id}`,
             onAddTask: () => taskSheet.open(bikeId),
             onShowRules: () => setRulesOpen(true),

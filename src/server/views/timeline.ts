@@ -4,17 +4,24 @@ import type { MaintenanceAction } from "@/lib/enums";
 import { localDateOf, localTimeOf } from "@/lib/format";
 import { RIDE_TYPE_LABELS } from "@/lib/labels";
 import type {
+  AttachmentVM,
   MaintenanceEditVM,
   MaintenanceItemVM,
   QuickRideInput,
   RideItemVM,
+  TaskItemVM,
   TimelineEdits,
   TimelineItemVM,
 } from "@/lib/view-models";
-import type { Component, MaintenanceEvent, MaintenanceItem, Ride } from "@/server/db";
+import type { Bike, Component, MaintenanceEvent, MaintenanceItem, Ride, Task } from "@/server/db";
 import { eventCostCents } from "@/server/domain/cost";
 import { rideDurationS, shownWearS } from "@/server/domain/rides";
 import { eventInstant } from "@/server/domain/time";
+import { isPhoto } from "./attachments";
+import { taskRow } from "./refs";
+
+/** A done task as the history shows it (D-77): at the local date of `done_at`. */
+export type DoneTask = Task & { doneAt: number };
 
 /** A maintenance event as the history shows it. */
 export function maintenanceEntry(event: MaintenanceEvent, bikeName: string): MaintenanceItemVM {
@@ -28,7 +35,7 @@ export function maintenanceEntry(event: MaintenanceEvent, bikeName: string): Mai
     title: event.title,
     totalCostCents: eventCostCents(event),
     note: event.notes,
-    invoices: [],
+    documents: [],
     photos: [],
   };
 }
@@ -51,27 +58,63 @@ export function rideEntry(ride: Ride, bikeName: string, timeZone: string): RideI
     wearS: shownWearS(ride),
     conditions: ride.conditions,
     photos: [],
+    documents: [],
+  };
+}
+
+/** A done task as the history shows it (D-77); `bikeName` null for a general task. */
+export function taskEntry(task: DoneTask, bikeName: string | null, timeZone: string): TaskItemVM {
+  return {
+    kind: "task",
+    id: task.id,
+    on: localDateOf(task.doneAt, timeZone),
+    bikeName,
+    title: task.title,
+    note: task.notes,
+    documents: [],
+    photos: [],
   };
 }
 
 /**
- * Rides and maintenance events, newest first, ordered by the instants the counters use (D-61):
- * a replacement recorded in the evening comes after that day's ride.
+ * Rides, maintenance events and done tasks, newest first, ordered by the instants the counters
+ * use (D-61): a replacement recorded in the evening comes after that day's ride. A done task sits
+ * at `done_at` (D-77).
  */
 export function timeline(
   rides: Ride[],
   events: MaintenanceEvent[],
+  tasks: DoneTask[],
   bikeNames: Map<number, string>,
   timeZone: string,
+  /** The bike page's attachments by element (feature 10): thumbnails and documents of entries. */
+  attachments?: Map<string, AttachmentVM[]>,
 ): TimelineItemVM[] {
+  const attach = <T extends TimelineItemVM>(item: T, key: string): T => {
+    const list = attachments?.get(key) ?? [];
+    return { ...item, photos: list.filter(isPhoto), documents: list.filter((a) => !isPhoto(a)) };
+  };
   const entries = [
     ...rides.map((ride) => ({
       at: ride.startedAt,
-      item: rideEntry(ride, bikeNames.get(ride.bikeId) ?? "", timeZone) as TimelineItemVM,
+      item: attach(
+        rideEntry(ride, bikeNames.get(ride.bikeId) ?? "", timeZone),
+        `ride:${ride.id}`,
+      ) as TimelineItemVM,
     })),
     ...events.map((event) => ({
       at: eventInstant(event.performedOn, event.createdAt, timeZone),
-      item: maintenanceEntry(event, bikeNames.get(event.bikeId) ?? "") as TimelineItemVM,
+      item: attach(
+        maintenanceEntry(event, bikeNames.get(event.bikeId) ?? ""),
+        `maintenance_event:${event.id}`,
+      ) as TimelineItemVM,
+    })),
+    ...tasks.map((task) => ({
+      at: task.doneAt,
+      item: attach(
+        taskEntry(task, task.bikeId == null ? null : (bikeNames.get(task.bikeId) ?? ""), timeZone),
+        `task:${task.id}`,
+      ) as TimelineItemVM,
     })),
   ];
   return entries.sort((a, b) => b.at - a.at).map((entry) => entry.item);
@@ -98,15 +141,18 @@ export function rideForm(ride: Ride, timeZone: string): QuickRideInput {
   };
 }
 
-/** What each entry of a timeline opens (D-70). */
+/** What each entry of a timeline opens (D-70, D-77). */
 export function timelineEdits(
   rides: Ride[],
   events: MaintenanceEvent[],
+  tasks: DoneTask[],
+  bikes: Pick<Bike, "id" | "name" | "coverAttachmentId">[],
   timeZone: string,
 ): TimelineEdits {
   return {
     rides: Object.fromEntries(rides.map((ride) => [ride.id, rideForm(ride, timeZone)])),
     eventBikeIds: Object.fromEntries(events.map((event) => [event.id, event.bikeId])),
+    tasks: Object.fromEntries(tasks.map((task) => [task.id, taskRow(task, bikes, timeZone)])),
   };
 }
 

@@ -72,6 +72,7 @@ describe("rideFigures", () => {
     wearS: null,
     conditions: "mud",
     photos: [],
+    documents: [],
   };
 
   it("lists distance, time and climbing", () => {

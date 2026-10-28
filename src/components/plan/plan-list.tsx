@@ -1,6 +1,14 @@
 import Link from "next/link";
 import { cn } from "cn";
-import { CalendarClock, Check, ListChecks, PackageCheck, PackageX, Plus } from "lucide-react";
+import {
+  CalendarClock,
+  Check,
+  ListChecks,
+  PackageCheck,
+  PackageX,
+  Pencil,
+  Plus,
+} from "lucide-react";
 import { BikeCover } from "@/components/bike-cover";
 import { CATEGORY_ICONS } from "@/components/icons";
 import { RuleStatusBadge, WearBar } from "@/components/status";
@@ -17,6 +25,8 @@ export type PlanActions = {
   onRuleDone?: (rule: RuleRowVM) => void | Promise<void>;
   onRuleSnooze?: (rule: RuleRowVM) => void | Promise<void>;
   onTaskDone?: (task: TaskRowVM) => void | Promise<void>;
+  /** "Modifier la tâche": its fields and its attachments (feature 10). */
+  onTaskEdit?: (task: TaskRowVM) => void;
   onAddTask?: () => void | Promise<void>;
   /** Where "Voir dans l'atelier" leads for a stock item. */
   workshopItemHref?: (itemId: number) => string;
@@ -169,6 +179,17 @@ function TaskRow({
         </p>
       </div>
       <div className={actionsClasses}>
+        {actions.onTaskEdit ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            aria-label={`Modifier « ${task.title} »`}
+            onClick={() => actions.onTaskEdit?.(task)}
+          >
+            <Pencil />
+            Modifier
+          </Button>
+        ) : null}
         <ActionButton
           variant="secondary"
           size="sm"

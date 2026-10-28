@@ -21,6 +21,9 @@ import {
   Store,
   Truck,
 } from "lucide-react";
+import { AttachmentsBlock } from "@/components/attachments/attachments-block";
+import { UploadRows } from "@/components/attachments/upload-controls";
+import { useUploads } from "@/components/attachments/use-uploads";
 import { BikeCover, BikePip } from "@/components/bike-cover";
 import { RebuyBadge, RuleStatusBadge } from "@/components/status";
 import { Button } from "@/components/ui/button";
@@ -51,7 +54,6 @@ export type ItemActions = {
   onCorrectStock?: (item: InventoryItemVM) => void;
   onEditBikes?: (item: InventoryItemVM) => void;
   onAddLink?: (item: InventoryItemVM) => void;
-  onAddPhoto?: (item: InventoryItemVM) => void;
   onArchive?: (item: InventoryItemVM) => void;
 };
 
@@ -350,19 +352,21 @@ export function ItemDetail({
       ? priced.reduce((a, b) => ((b.priceCents ?? 0) < (a.priceCents ?? 0) ? b : a))
       : null;
   const servedBikes = item.bikes === "all" ? allBikes : item.bikes;
+  const photoOwner = React.useMemo(
+    () => ({ kind: "inventory_item" as const, id: item.id }),
+    [item.id],
+  );
+  const photoUploads = useUploads(photoOwner);
   const mountOn = item.componentTypeCode && servedBikes.length === 1 ? servedBikes[0] : null;
 
   return (
     <article aria-labelledby="item-title" className="grid content-start gap-[22px]">
       <header className="grid grid-cols-[64px_minmax(0,1fr)] items-start gap-3.5">
-        <button
-          type="button"
-          onClick={() => actions.onAddPhoto?.(item)}
-          aria-label="Ajouter une photo de l'objet"
-          className="grid size-16 place-items-center rounded-card border-[1.5px] border-dashed border-[color-mix(in_oklch,var(--fg-muted),transparent_45%)] bg-surface text-fg-muted transition-colors hover:border-fg-muted hover:text-fg"
-        >
-          <Camera className="size-[22px]" aria-hidden />
-        </button>
+        <ItemPhoto
+          item={item}
+          enabled={photoUploads.enabled}
+          onFiles={(files) => photoUploads.add(files.slice(0, 1), true)}
+        />
         <div className="min-w-0">
           <p className="eyebrow">Pièce · {INVENTORY_CATEGORY_LABELS[item.category]}</p>
           <h2
@@ -384,6 +388,7 @@ export function ItemDetail({
           </p>
         </div>
       </header>
+      <UploadRows rows={photoUploads.rows} onDismiss={photoUploads.dismiss} />
 
       <div className="flex flex-wrap gap-2">
         {mountOn && actions.onMount ? (
@@ -601,6 +606,15 @@ export function ItemDetail({
         )}
       </Section>
 
+      {/* Any kind of item (D-33): the block knows nothing of parts (feature 10). */}
+      <Card padded>
+        <AttachmentsBlock
+          key={item.id}
+          owner={{ kind: "inventory_item", id: item.id }}
+          title="Photos et documents"
+        />
+      </Card>
+
       {item.notes ? (
         <Section id="item-notes" title="Notes">
           <Card padded className="text-sm leading-relaxed">
@@ -616,5 +630,59 @@ export function ItemDetail({
         </Button>
       </div>
     </article>
+  );
+}
+
+/**
+ * The item's photo (D-75): tapping it picks a new one, which becomes the item's photo. Its
+ * other photos and documents are in "Photos et documents" below.
+ */
+function ItemPhoto({
+  item,
+  enabled,
+  onFiles,
+}: {
+  item: InventoryItemVM;
+  enabled: boolean;
+  onFiles: (files: File[]) => void;
+}) {
+  const input = React.useRef<HTMLInputElement>(null);
+  return (
+    <>
+      <button
+        type="button"
+        disabled={!enabled}
+        onClick={() => input.current?.click()}
+        aria-label={
+          item.photoUrl ? "Changer la photo de l'article" : "Ajouter une photo de l'article"
+        }
+        className={cn(
+          "relative grid size-16 place-items-center overflow-hidden rounded-card bg-surface text-fg-muted transition-colors hover:text-fg",
+          item.photoUrl
+            ? "border border-border"
+            : "border-[1.5px] border-dashed border-[color-mix(in_oklch,var(--fg-muted),transparent_45%)] hover:border-fg-muted",
+        )}
+      >
+        {item.photoUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element -- served by the uploads handler
+          <img src={item.photoUrl} alt="" className="absolute inset-0 size-full object-cover" />
+        ) : (
+          <Camera className="size-[22px]" aria-hidden />
+        )}
+      </button>
+      <input
+        ref={input}
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        hidden
+        tabIndex={-1}
+        aria-hidden
+        onChange={(event) => {
+          const files = Array.from(event.target.files ?? []);
+          event.target.value = "";
+          if (files.length) onFiles(files);
+        }}
+      />
+    </>
   );
 }

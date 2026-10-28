@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Chip, ChipRow } from "@/components/ui/chip";
 import { Field, FieldError, Fieldset, Input, NativeSelect, Textarea } from "@/components/ui/field";
 import { Fold } from "@/components/ui/fold";
+import { AttachmentsBlock, AttachmentsLater } from "@/components/attachments/attachments-block";
 import { Sheet, SheetBody, SheetContent, SheetFooter, SheetForm } from "@/components/ui/sheet";
 import { COMPONENT_GROUPS, type ComponentTypeCode } from "@/lib/enums";
 import { formatDate, formatDecimal, type LocalDate } from "@/lib/format";
@@ -503,6 +504,11 @@ function ComponentForm({
             />
           </Field>
         </Fold>
+        {component ? (
+          <AttachmentsBlock owner={{ kind: "component", id: component.id }} />
+        ) : (
+          <AttachmentsLater />
+        )}
       </SheetBody>
       <SheetFooter>
         <Button type="submit" size="lg" className="w-full" disabled={pending}>

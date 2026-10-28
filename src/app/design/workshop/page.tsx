@@ -182,7 +182,6 @@ export default function DesignWorkshopPage() {
     onCorrectStock: later("Corriger le stock après un comptage"),
     onEditBikes: later("Choisir les vélos"),
     onAddLink: later("Ajouter un lien d'achat"),
-    onAddPhoto: () => toast("Photo de l'objet : arrive avec les pièces jointes"),
     onArchive: (item) =>
       toast(`Objet archivé : ${item.name}`, { undo: () => toast("Archivage annulé") }),
   };
@@ -214,6 +213,7 @@ export default function DesignWorkshopPage() {
           const created: InventoryItemVM = {
             id,
             kind: "part",
+            photoUrl: null,
             name: input.name,
             brand: input.brand,
             reference: input.reference,

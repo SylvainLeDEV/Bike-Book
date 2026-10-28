@@ -34,7 +34,7 @@ import { bikeRef } from "./refs";
 // prefill, and the "Règles" sheet. Everything is evaluated by the pure engine.
 
 export type BikeRulesInput = {
-  bike: { id: number; name: string; trackingStartAt: number };
+  bike: { id: number; name: string; trackingStartAt: number; coverAttachmentId?: number | null };
   rules: Rule[];
   resets: { ruleId: number; eventId: number; on: LocalDate; recordedAt: number }[];
   components: Component[];

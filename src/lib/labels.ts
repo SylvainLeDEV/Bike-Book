@@ -3,6 +3,7 @@
  * database and docs/03 (D-50): labels exist only in the interface.
  */
 import type {
+  AttachmentKind,
   BikeStatus,
   ComponentGroup,
   ComponentOrigin,
@@ -274,4 +275,13 @@ export const REBUY_STATE_LABELS: Record<RebuyState, string> = {
   to_order: "À commander",
   ordered: "En commande",
   low_stock: "Stock bas",
+};
+
+/** Kinds of attachments (D-74): a refused HEIC never gets this far (D-73). */
+export const ATTACHMENT_KIND_LABELS: Record<AttachmentKind, string> = {
+  photo: "Photo",
+  invoice: "Facture",
+  manual: "Notice",
+  track: "Trace",
+  other: "Document",
 };

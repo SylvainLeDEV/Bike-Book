@@ -2,7 +2,7 @@
 
 Status: **Decided** (2026-10-25): validated on the mockup and recorded in the decision log
 ([02](../02-decisions-and-questions.md), D-30 to D-48). Where the mockup and the decisions differ
-(tablet tabs D-48, HEIC D-46, run kept in `localStorage` D-47), the decisions win.
+(tablet tabs D-48, HEIC D-46 then D-73, run kept in `localStorage` D-47), the decisions win.
 
 ## Mockups
 
@@ -39,7 +39,7 @@ rebuilt when their phase starts. It is then deleted (git history keeps it).
 | Screen | Where it lives today | Rebuilt in `/design` |
 |--------|----------------------|----------------------|
 | Dashboard, bike page (record, components, original spec, stock, history, photo gallery and viewer), quick ride entry, workshop (parts, restocking, add and replace sheets), Foundation board | `/design` (and the mockup) | Done (step A) |
-| Bike edit sheet, "Joindre un document", "Ajouter des photos" (upload rows with progress) | Mockup only (sketches) | With features 1 and 10 |
+| Bike edit sheet, "Joindre un document", "Ajouter des photos" (upload rows with progress) | Built in the app (features 1 and 10, D-54, D-74): `src/components/attachments/` | Done (2026-10-26, 2026-10-27) |
 | Maintenance entry and "C'est fait" without a procedure | Not mocked: the toast stands in | With features 5 and 6 |
 | Workshop products (four levels, containers) and tools (owned or not) | Mockup only | Phase 1.5 |
 | Photo labels, photos across all bikes (Activité › Photos) | Mockup only | Phase 1.5 |
@@ -196,7 +196,7 @@ from the maintenance events they produce).
 | Composants | A toggle "Monté aujourd'hui" / "Fiche d'origine". The original spec lists each slot's purchase part, then every replacement in order: when, after how much wear, the removal reason and its detail ("Chute : chape tordue aux Gets"), down to the part fitted today. Slots never replaced say "D'origine · toujours en place". Parts with photos show thumbnails, removed parts included |
 | Photos (gallery) | One gallery per bike: photos of the bike, its components, its maintenance events and its rides, grouped by month, newest first. Each tile names its origin ("Entretien du 12 oct.") and its number of labels. Filters: label chips with counts, origin, sort by date taken. A link opens the same search across all bikes |
 | Viewer | Full screen: the photo, its caption (editable in place), the date taken, the linked element with a link to it, the bike, the labels (removable chips plus the label field), delete with undo. Previous/next by buttons, arrow keys and swipe; Escape closes; focus returns to the thumbnail that opened it, even after a re-render. Without a caption, it shows the generated alternative text |
-| Add photos | From the gallery ("Lier à" chooses the element) or from a maintenance event in the history (link fixed). Several files at once (iPhone: camera or library). Each file uploads at once with its own progress bar, while its caption and labels are typed; iPhone photos are accepted, HEIC included (D-46); refused files explain why (over 25 MB, unsupported format) and offer "Choisir une autre photo" or "Retirer". Saving waits for the uploads in progress |
+| Add photos | From the gallery ("Lier à" chooses the element) or from a maintenance event in the history (link fixed). Several files at once (iPhone: camera or library). Each file uploads at once with its own progress bar, while its caption and labels are typed; iPhone photos are accepted, HEIC included (D-46); refused files explain why (over 25 MB, unsupported format) and offer "Choisir une autre photo" or "Retirer". Saving waits for the uploads in progress. **Built differently (D-74):** files are saved as they arrive (no save step, no "Lier à": each place uploads to its own element), the caption is edited afterwards, HEIC is refused (D-73) |
 | Labels | Field with suggestions (combobox): existing labels match whatever the case or accents, so "Avant" picks "avant"; "Créer « … »" is the last suggestion when nothing matches exactly. Keyboard: arrows, Enter, Escape. Example set: avant, après, couple de serrage, réglage, casse, garantie, numéro de série, facture |
 | History | Thumbnails on the events that have photos; "Photos" on maintenance events adds some to that event |
 | Photos across all bikes | Phase 1.5: **Activité › Photos** (Activité already holds the ride and maintenance log). Reached from any label in the viewer and from the bike gallery; label search field, label chips, bike, origin and sort filters, results grouped by bike |
@@ -244,6 +244,6 @@ Recorded in [02](../02-decisions-and-questions.md#decision-log).
 | P6 | Run in progress kept where? | In the browser's `localStorage` (D-47). The mockup only keeps it while the page stays open |
 | P7 | Cost per 100 or 1,000 km, phase 1 or 1.5? | Per 100 km, with and without the purchase, sale price deducted, phase 1 (D-44) |
 | P8 | Product level after a procedure? | One level down by default, adjustable in the summary (D-47) |
-| P9 | HEIC? | iPhone photos sent from Safari must upload: Safari converts to JPEG, and a HEIC that still arrives is accepted (D-46). The mockup refused HEIC |
+| P9 | HEIC? | iPhone photos sent from Safari must upload: Safari converts to JPEG, and a HEIC that still arrives is accepted (D-46). The mockup refused HEIC. Revised by D-73: HEIC refused, as the mockup did |
 | P10 | Tablet layout? | Tabs below 1024 px (D-48). The mockup stacks the sections from 700 px |
 | P11 | When does "C'est fait" offer the procedure? | Only on due-soon and overdue rules (D-47) |

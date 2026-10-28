@@ -25,7 +25,7 @@ restored once, **before any real data goes in**.
 - [x] CI: lint and tests on each push; build the image and push it to GHCR on each `v*` tag (written 2026-10-24, not run on GitHub yet)
 - [x] Deploy the image on the target host, behind its reverse proxy (done 2026-10-25 with 0.1.0; installation-specific steps are kept outside this repository)
 - [ ] Backups of the data directory in place, restore tested once
-- [ ] Check through the proxy: a form submit (Server Actions origin check) and a 10 MB upload
+- [ ] Check through the proxy: a form submit (Server Actions origin check) and a 10 MB upload (the upload route exists since feature 10, 2026-10-27: still to test once deployed, with a 25 MB file too)
 - [x] Health check monitored (done 2026-10-25: probed directly and through the proxy, alert on failure)
 
 **Exit:** the empty app answers on its address, locally and through the VPN, and a restore has
@@ -61,12 +61,12 @@ pure tested domain logic, its screens, and its tables described in the data dict
 | 4 | Rides | Manual entry, quick-add form for tablet and phone, bike park fields (total time, descent time, runs) | ✓ 2026-10-26 (D-61, D-64) |
 | 5 | Maintenance | Events with items, costs, shop or self | ✓ 2026-10-26 (D-63) |
 | 6 | Rule engine | Wear counters with their sources ("Voir le détail"), rule status (ok / due soon / overdue), ETA projection. Unit-tested | ✓ 2026-10-26 (D-65) |
-| 7 | Tasks | One-off to-dos under "À prévoir", "Fait" with undo (D-34) | ✓ 2026-10-26 (D-66) |
+| 7 | Tasks | One-off to-dos under "À prévoir", "Fait" with undo (D-34) | ✓ 2026-10-26 (D-66); done tasks in the history 2026-10-28 (D-77) |
 | 8 | Workshop: parts and restocking | Items, movements, purchase links, online shops (D-37), "À racheter", "En stock pour ce vélo", replace a part from stock, search and bike filter (D-33 to D-42) | ✓ 2026-10-26 (D-67) |
 | 9 | "À prévoir" dashboard | Overdue, due soon, open tasks, "À racheter" | ✓ 2026-10-26 (D-67) |
-| 10 | Attachments | Photos and PDFs: upload (iPhone through Safari first, D-46), thumbnails, viewer, gallery per bike, cover photo, invoices on maintenance events. No labels (D-45) | |
-| 11 | Bike page | Counters, tabs below 1024 px and two columns above (D-48), components today / original spec, timeline, total cost per 100 km (D-44) | ✓ 2026-10-26 (photos and documents come with item 10) |
-| 12 | Export | One ZIP with CSV/JSON of every table, the uploads and the data dictionary (D-50) | ✓ 2026-10-26 (D-68; the uploads join with item 10) |
+| 10 | Attachments | Photos and PDFs: upload (iPhone through Safari first, D-46), thumbnails, viewer, gallery per bike, cover photo, invoices on maintenance events. No labels (D-45) | ✓ 2026-10-27 (D-73 to D-76): on every element; the real-iPhone test through the local network remains |
+| 11 | Bike page | Counters, tabs below 1024 px and two columns above (D-48), components today / original spec, timeline, total cost per 100 km (D-44) | ✓ 2026-10-26 (photos and documents added with item 10, 2026-10-27) |
+| 12 | Export | One ZIP with CSV/JSON of every table, the uploads and the data dictionary (D-50) | ✓ 2026-10-26 (D-68; the uploads joined with item 10, 2026-10-27) |
 
 **Exit:** the success criteria in [01](01-vision-and-scope.md#mvp-success-criteria), after 2–4
 weeks of real use.

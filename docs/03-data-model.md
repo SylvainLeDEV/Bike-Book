@@ -38,7 +38,10 @@ erDiagram
     ATTACHMENT }o--o| COMPONENT : "illustrates"
     ATTACHMENT }o--o| MAINTENANCE_EVENT : "proves"
     ATTACHMENT }o--o| RIDE : "documents"
+    ATTACHMENT }o--o| TASK : "documents"
     ATTACHMENT }o--o| INVENTORY_ITEM : "illustrates"
+    BIKE |o--o| ATTACHMENT : "has as cover"
+    INVENTORY_ITEM |o--o| ATTACHMENT : "has as photo"
     INVENTORY_ITEM |o--o{ COMPONENT : "becomes"
 ```
 
@@ -84,8 +87,9 @@ Scoping rules:
 - Link tables between two workspace-owned rows (`inventory_item_bikes`, `attachment_tags`,
   `procedure_bikes`) carry no workspace: the data-access layer checks that both rows belong to
   the current workspace.
-- Everything below a bike (components, rides, maintenance, rules, readings, setups,
-  attachments) inherits the workspace through `bike_id`, so no extra column is needed there.
+- Everything below a bike (components, rides, maintenance, rules, readings, setups)
+  inherits the workspace through `bike_id`, so no extra column is needed there. Attachments
+  inherit it from their one element (a bike or something below it, a task, a workshop item).
 - Per-person data carries a `user_id`: Garmin integration (each person has their own Garmin
   account), notification preferences, sessions.
 - `maintenance_events.created_by` records who logged the work (useful for a shop's mechanics).
@@ -97,8 +101,9 @@ Scoping rules:
 
 ### `bikes`
 
-Status: **Built** in phase 1 feature 1 (2026-10-26, migration `0001_bikes_and_shops`), except
-`cover_attachment_id`, added with the attachments (feature 10, D-57).
+Status: **Built** in phase 1 feature 1 (2026-10-26, migration `0001_bikes_and_shops`);
+`cover_attachment_id` added with the attachments (feature 10, 2026-10-27, migration
+`0010_attachments`, D-57).
 
 | Field | Type | Notes |
 |-------|------|-------|
@@ -122,7 +127,7 @@ Status: **Built** in phase 1 feature 1 (2026-10-26, migration `0001_bikes_and_sh
 | `status` | enum, required, default `active` | See [values](#bike-values). Bikes are never deleted, only given another status |
 | `status_changed_on` | date, nullable | The day the current status began: the sale date for a sold bike, the purchase date (else the creation day) for a new active bike (D-56) |
 | `sale_price_cents` | integer, nullable | Euro cents, ≥ 0. Only on a sold bike (CHECK), deducted from the total cost (D-44) |
-| `cover_attachment_id` | FK `attachments`, nullable | Main photo. Added with feature 10 (D-57) |
+| `cover_attachment_id` | FK `attachments`, nullable, `ON DELETE SET NULL` | Main photo: a `photo` attached to this bike (D-75); the first one by default. Added with feature 10 by `ALTER TABLE … ADD COLUMN` (D-57) |
 | `notes` | text | |
 | `created_at`, `updated_at` | timestamp | Instants, UTC epoch milliseconds |
 
@@ -435,7 +440,9 @@ Status: **Built** in phase 1 feature 7 (2026-10-26, migration `0007_tasks`, D-66
 One-off to-dos only (D-34), shown under "À prévoir" after the rules: all of them on the
 dashboard, a bike's own on its page. Same row as a rule without the wear bar, a neutral "Tâche"
 badge, the due date or "Sans échéance", and "Fait" with undo. Parts to buy live in the workshop
-(D-33).
+(D-33). A done task moves to the history, placed at `done_at` (D-77): the bike page's history
+(its bike's tasks), Activité and the dashboard's recent activity (all of them, general ones
+included); it opens "Modifier la tâche", which can reopen it. Cancelled tasks are not shown.
 
 | Field | Type | Notes |
 |-------|------|-------|
@@ -453,26 +460,48 @@ badge, the due date or "Sans échéance", and "Fait" with undo. Parts to buy liv
 
 ### `attachments` — photos, invoices, manuals, tracks
 
+Status: **Built** in phase 1 feature 10 (2026-10-27, migration `0010_attachments`, which also adds
+`bikes.cover_attachment_id` and `inventory_items.photo_attachment_id` by `ALTER TABLE … ADD
+COLUMN`, D-57). Decisions D-45, D-72 to D-76.
+
 | Field | Type | Notes |
 |-------|------|-------|
 | `id` | integer PK | |
-| `bike_id`, `component_id`, `maintenance_event_id`, `ride_id`, `task_id`, `inventory_item_id` | FK, nullable | **Exactly one** is set (CHECK constraint, D-45). Phase 1.5 adds `procedure_step_id` and `procedure_id` to the same CHECK |
-| `kind` | enum: `photo`, `invoice`, `manual`, `track`, `other` | |
-| `storage_path` | text | Relative to the data directory, e.g. `uploads/2026/10/<random>.jpg` |
-| `original_name`, `mime_type` | text | |
-| `size_bytes` | integer | |
-| `sha256` | text | Duplicate detection and integrity checks |
-| `width_px`, `height_px` | integer | Photos |
-| `taken_at` | timestamp | Photos: EXIF `DateTimeOriginal` with `OffsetTimeOriginal` (without an offset, read in `TZ`); else the file's `lastModified`, sent by the client as its own field (a multipart body does not carry it); else the upload time (H-11). Galleries sort on it |
-| `caption` | text | Without one, the alternative text is generated from the linked element ("Photo de l'entretien « … »"): nothing more to store |
-| `created_at` | timestamp | |
+| `bike_id`, `component_id`, `maintenance_event_id`, `ride_id`, `task_id`, `inventory_item_id` | FK, nullable, `ON DELETE CASCADE` | **Exactly one** is set (CHECK constraint, D-45): the element the file belongs to. Its workspace is that element's (D-25). Phase 1.5 adds `procedure_step_id` and `procedure_id` to the same CHECK |
+| `kind` | enum: `photo`, `invoice`, `manual`, `track`, `other` | See [values](#attachment-values). Proposed from the file (`photo` for an image, `invoice` for a PDF), changeable (D-74). CHECK: a `photo` is an image |
+| `storage_path` | text, unique | Relative to the data directory: `uploads/YYYY/MM/<random>.<ext>` (UTC month of the upload, 32 random hex characters). Never derived from the file name |
+| `original_name` | text | The file name sent by the browser, cleaned (no folder, no control character, 200 characters at most). Shown, and used for downloads |
+| `mime_type` | text | Detected from the content (magic bytes), never taken from the browser: `image/jpeg`, `image/png`, `image/webp` or `application/pdf` |
+| `size_bytes` | integer | Size of the original, in bytes; > 0 and at most 25 MB (26 214 400 bytes) |
+| `sha256` | text | Hex SHA-256 of the original, computed while it was received: integrity checks, duplicate detection later |
+| `width_px`, `height_px` | integer, nullable | Images only, in pixels, as displayed (EXIF orientation applied); null for a PDF |
+| `taken_at` | timestamp, nullable | Images only: EXIF `DateTimeOriginal` with `OffsetTimeOriginal` (without an offset, read in `TZ`); else the file's `lastModified`, sent by the client as its own field (the body does not carry it); else the upload time (H-11). A date before 1990 or in the future is not believed. Editable; without a time, noon. Null for a PDF. Galleries sort on it |
+| `caption` | text, nullable | 200 characters at most. Without one, the alternative text is generated from the linked element ("Photo de l'entretien « … »"): nothing more to store |
+| `created_at`, `updated_at` | timestamp | Instants, UTC epoch milliseconds: the upload, the last edit |
 
-Files live on disk, never in the database. Derived files (thumbnails, resized copies) go to a
-separate `cache/` folder: they can be regenerated, so they are left out of the backups.
+<a id="attachment-values"></a>**Values of `kind`**
 
-Accepted formats (D-46): JPEG, PNG, WebP and HEIC for photos (HEIC originals are kept, their
-copies made through a decoder that needs no native library), PDF for documents. Type checked from
-the content, 25 MB per file, one upload request per file so each shows its own progress.
+| Value | Meaning |
+|-------|---------|
+| `photo` | A picture of the element: shown in the galleries, can be a cover (D-75). Images only |
+| `invoice` | An invoice or a receipt (PDF, or a photographed one): warranty, total cost proof |
+| `manual` | A manual, a technical sheet |
+| `track` | A ride file (FIT, GPX): phase 2, not offered yet |
+| `other` | Any other document (warranty certificate, insurance…) |
+
+Files live on disk, never in the database. The original is kept byte for byte, EXIF and GPS
+included (D-72); the position is never stored in a column. Derived copies (WebP, EXIF
+orientation applied, **no metadata**) go to `cache/<storage path without extension>/`
+(`thumb.webp`, 320 px square; `display.webp`, 1600 px inside): they are regenerated on demand, so
+they are left out of the backups.
+
+Accepted formats (D-73): JPEG, PNG and WebP for photos, PDF for documents. HEIC is refused with
+its own message; everything else as an unsupported format. Type checked from the content, 25 MB
+per file checked while it streams, one upload request per file so each shows its own progress.
+
+Deleting the element deletes its rows (cascade) and the data-access layer deletes their files
+after the transaction (D-76). Workshop items are archived, never deleted (D-67): their
+attachments stay. Bikes are never deleted (Q-12).
 
 ### Workshop (D-33 to D-42)
 
@@ -480,8 +509,8 @@ The garage's inventory, owned by the workspace. Created complete in phase 1; the
 offers parts only, products and tools come in 1.5 (D-33).
 
 Status: **Built** in phase 1 feature 8 (2026-10-26, migration `0008_workshop`, which also adds
-`components.inventory_item_id`), except `inventory_items.photo_attachment_id`, added with the
-attachments (feature 10, D-57). CHECK constraints: a part has a unit and only a part does; a
+`components.inventory_item_id`); `inventory_items.photo_attachment_id` added with the
+attachments (feature 10, 2026-10-27, D-57). CHECK constraints: a part has a unit and only a part does; a
 restocking quantity only while to order or ordered (> 0); a link names a shop or a page; the sign
 of each movement kind (below); prices and thresholds ≥ 0. Values of `kind`: `part` (counted in
 units), `product` (levels and containers, 1.5), `tool` (owned or not, 1.5); of `unit`: `piece`,
@@ -529,7 +558,7 @@ erDiagram
 | `restock_quantity` | integer, nullable | Set when ordering; prefilled at reception and correctable, then added to the stock (D-42) |
 | `restock_changed_on` | date, nullable | Shown on the restocking steps |
 | `location` | text | Storage place, free text |
-| `photo_attachment_id` | FK `attachments`, nullable | Like `bikes.cover_attachment_id`. Added with feature 10 |
+| `photo_attachment_id` | FK `attachments`, nullable, `ON DELETE SET NULL` | Its photo: a `photo` attached to this item, whatever its `kind` (D-75); the first one by default. Added with feature 10 (migration `0010_attachments`) |
 | `notes` | text | |
 | `archived_at` | timestamp, nullable | Items are archived, not deleted, like bikes and components |
 | `created_at`, `updated_at` | timestamp | |
@@ -920,8 +949,10 @@ the app. The data therefore has to explain itself. **Decided** on 2026-10-25.
 - **Enums**: text columns with CHECK constraints.
 - **Deletion**: bikes and components are retired (`status`, `removed_at`), not deleted. Hard
   deletes only fix mistakes ("Annuler", "Supprimer la sortie", "Supprimer l'entretien", D-60,
-  D-70), and cascade to attachments.
-- **Export**: every table can be exported to CSV/JSON in a single ZIP with the uploads, the
+  D-70), and cascade to attachments, whose files the data-access layer deletes after the
+  transaction (D-76).
+- **Export**: every table can be exported to CSV/JSON in a single ZIP with the uploads (the
+  originals, under `uploads/` at their `storage_path`, feature 10), the
   workshop tables included (and the label and procedure tables from 1.5). It doubles as a
   portable backup. Built in feature 12 (D-68): the auth tables and `memberships` are left out; a
   new table must be added to the export or to its exclusion list (a test checks it).
