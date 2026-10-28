@@ -6,6 +6,7 @@ import { Camera, ImagePlus, Paperclip, Plus, Replace, ShoppingCart, Wrench } fro
 import { UploadButton, UploadRows } from "@/components/attachments/upload-controls";
 import { useUploads } from "@/components/attachments/use-uploads";
 import { BikeCover } from "@/components/bike-cover";
+import { FilteredHistory, useHistoryFilter } from "@/components/history-filters";
 import { PhotoGallery } from "@/components/photos/photo-gallery";
 import { PhotoViewerProvider } from "@/components/photos/photo-viewer";
 import { PlanList, type PlanActions } from "@/components/plan/plan-list";
@@ -17,6 +18,7 @@ import { InfoPopover } from "@/components/ui/info-popover";
 import { ReplacePartSheet } from "@/components/workshop/replace-part-sheet";
 import { InventoryRowContent, inventoryRowClasses } from "@/components/workshop/inventory-row";
 import { formatCount, formatDate, formatInteger, formatKilometres } from "@/lib/format";
+import { NO_HISTORY_FILTER, type HistoryFilter } from "@/lib/history-filter";
 import { BIKE_STATUS_LABELS, DISCIPLINE_LABELS } from "@/lib/labels";
 import type {
   AttachmentVM,
@@ -27,7 +29,15 @@ import type {
   TimelineItemVM,
 } from "@/lib/view-models";
 import { BikeRecord, BIKE_STATUS_ICONS } from "./bike-record";
-import { BikeTabList, BikeTabPanel, BikeTabs, useBikeTabs } from "./bike-tabs";
+import {
+  BikeOverview,
+  BikeTabExtra,
+  BikeTabList,
+  BikeTabPanel,
+  BikeTabs,
+  useBikeTabs,
+  type BikeTabId,
+} from "./bike-tabs";
 import { ComponentsSection } from "./components-section";
 
 export type BikeScreenActions = PlanActions & {
@@ -103,13 +113,21 @@ function Stat({
   );
 }
 
-/** Bike page (D-43, D-48): counters, "À prévoir", components, stock, history, record, photos. */
+/** Entries of "Dernières entrées", above the record or under "À prévoir" (D-78). */
+const RECENT_COUNT = 5;
+
+/**
+ * Bike page (D-43, D-48, D-78): counters, "À prévoir" and the latest entries, components, stock,
+ * record, photos, and the history with its filters in a tab of its own.
+ */
 export function BikeScreen({
   vm,
   replace,
   actions,
   links,
   initialReplaceItemId,
+  initialTab,
+  initialHistoryFilter,
 }: {
   vm: BikePageVM;
   replace: ReplacePartVM;
@@ -117,15 +135,20 @@ export function BikeScreen({
   links: BikeScreenLinks;
   /** "Monter sur …" from the workshop: the replace sheet opens with this item chosen. */
   initialReplaceItemId?: number | null;
+  /** `?tab=` on arrival. */
+  initialTab?: BikeTabId;
+  /** `?year=`, `?month=`, `?kind=` on arrival. */
+  initialHistoryFilter?: HistoryFilter;
 }) {
   return (
-    <BikeTabs>
+    <BikeTabs initial={initialTab}>
       <BikeScreenContent
         vm={vm}
         replace={replace}
         actions={actions}
         links={links}
         initialReplaceItemId={initialReplaceItemId ?? null}
+        initialHistoryFilter={initialHistoryFilter ?? NO_HISTORY_FILTER}
       />
     </BikeTabs>
   );
@@ -137,16 +160,19 @@ function BikeScreenContent({
   actions,
   links,
   initialReplaceItemId,
+  initialHistoryFilter,
 }: {
   vm: BikePageVM;
   replace: ReplacePartVM;
   actions: BikeScreenActions;
   links: BikeScreenLinks;
   initialReplaceItemId: number | null;
+  initialHistoryFilter: HistoryFilter;
 }) {
   const tabs = useBikeTabs();
   const { open: openQuickRide } = useQuickRide();
   const [replaceOpen, setReplaceOpen] = React.useState(initialReplaceItemId != null);
+  const history = useHistoryFilter(vm.history, initialHistoryFilter);
   const { bike, stats } = vm;
   const StatusIcon = BIKE_STATUS_ICONS[bike.status];
 
@@ -156,11 +182,14 @@ function BikeScreenContent({
   const photoUploads = useUploads(bikeOwner);
   const documentUploads = useUploads(bikeOwner);
 
-  // "Voir dans l'historique" from the viewer: open the right tab, then focus the element.
+  // "Voir dans l'historique" from the viewer: open the right tab, then focus the element (shown
+  // even when the filters or "Voir plus" hid it).
   const showOrigin = (photo: AttachmentVM) => {
     const { kind, id } = photo.origin;
     if (kind === "task" || kind === "inventory_item") return;
     const tab = kind === "bike" ? "record" : kind === "component" ? "components" : "history";
+    if (kind === "ride" || kind === "maintenance_event")
+      history.reveal(kind === "ride" ? "ride" : "maintenance", id);
     tabs?.select(tab);
     const target =
       kind === "bike"
@@ -279,7 +308,7 @@ function BikeScreenContent({
 
       <BikeTabList />
 
-      <div className="grid gap-[26px] lg:mt-[26px] lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] lg:items-start lg:gap-x-7">
+      <BikeOverview className="grid gap-[26px] lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] lg:items-start lg:gap-x-7">
         <div className="contents lg:grid lg:min-w-0 lg:gap-[26px]">
           <BikeTabPanel tab="plan">
             <section aria-labelledby="bike-plan-title">
@@ -396,6 +425,41 @@ function BikeScreenContent({
         </div>
 
         <div className="contents lg:grid lg:min-w-0 lg:gap-[26px]">
+          <BikeTabExtra tab="plan" id="bike-recent">
+            <section aria-labelledby="bike-recent-title">
+              <SectionHead
+                id="bike-recent-title"
+                title="Dernières entrées"
+                side={
+                  vm.history.length ? (
+                    <Button
+                      variant="link"
+                      onClick={() => {
+                        tabs?.select("history");
+                        requestAnimationFrame(() =>
+                          document
+                            .getElementById("bike-history-title")
+                            ?.focus({ preventScroll: true }),
+                        );
+                      }}
+                    >
+                      Tout l&apos;historique ({vm.history.length})
+                    </Button>
+                  ) : null
+                }
+              />
+              <Card padded>
+                <Timeline
+                  items={vm.history.slice(0, RECENT_COUNT)}
+                  today={vm.today}
+                  relativeDates
+                  compact
+                  onEdit={actions.onEditHistoryItem}
+                />
+              </Card>
+            </section>
+          </BikeTabExtra>
+
           <BikeTabPanel tab="record">
             <section aria-labelledby="bike-record-title">
               <SectionHead
@@ -439,31 +503,28 @@ function BikeScreenContent({
               />
             </section>
           </BikeTabPanel>
-
-          <BikeTabPanel tab="history">
-            <section aria-labelledby="bike-history-title">
-              <SectionHead
-                id="bike-history-title"
-                title="Historique"
-                side={<span className="hint">Sorties, entretiens et tâches faites</span>}
-              />
-              <Card padded>
-                <Timeline
-                  items={vm.history}
-                  today={vm.today}
-                  groupByMonth
-                  onEdit={actions.onEditHistoryItem}
-                  addPhotos={
-                    photoUploads.enabled
-                      ? (item) => <EntryUpload key={`${item.kind}-${item.id}`} item={item} />
-                      : undefined
-                  }
-                />
-              </Card>
-            </section>
-          </BikeTabPanel>
         </div>
-      </div>
+      </BikeOverview>
+
+      <BikeTabPanel tab="history">
+        <section aria-labelledby="bike-history-title">
+          <SectionHead
+            id="bike-history-title"
+            title="Historique"
+            side={<span className="hint">Sorties, entretiens et tâches faites</span>}
+          />
+          <FilteredHistory
+            history={history}
+            today={vm.today}
+            onEdit={actions.onEditHistoryItem}
+            addPhotos={
+              photoUploads.enabled
+                ? (item) => <EntryUpload key={`${item.kind}-${item.id}`} item={item} />
+                : undefined
+            }
+          />
+        </section>
+      </BikeTabPanel>
 
       <ReplacePartSheet
         vm={replace}

@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { parseBikeTab } from "@/lib/bike-tabs";
+import { parseHistoryFilter } from "@/lib/history-filter";
 import { requireAccessContext } from "@/server/auth/context";
 import { getBike } from "@/server/db";
 import { getBikePage } from "@/server/views/bikes";
@@ -31,13 +33,16 @@ export default async function BikePage({ params, searchParams }: PageProps<"/bik
     return Number.isSafeInteger(n) && n > 0 ? n : null;
   };
   // ?done=<rule>: "C'est fait" from the dashboard; ?replace=<item>: "Monter sur…" from the workshop;
-  // ?event=<maintenance event>: an entry of Activité to edit (D-70).
+  // ?event=<maintenance event>: an entry of Activité to edit (D-70). ?tab= and the history's
+  // ?year=, ?month=, ?kind= keep the view (D-78).
   return (
     <BikeView
       page={page}
       doneRuleId={number(query.done)}
       replaceItemId={number(query.replace)}
       editEventId={number(query.event)}
+      tab={parseBikeTab(query.tab)}
+      historyFilter={parseHistoryFilter(query)}
     />
   );
 }

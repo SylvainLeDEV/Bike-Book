@@ -65,7 +65,7 @@ pure tested domain logic, its screens, and its tables described in the data dict
 | 8 | Workshop: parts and restocking | Items, movements, purchase links, online shops (D-37), "À racheter", "En stock pour ce vélo", replace a part from stock, search and bike filter (D-33 to D-42) | ✓ 2026-10-26 (D-67) |
 | 9 | "À prévoir" dashboard | Overdue, due soon, open tasks, "À racheter" | ✓ 2026-10-26 (D-67) |
 | 10 | Attachments | Photos and PDFs: upload (iPhone through Safari first, D-46), thumbnails, viewer, gallery per bike, cover photo, invoices on maintenance events. No labels (D-45) | ✓ 2026-10-27 (D-73 to D-76): on every element; the real-iPhone test through the local network remains |
-| 11 | Bike page | Counters, tabs below 1024 px and two columns above (D-48), components today / original spec, timeline, total cost per 100 km (D-44) | ✓ 2026-10-26 (photos and documents added with item 10, 2026-10-27) |
+| 11 | Bike page | Counters, tabs below 1024 px and two columns above (D-48), components today / original spec, timeline, total cost per 100 km (D-44) | ✓ 2026-10-26 (photos and documents added with item 10, 2026-10-27; history tab with filters and latest entries 2026-10-28, D-78) |
 | 12 | Export | One ZIP with CSV/JSON of every table, the uploads and the data dictionary (D-50) | ✓ 2026-10-26 (D-68; the uploads joined with item 10, 2026-10-27) |
 
 **Exit:** the success criteria in [01](01-vision-and-scope.md#mvp-success-criteria), after 2–4
@@ -81,7 +81,7 @@ weeks of real use.
 - [ ] Maintenance procedures: list, detail, editor, rule → procedure link (D-47; ≈ 3–4 evenings, **Estimate**)
 - [ ] Workshop mode: one step at a time, summary, save with undo (D-47; ≈ 2–3 evenings, **Estimate**)
 - [ ] Statistics: km and hours per bike per month, cost per bike per year, cost per 100 km over time (D-23, D-44)
-- [ ] Search and filters beyond the workshop
+- [ ] Search and filters beyond the workshop (the bike history's year, month and kind filters exist, D-78; next: the same in Activité with a bike filter, text search, place, ride type, conditions, totals per period)
 - [ ] CSV import (only if H-06 turns out wrong)
 - [ ] HTTPS + PWA (only if a domain is bought, see [04](04-architecture.md#behind-a-reverse-proxy))
 - [ ] Delete `docs/design/mockups.html` once every 1.5 screen is rebuilt in `/design` (D-53)

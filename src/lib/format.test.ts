@@ -13,6 +13,7 @@ import {
   formatHours,
   formatInteger,
   formatMoney,
+  formatMonthName,
   formatMonthYear,
   formatPercent,
   formatSignedInteger,
@@ -117,6 +118,8 @@ describe("calendar dates", () => {
     expect(formatDayLabel("2026-10-24", "2026-10-25")).toBe("Hier");
     expect(formatDayLabel("2026-10-25", "2026-10-25")).toBe("Aujourd'hui");
     expect(formatMonthYear("2026-09-12")).toBe(fr("Septembre~2026"));
+    expect(formatMonthName(1)).toBe("Janvier");
+    expect(formatMonthName(8)).toBe("Août");
   });
 
   it("counts days without being fooled by clock changes", () => {

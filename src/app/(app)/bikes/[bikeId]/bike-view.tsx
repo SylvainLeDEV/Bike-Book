@@ -14,6 +14,8 @@ import { useQuickRide } from "@/components/rides/quick-ride";
 import { Crumb, PageBody, Topbar } from "@/components/shell/topbar";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
+import type { BikeTabId } from "@/lib/bike-tabs";
+import type { HistoryFilter } from "@/lib/history-filter";
 import type { ComponentFormVM, MaintenanceEditVM, MaintenanceLineInput } from "@/lib/view-models";
 import {
   replacePartAction,
@@ -38,12 +40,17 @@ export function BikeView({
   doneRuleId,
   replaceItemId,
   editEventId,
+  tab,
+  historyFilter,
 }: {
   page: BikePage;
   doneRuleId: number | null;
   replaceItemId: number | null;
   /** ?event=<id>: an entry of Activité opens its edit sheet here (D-70). */
   editEventId: number | null;
+  /** ?tab= and the history's filters (D-78). */
+  tab: BikeTabId;
+  historyFilter: HistoryFilter;
 }) {
   const bikeSheet = useBikeSheet();
   const toast = useToast();
@@ -75,10 +82,14 @@ export function BikeView({
   const edit = (focus?: "status") => bikeSheet.open({ bike: page.form, focus });
   const bikeId = page.vm.bike.id;
 
-  // Drop ?done, ?replace and ?event from the address once used, so a reload does not reopen the sheet.
+  // Drop ?done, ?replace and ?event from the address once used, so a reload does not reopen the
+  // sheet; the tab and the history's filters stay.
   React.useEffect(() => {
     if (doneRuleId != null || replaceItemId != null || editEventId != null) {
-      router.replace(pathname, { scroll: false });
+      const params = new URLSearchParams(window.location.search);
+      for (const name of ["done", "replace", "event"]) params.delete(name);
+      const query = params.toString();
+      router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
     }
   }, [doneRuleId, replaceItemId, editEventId, pathname, router]);
 
@@ -99,6 +110,8 @@ export function BikeView({
           vm={page.vm}
           replace={page.replace}
           initialReplaceItemId={replaceItemId}
+          initialTab={tab}
+          initialHistoryFilter={historyFilter}
           links={{
             workshopItem: (id) => `/workshop?item=${id}`,
             workshopForBike: `/workshop?bike=${bikeId}`,

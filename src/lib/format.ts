@@ -315,6 +315,11 @@ export function formatMonthYear(date: LocalDate): string {
   return `${capitalize(MONTHS_LONG[month - 1])}${NBSP}${year}`;
 }
 
+/** "Octobre", for a list of months (1 = janvier). */
+export function formatMonthName(month: number): string {
+  return capitalize(MONTHS_LONG[month - 1]);
+}
+
 /** "Aujourd'hui" or "Hier", else the short date with its weekday: "Jeu. 22 oct.". */
 export function formatDayLabel(date: LocalDate, today: LocalDate): string {
   const days = daysBetween(date, today);

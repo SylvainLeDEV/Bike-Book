@@ -103,8 +103,8 @@ src/
   sets `data-theme` on `<html>`, so the first byte has the right theme. Tailwind's `dark:` variant
   follows the same rule.
 - **Layout:** media queries with the mockup's thresholds as Tailwind breakpoints: `md` = 700 px
-  (icon rail), `lg` = 1024 px (full sidebar, two-column bike page, workshop list and item side
-  by side). Touch targets grow to 44 px with `pointer-coarse:`; inputs use 16 px text.
+  (icon rail), `lg` = 1024 px (full sidebar, two-column bike overview with its history tab D-78,
+  workshop list and item side by side). Touch targets grow to 44 px with `pointer-coarse:`; inputs use 16 px text.
 - **Fonts:** Geist (interface) and Barlow Semi Condensed 500/600/700 (figures, `num` utility),
   both through `next/font`, downloaded at build time.
 - **Primitives:** Radix (already in `radix-ui`) for the sheet (bottom sheet under 700 px, dialog
@@ -127,7 +127,7 @@ of the navigation shows a "Bientôt ici" page rather than a 404.
 |-----|--------|-------|
 | `/` | Accueil | "À prévoir", "À racheter", bikes, latest activity |
 | `/bikes` | Vélos | Active bikes as cards; stored, sold, stolen and retired bikes folded; "Ajouter un vélo" (sheet) |
-| `/bikes/[bikeId]` | Page vélo | `?tab=` selects the tab below 1024 px (deep links from the viewer); `?done=<rule>`, `?replace=<item>` and `?event=<maintenance event>` (D-70) open a sheet on arrival |
+| `/bikes/[bikeId]` | Page vélo | `?tab=` selects the tab (`plan`, the default, is left out; `history` at every width, the others below 1024 px, D-78); `?year=`, `?month=` and `?kind=` (repeated: `ride`, `maintenance`, `task`) filter the history (D-78). The tab and the filters are kept in the address as they change. `?done=<rule>`, `?replace=<item>` and `?event=<maintenance event>` (D-70) open a sheet on arrival, then leave the address |
 | `/activity` | Activité | Rides, maintenance and done tasks log (features 4, 5 and 7; D-77) |
 | `/workshop` | Atelier | `?tab=rebuy`, `?bike=`, `?q=` keep the filters in the URL |
 | `/workshop/[itemId]` | Fiche d'un objet | Under 1024 px it replaces the list; from 1024 px the list stays beside it |

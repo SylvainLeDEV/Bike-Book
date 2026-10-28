@@ -37,6 +37,7 @@ function TimelineEntry({
   today,
   withBike,
   relativeDates,
+  compact,
   addPhotos,
   onEdit,
 }: {
@@ -44,6 +45,7 @@ function TimelineEntry({
   today: LocalDate;
   withBike: boolean;
   relativeDates: boolean;
+  compact: boolean;
   addPhotos?: (item: TimelineItemVM) => React.ReactNode;
   onEdit?: (item: TimelineItemVM) => void;
 }) {
@@ -99,12 +101,12 @@ function TimelineEntry({
     );
   if (item.kind !== "ride" && item.note) tags.push(<Tag key="n">{item.note}</Tag>);
 
-  const showPhotos = !withBike && (item.photos.length > 0 || addPhotos);
+  const showPhotos = !withBike && !compact && (item.photos.length > 0 || addPhotos);
 
   return (
     <li
       data-kind={item.kind}
-      id={`${item.kind}-${item.id}`}
+      id={compact ? undefined : `${item.kind}-${item.id}`}
       tabIndex={-1}
       className={cn(
         "group relative grid grid-cols-[36px_minmax(0,1fr)] gap-3 pb-[18px] outline-none before:absolute before:top-10 before:bottom-1 before:left-[17px] before:w-0.5 before:rounded-[1px] before:bg-border last:pb-0 last:before:hidden",
@@ -172,7 +174,8 @@ function TimelineEntry({
 
 /**
  * Rides, maintenance and done tasks (D-77), newest first. `groupByMonth` adds month headings (bike history);
- * `withBike` names the bike on each entry (dashboard).
+ * `withBike` names the bike on each entry (dashboard); `compact` leaves out the photos and the
+ * entries' anchors (the bike page's latest entries, D-78, whose full history has both).
  */
 export function Timeline({
   items,
@@ -180,6 +183,7 @@ export function Timeline({
   withBike = false,
   groupByMonth = false,
   relativeDates = false,
+  compact = false,
   addPhotos,
   onEdit,
 }: {
@@ -188,6 +192,7 @@ export function Timeline({
   withBike?: boolean;
   groupByMonth?: boolean;
   relativeDates?: boolean;
+  compact?: boolean;
   /** Renders the "add photos" control of a ride, a maintenance event or a task (bike page). */
   addPhotos?: (item: TimelineItemVM) => React.ReactNode;
   /** Makes each entry open its edit sheet (D-70). */
@@ -200,6 +205,7 @@ export function Timeline({
       today={today}
       withBike={withBike}
       relativeDates={relativeDates}
+      compact={compact}
       addPhotos={addPhotos}
       onEdit={onEdit}
     />

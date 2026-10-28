@@ -5,7 +5,8 @@ Self-hosted web app to track bikes: rides, maintenance, components, and what is 
 
 **Status:** Phase 1 step B: features 1 to 12 done (bikes, reference data, components, rides,
 maintenance, rule engine, tasks, workshop, dashboard and bike page on 2026-10-26; attachments,
-feature 10, on 2026-10-27, D-73 to D-76). Left before real data: the phase 1 exit criteria, the
+feature 10, on 2026-10-27, D-73 to D-76; done tasks in the history, D-77, and the bike history's
+own tab with filters, D-78, on 2026-10-28). Left before real data: the phase 1 exit criteria, the
 real-iPhone check of the upload through the local network, and the deployment-side phase 0
 items (backups with a tested restore, a 10 MB upload through the proxy).
 
@@ -82,7 +83,8 @@ src/
 │                   # api/uploads (POST, raw body streamed) and api/uploads/[id] (GET, D-76).
 │                   # Routes: /, /bikes, /bikes/[bikeId], /activity, /workshop (D-54), /settings;
 │                   # /bikes/[id]?done=<rule>, ?replace=<item> and ?event=<id> (edit,
-│                   # D-70) open a sheet on arrival
+│                   # D-70) open a sheet on arrival; ?tab= and the history's ?year=,
+│                   # ?month=, ?kind= stay in the address (D-78)
 │                   # globals.css = the design tokens (D-30, D-31)
 ├── server/         # server-only
 │   ├── db/         # schema, migrations/, seed, data-access layer (index.ts = public API)
@@ -103,7 +105,8 @@ src/
 │                   # attachments/ = the "Pièces jointes" block and its service context (D-74)
 ├── lib/            # client-safe: enums.ts (enum values, shared with the schema),
 │                   # format.ts / parse.ts (French formats), labels.ts (enum labels), names.ts,
-│                   # view-models.ts, display.ts, theme.ts, auth client
+│                   # view-models.ts, display.ts, theme.ts, auth client, history-filter.ts and
+│                   # bike-tabs.ts (history filters and bike tab in the address, D-78)
 ├── test/           # Vitest setup
 └── instrumentation.ts  # opens the database (migrations) at startup; scheduler later
 scripts/            # db-migrate.ts, db-seed.ts (run with tsx)
