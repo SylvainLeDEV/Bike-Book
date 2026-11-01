@@ -28,7 +28,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-/** "Réglages" (feature 12): account, theme of this device, and the ZIP export (D-12). */
+/** "Paramètres" (feature 12, renamed by D-80): account, theme of this device, and the ZIP export (D-12). */
 export function SettingsScreen({
   exportHref,
   version,
@@ -42,7 +42,7 @@ export function SettingsScreen({
 
   return (
     <div className="grid max-w-[640px] gap-7">
-      <h1 className="text-[28px] leading-[1.15] font-[650] tracking-[-0.02em]">Réglages</h1>
+      <h1 className="text-[28px] leading-[1.15] font-[650] tracking-[-0.02em]">Paramètres</h1>
 
       <Section title="Compte">
         <Card padded className="flex flex-wrap items-center gap-3">

@@ -11,6 +11,7 @@ import type {
   ShopKind,
 } from "@/lib/enums";
 import type { LocalDate } from "@/lib/format";
+import { isSuspensionType } from "@/lib/setup";
 import { occupiedSlot, replacementOrigin } from "@/server/domain/components";
 import type { AccessContext } from "./access-context";
 import { bikeAttachmentPaths, withFileCleanup } from "./attachments";
@@ -26,6 +27,7 @@ import {
 } from "./schema";
 import { stockForReplacement } from "./inventory";
 import { insertRulesFromTemplates } from "./rules";
+import { writeSuspensionSpecs, type SuspensionSpecsData } from "./setups";
 import { resolveShopId } from "./shops";
 
 // Components and maintenance of the workspace's bikes. Both inherit the workspace through
@@ -71,6 +73,11 @@ export type ComponentData = {
   shop: { name: string; kind: ShopKind } | null;
   warrantyEndsOn: LocalDate | null;
   notes: string | null;
+  /**
+   * Fork and rear shock only (D-79): their suspension specs, null for a rigid fork or a shock not
+   * described; left unchanged when undefined.
+   */
+  suspension?: SuspensionSpecsData | null;
 };
 
 export type SaveComponentOutcome =
@@ -198,7 +205,7 @@ export function createComponent(
     const taken = occupiedSlot(fitted, { ...slot, singleSlot: type.singleSlot });
     if (taken) return { ok: false, reason: "slot_taken", takenBy: nameOf(taken) };
 
-    const { shop, installedAt, ...fields } = data;
+    const { shop, installedAt, suspension, ...fields } = data;
     const { id } = tx
       .insert(components)
       .values({
@@ -210,6 +217,7 @@ export function createComponent(
       })
       .returning({ id: components.id })
       .get();
+    if (suspension && isSuspensionType(slot.typeCode)) writeSuspensionSpecs(tx, id, suspension);
     insertRulesFromTemplates(tx, ctx, {
       bikeId,
       typeCode: slot.typeCode,
@@ -234,7 +242,7 @@ export function updateComponent(
     const current = selectComponents(tx, ctx, eq(components.id, componentId)).get();
     if (!current) return { ok: false, reason: "not_found" };
     const fromReplacement = current.replacesComponentId != null;
-    const { shop, origin, installedAt: requested, ...fields } = data;
+    const { shop, origin, installedAt: requested, suspension, ...fields } = data;
     const installedAt = fromReplacement ? current.installedAt.getTime() : requested;
     if (current.removedAt && installedAt > current.removedAt.getTime()) {
       return { ok: false, reason: "after_removal" };
@@ -248,6 +256,9 @@ export function updateComponent(
       })
       .where(eq(components.id, componentId))
       .run();
+    if (suspension !== undefined && isSuspensionType(current.typeCode)) {
+      writeSuspensionSpecs(tx, componentId, suspension);
+    }
     return { ok: true, componentId };
   });
 }

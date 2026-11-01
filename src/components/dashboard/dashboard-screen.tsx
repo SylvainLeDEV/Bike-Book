@@ -216,7 +216,12 @@ export function DashboardScreen({
           {vm.bikes.length ? (
             <div className="-mx-4 no-scrollbar flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pt-0.5 pb-1.5 md:mx-0 md:grid md:grid-cols-3 md:overflow-visible md:p-0 lg:grid-cols-1">
               {vm.bikes.map((card) => (
-                <BikeCard key={card.bike.id} card={card} href={links.bike(card.bike.id)} />
+                <BikeCard
+                  key={card.bike.id}
+                  card={card}
+                  href={links.bike(card.bike.id)}
+                  setupHref={`${links.bike(card.bike.id)}?tab=setup`}
+                />
               ))}
             </div>
           ) : (

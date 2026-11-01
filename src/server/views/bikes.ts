@@ -1,4 +1,5 @@
 import "server-only";
+import type { Discipline } from "@/lib/enums";
 import { daysBetween, localDateOf, startOfLocalDay, type LocalDate } from "@/lib/format";
 import { RIDE_TYPE_LABELS } from "@/lib/labels";
 import type {
@@ -32,7 +33,9 @@ import {
   listRuleResets,
   listRules,
   listRuleTemplates,
+  listSetups,
   listShops,
+  listSuspensionSpecs,
   type AccessContext,
   type Bike,
   type MaintenanceEvent,
@@ -52,8 +55,12 @@ import {
   rulesSheet,
 } from "./rules";
 import { bikeRef, taskRow } from "./refs";
+import { setupTab, toSpecsInput } from "./setups";
 import { maintenanceEdit, rideForm, timeline } from "./timeline";
 import { bikeStock, loadGarage, stockLine } from "./workshop";
+
+/** Disciplines whose new forks are suspension forks by default (D-79): the mountain bikes. */
+const SUSPENSION_DISCIPLINES: Discipline[] = ["xc", "trail", "enduro", "dh", "dirt"];
 
 // Bike view models for the real pages, built from the data-access layer and the domain
 // functions. Same shapes as the /design fixtures.
@@ -150,6 +157,8 @@ export type BikePage = {
   rules: RulesSheetVM;
   wear: WearDetailVM;
   components: {
+    /** A new fork is a suspension fork by default on a mountain bike (D-79). */
+    suspensionByDefault: boolean;
     forms: ComponentFormVM[];
     types: ComponentTypeChoice[];
     /** Templates offered when a part is added (feature 6). */
@@ -174,7 +183,15 @@ export function getBikePage(ctx: AccessContext, bikeId: number): BikePage | null
   const events = listMaintenanceEvents(ctx, bike.id);
   const doneTasks = listDoneTasks(ctx, { bikeId: bike.id });
   const shops = listShops(ctx);
-  const components = listComponents(ctx, bike.id);
+  const suspensionSpecs = listSuspensionSpecs(ctx, bike.id);
+  const specsById = new Map(suspensionSpecs.map((specs) => [specs.componentId, specs]));
+  // A suspension part's travel (D-79) is shown after its name, as `specs.travel_mm` is.
+  const components = listComponents(ctx, bike.id).map((component) => {
+    const travelMm = specsById.get(component.id)?.travelMm;
+    return travelMm == null
+      ? component
+      : { ...component, specs: { ...component.specs, travel_mm: travelMm } };
+  });
   const types = listComponentTypes();
   const rules = listRules(ctx, bike.id);
   const rulesInput = {
@@ -207,6 +224,7 @@ export function getBikePage(ctx: AccessContext, bikeId: number): BikePage | null
     partStatuses(evaluated, components),
     (componentId) =>
       (attachments.byOwner.get(ownerKey("component", componentId)) ?? []).filter(isPhoto),
+    (componentId) => toSpecsInput(specsById.get(componentId)),
   );
 
   const vm: BikePageVM = {
@@ -269,6 +287,12 @@ export function getBikePage(ctx: AccessContext, bikeId: number): BikePage | null
       cost: totalCost(bike, events, rides),
     },
     photos: attachments.photos,
+    setup: setupTab(
+      components,
+      suspensionSpecs,
+      listSetups(ctx, bike.id),
+      SUSPENSION_DISCIPLINES.includes(bike.discipline),
+    ),
   };
   return {
     vm,
@@ -323,6 +347,7 @@ export function getBikePage(ctx: AccessContext, bikeId: number): BikePage | null
     },
     rules: rulesSheet(rulesInput, evaluated),
     components: {
+      suspensionByDefault: SUSPENSION_DISCIPLINES.includes(bike.discipline),
       forms: parts.forms,
       types: componentTypeChoices(types),
       templates: templateChoices(listRuleTemplates(ctx)),

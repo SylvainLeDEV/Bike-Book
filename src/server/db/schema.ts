@@ -39,6 +39,7 @@ import {
   RIDE_SOURCES,
   RIDE_TYPES,
   SHOP_KINDS,
+  SPRING_TYPES,
   TASK_PRIORITIES,
   TASK_STATUSES,
   TEMPLATE_SOURCES,
@@ -833,6 +834,101 @@ export const attachments = sqliteTable(
     check(
       "attachments_size_check",
       sql`${table.sizeBytes} > 0 and (${table.widthPx} is null or ${table.widthPx} > 0) and (${table.heightPx} is null or ${table.heightPx} > 0)`,
+    ),
+  ],
+);
+
+// --- Suspension and tyre setup (D-24, D-79) ------------------------------------------------------
+
+/**
+ * What a suspension fork or a rear shock is: its spring, its own travel and the damping adjusters
+ * it has, with their number of clicks. One row per part; a fork without one is rigid (D-79).
+ */
+export const suspensionSpecs = sqliteTable(
+  "suspension_specs",
+  {
+    componentId: integer("component_id")
+      .primaryKey()
+      .references(() => components.id, { onDelete: "cascade" }),
+    springType: text("spring_type", { enum: SPRING_TYPES }).notNull(),
+    /** The part's own travel in mm: a fork's travel, a shock's stroke (not the wheel travel). */
+    travelMm: real("travel_mm"),
+    /** Clicks from fully closed to fully open; null: the part has no such adjuster. */
+    lowSpeedReboundMaxClicks: integer("low_speed_rebound_max_clicks"),
+    highSpeedReboundMaxClicks: integer("high_speed_rebound_max_clicks"),
+    lowSpeedCompressionMaxClicks: integer("low_speed_compression_max_clicks"),
+    highSpeedCompressionMaxClicks: integer("high_speed_compression_max_clicks"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    enumCheck("suspension_specs_spring_type_check", table.springType, SPRING_TYPES),
+    check(
+      "suspension_specs_values_check",
+      sql`(${table.travelMm} is null or ${table.travelMm} > 0) and (${table.lowSpeedReboundMaxClicks} is null or ${table.lowSpeedReboundMaxClicks} > 0) and (${table.highSpeedReboundMaxClicks} is null or ${table.highSpeedReboundMaxClicks} > 0) and (${table.lowSpeedCompressionMaxClicks} is null or ${table.lowSpeedCompressionMaxClicks} > 0) and (${table.highSpeedCompressionMaxClicks} is null or ${table.highSpeedCompressionMaxClicks} > 0)`,
+    ),
+  ],
+);
+
+/**
+ * One dated setup of a bike (D-24, D-79): a full copy of its tyre pressures and of the values of
+ * its fork and rear shock. Each change adds a row; the latest (by date, then id) is the current one.
+ */
+export const setups = sqliteTable(
+  "setups",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    bikeId: integer("bike_id")
+      .notNull()
+      .references(() => bikes.id, { onDelete: "cascade" }),
+    setOn: text("set_on").notNull(),
+    /** Optional name: "Bike park", "Hiver". */
+    label: text("label"),
+    tireFrontPressureBar: real("tire_front_pressure_bar"),
+    tireRearPressureBar: real("tire_rear_pressure_bar"),
+    /** Why it changed, how it felt. */
+    notes: text("notes"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    index("setups_bike_id_set_on_idx").on(table.bikeId, table.setOn),
+    check(
+      "setups_tire_pressure_check",
+      sql`(${table.tireFrontPressureBar} is null or ${table.tireFrontPressureBar} > 0) and (${table.tireRearPressureBar} is null or ${table.tireRearPressureBar} > 0)`,
+    ),
+  ],
+);
+
+/**
+ * The values of one fork or rear shock in a setup (D-79). They belong to that part: a new fork
+ * starts without any. Clicks are counted from fully closed (0 = closed).
+ */
+export const setupSuspensions = sqliteTable(
+  "setup_suspensions",
+  {
+    setupId: integer("setup_id")
+      .notNull()
+      .references(() => setups.id, { onDelete: "cascade" }),
+    componentId: integer("component_id")
+      .notNull()
+      .references(() => components.id, { onDelete: "cascade" }),
+    airPressurePsi: real("air_pressure_psi"),
+    springRateLbPerIn: integer("spring_rate_lb_per_in"),
+    volumeSpacers: integer("volume_spacers"),
+    /** Measured sag in mm; the percentage is computed from the part's travel. */
+    sagMm: real("sag_mm"),
+    lowSpeedReboundClicks: integer("low_speed_rebound_clicks"),
+    highSpeedReboundClicks: integer("high_speed_rebound_clicks"),
+    lowSpeedCompressionClicks: integer("low_speed_compression_clicks"),
+    highSpeedCompressionClicks: integer("high_speed_compression_clicks"),
+  },
+  (table) => [
+    primaryKey({ columns: [table.setupId, table.componentId] }),
+    index("setup_suspensions_component_id_idx").on(table.componentId),
+    check(
+      "setup_suspensions_values_check",
+      sql`(${table.airPressurePsi} is null or ${table.airPressurePsi} > 0) and (${table.springRateLbPerIn} is null or ${table.springRateLbPerIn} > 0) and (${table.volumeSpacers} is null or ${table.volumeSpacers} >= 0) and (${table.sagMm} is null or ${table.sagMm} >= 0) and (${table.lowSpeedReboundClicks} is null or ${table.lowSpeedReboundClicks} >= 0) and (${table.highSpeedReboundClicks} is null or ${table.highSpeedReboundClicks} >= 0) and (${table.lowSpeedCompressionClicks} is null or ${table.lowSpeedCompressionClicks} >= 0) and (${table.highSpeedCompressionClicks} is null or ${table.highSpeedCompressionClicks} >= 0)`,
     ),
   ],
 );

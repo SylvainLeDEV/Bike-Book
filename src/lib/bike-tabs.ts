@@ -1,5 +1,5 @@
-/** The bike page's tabs (D-48, D-78), in the order of the phone and tablet tab bar. */
-export const BIKE_TAB_IDS = ["plan", "components", "history", "record", "photos"] as const;
+/** The bike page's tabs (D-48, D-78, D-79), in the order of the phone and tablet tab bar. */
+export const BIKE_TAB_IDS = ["plan", "setup", "components", "history", "record", "photos"] as const;
 
 export type BikeTabId = (typeof BIKE_TAB_IDS)[number];
 

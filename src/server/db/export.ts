@@ -18,7 +18,10 @@ import {
   purchaseLinks,
   rides,
   ruleTemplates,
+  setupSuspensions,
+  setups,
   shops,
+  suspensionSpecs,
   tasks,
   workspaces,
 } from "./schema";
@@ -114,6 +117,14 @@ export function exportWorkspaceTables(ctx: AccessContext): ExportTable[] {
       .select({ id: maintenanceEvents.id })
       .from(maintenanceEvents)
       .where(inArray(maintenanceEvents.bikeId, bikeIds));
+    const componentIds = tx
+      .select({ id: components.id })
+      .from(components)
+      .where(inArray(components.bikeId, bikeIds));
+    const setupIds = tx
+      .select({ id: setups.id })
+      .from(setups)
+      .where(inArray(setups.bikeId, bikeIds));
 
     // In the order of the data dictionary (03): each table after the ones it refers to.
     const sources: [SQLiteTable, SQL | undefined][] = [
@@ -135,6 +146,9 @@ export function exportWorkspaceTables(ctx: AccessContext): ExportTable[] {
       [maintenanceEvents, inArray(maintenanceEvents.bikeId, bikeIds)],
       [maintenanceItems, inArray(maintenanceItems.eventId, eventIds)],
       [inventoryMovements, inArray(inventoryMovements.itemId, itemIds)],
+      [suspensionSpecs, inArray(suspensionSpecs.componentId, componentIds)],
+      [setups, inArray(setups.bikeId, bikeIds)],
+      [setupSuspensions, inArray(setupSuspensions.setupId, setupIds)],
       [attachments, workspaceScope(tx, [workspaceId])],
     ];
 

@@ -8,7 +8,10 @@ maintenance, rule engine, tasks, workshop, dashboard and bike page on 2026-10-26
 feature 10, on 2026-10-27, D-73 to D-76; done tasks in the history, D-77, and the bike history's
 own tab with filters, D-78, on 2026-10-28). Left before real data: the phase 1 exit criteria, the
 real-iPhone check of the upload through the local network, and the deployment-side phase 0
-items (backups with a tested restore, a 10 MB upload through the proxy).
+items (backups with a tested restore, a 10 MB upload through the proxy). Phase 1.5 started on
+2026-11-01 with the setup log, the bike page's "Réglages" tab (D-79 to D-81, D-83); the settings page
+is now "Paramètres" (D-80). Next, decided in D-82: workshop products and tools, then maintenance
+procedures ("fiches") and runs ("suivi").
 
 ## Read first
 
@@ -47,6 +50,9 @@ items (backups with a tested restore, a 10 MB upload through the proxy).
   validated, derived values computed, `docs/03-data-model.md` kept as the data dictionary.
 - **Step B working rules (D-54):** build screens directly in the app (no `/design` detour when
   the mockup covers them); the owner commits and pushes; never `git add`/`commit`/`push`/`tag`.
+- **Setup (D-79, D-81):** a fork's or shock's spring, travel and adjusters (clicks from fully
+  closed) live on the part (`suspension_specs`); each setup is a dated full copy whose values belong
+  to the part measured. Advice only from manufacturers' documents, each with its source and date.
 
 ## Rules
 
@@ -83,8 +89,8 @@ src/
 │                   # api/uploads (POST, raw body streamed) and api/uploads/[id] (GET, D-76).
 │                   # Routes: /, /bikes, /bikes/[bikeId], /activity, /workshop (D-54), /settings;
 │                   # /bikes/[id]?done=<rule>, ?replace=<item> and ?event=<id> (edit,
-│                   # D-70) open a sheet on arrival; ?tab= and the history's ?year=,
-│                   # ?month=, ?kind= stay in the address (D-78)
+│                   # D-70) open a sheet on arrival; ?tab= (setup: "Réglages", D-79) and
+│                   # the history's ?year=, ?month=, ?kind= stay in the address (D-78)
 │                   # globals.css = the design tokens (D-30, D-31)
 ├── server/         # server-only
 │   ├── db/         # schema, migrations/, seed, data-access layer (index.ts = public API)
@@ -92,7 +98,8 @@ src/
 │   ├── actions/    # Server Actions, their Zod input schemas in *-input.ts
 │   ├── domain/     # pure, tested logic: bike status, total cost, wear (D-13), part history,
 │   │               # instants of dated entries (D-61), rule engine (D-65), attachments
-│   │               # (format from magic bytes, EXIF dates, storage paths, covers)
+│   │               # (format from magic bytes, EXIF dates, storage paths, covers),
+│   │               # what each setup changed (D-79)
 │   ├── views/      # view models of the real pages (data-access layer + domain)
 │   ├── export/     # ZIP writer (node:zlib), CSV, dictionary.json from schema + docs/03 (D-68),
 │   │               # attachments' originals under uploads/
@@ -102,11 +109,14 @@ src/
 │   └── (jobs/, integrations/ come with 1.5 and phase 2)
 ├── components/     # Screens and building blocks, fed by view models (props);
 │                   # primitives in components/ui (shadcn/ui style, Radix), shell/ = app shell,
-│                   # attachments/ = the "Pièces jointes" block and its service context (D-74)
+│                   # attachments/ = the "Pièces jointes" block and its service context (D-74),
+│                   # setup/ = the "Réglages" tab, its sheet and the component sheet's
+│                   # "Suspension" section (D-79)
 ├── lib/            # client-safe: enums.ts (enum values, shared with the schema),
 │                   # format.ts / parse.ts (French formats), labels.ts (enum labels), names.ts,
 │                   # view-models.ts, display.ts, theme.ts, auth client, history-filter.ts and
-│                   # bike-tabs.ts (history filters and bike tab in the address, D-78)
+│                   # bike-tabs.ts (history filters and bike tab in the address, D-78),
+│                   # setup.ts and setup-advice.ts (sag %, setup checks, sourced advice, D-79)
 ├── test/           # Vitest setup
 └── instrumentation.ts  # opens the database (migrations) at startup; scheduler later
 scripts/            # db-migrate.ts, db-seed.ts (run with tsx)

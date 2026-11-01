@@ -113,6 +113,22 @@ export {
   type OwnerDescription,
 } from "./attachments";
 export {
+  createSetup,
+  deleteSetup,
+  getSetupBikeId,
+  listSetups,
+  listSuspensionSpecs,
+  saveSuspensionSpecs,
+  updateSetup,
+  type ClicksByAdjuster,
+  type SaveSetupOutcome,
+  type Setup,
+  type SetupData,
+  type SuspensionSpecs,
+  type SuspensionSpecsData,
+  type SuspensionValues,
+} from "./setups";
+export {
   exportWorkspaceTables,
   NOT_EXPORTED_TABLES,
   type ExportColumn,

@@ -7,12 +7,21 @@ import { Chip, ChipRow } from "@/components/ui/chip";
 import { Field, FieldError, Fieldset, Input, NativeSelect, Textarea } from "@/components/ui/field";
 import { Fold } from "@/components/ui/fold";
 import { AttachmentsBlock, AttachmentsLater } from "@/components/attachments/attachments-block";
+import {
+  SuspensionSpecsFields,
+  firstSuspensionErrorId,
+  readSuspensionForm,
+  suspensionFormValues,
+  type SuspensionFormErrors,
+  type SuspensionFormValues,
+} from "@/components/setup/suspension-specs-fields";
 import { Sheet, SheetBody, SheetContent, SheetFooter, SheetForm } from "@/components/ui/sheet";
 import { COMPONENT_GROUPS, type ComponentTypeCode } from "@/lib/enums";
 import { formatDate, formatDecimal, type LocalDate } from "@/lib/format";
 import { COMPONENT_GROUP_LABELS, EVIDENCE_LEVEL_LABELS, SHOP_KIND_LABELS } from "@/lib/labels";
 import { nameKey } from "@/lib/names";
 import { decimalText, parseDecimalInput, parseMoneyInput } from "@/lib/parse";
+import { isSuspensionType } from "@/lib/setup";
 import type {
   ComponentFormVM,
   ComponentInput,
@@ -44,6 +53,8 @@ export type ComponentSheetProps = {
   stockInstalledOn: LocalDate;
   today: LocalDate;
   shops: ShopOption[];
+  /** A new fork is a suspension fork by default on a mountain bike (D-79). */
+  suspensionByDefault: boolean;
   onSubmit: (componentId: number | null, input: ComponentInput) => Promise<SaveComponentResult>;
 };
 
@@ -92,6 +103,7 @@ type Values = {
   initialKm: string;
   initialHours: string;
   notes: string;
+  suspension: SuspensionFormValues;
 };
 
 type Errors = Partial<Record<keyof ComponentInput, string>> & { form?: string };
@@ -119,6 +131,7 @@ function ComponentForm({
   stockInstalledOn,
   today,
   shops,
+  suspensionByDefault,
   onSubmit,
 }: Omit<ComponentSheetProps, "open" | "onOpenChange" | "bikeName" | "onSubmit"> & {
   onSubmit: (input: ComponentInput) => Promise<SaveComponentResult>;
@@ -142,11 +155,13 @@ function ComponentForm({
     initialKm: component?.initialDistanceM ? decimalText(component.initialDistanceM / 1000, 3) : "",
     initialHours: component?.initialWearS ? decimalText(component.initialWearS / 3600, 2) : "",
     notes: component?.notes ?? "",
+    suspension: suspensionFormValues(component?.suspension ?? null, suspensionByDefault),
   }));
   const [dateTouched, setDateTouched] = React.useState(component != null);
   // Proposed rules for the chosen type: all ticked; the person unticks what does not apply.
   const [chosenTemplates, setChosenTemplates] = React.useState<number[]>([]);
   const [errors, setErrors] = React.useState<Errors>({});
+  const [suspensionErrors, setSuspensionErrors] = React.useState<SuspensionFormErrors>({});
   const [detailsOpen, setDetailsOpen] = React.useState(false);
   const [pending, setPending] = React.useState(false);
   const formRef = React.useRef<HTMLFormElement>(null);
@@ -194,8 +209,21 @@ function ComponentForm({
       next.purchasePriceCents = "Montant invalide.";
     const initialDistanceM = number(values.initialKm, "initialDistanceM", 1000);
     const initialWearS = number(values.initialHours, "initialWearS", 3600);
+    const suspension =
+      type && isSuspensionType(type.code)
+        ? readSuspensionForm(type.code, values.suspension)
+        : { specs: null, errors: {} };
+    setSuspensionErrors(suspension.errors);
+    const suspensionErrorId = firstSuspensionErrorId(suspension.errors);
     if (Object.keys(next).length || !type) {
       showErrors(next);
+      return;
+    }
+    if (suspensionErrorId) {
+      setErrors({});
+      requestAnimationFrame(() =>
+        formRef.current?.querySelector<HTMLElement>(`#${suspensionErrorId}`)?.focus(),
+      );
       return;
     }
     const shopName = values.shopName.trim();
@@ -216,6 +244,7 @@ function ComponentForm({
       shop: shopName ? { name: shopName, kind: known?.kind ?? values.shopKind } : null,
       warrantyEndsOn: values.warrantyEndsOn || null,
       notes: values.notes.trim() || null,
+      suspension: suspension.specs,
     };
     setErrors({});
     setPending(true);
@@ -339,6 +368,16 @@ function ComponentForm({
             />
           </Field>
         </div>
+
+        {type && isSuspensionType(type.code) ? (
+          <SuspensionSpecsFields
+            typeCode={type.code}
+            values={values.suspension}
+            onChange={(suspension) => set("suspension", suspension)}
+            errors={suspensionErrors}
+            error={errors.suspension}
+          />
+        ) : null}
 
         {locked ? (
           <p className="hint">

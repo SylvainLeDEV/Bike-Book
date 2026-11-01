@@ -8,6 +8,7 @@ import type {
   ComponentGroup,
   ComponentOrigin,
   ComponentTypeCode,
+  DamperAdjuster,
   Discipline,
   EvidenceLevel,
   InventoryCategory,
@@ -19,6 +20,8 @@ import type {
   RideType,
   RuleStatus,
   ShopKind,
+  SpringType,
+  SuspensionTypeCode,
   TemplateSource,
   WheelSize,
 } from "./enums";
@@ -284,4 +287,24 @@ export const ATTACHMENT_KIND_LABELS: Record<AttachmentKind, string> = {
   manual: "Notice",
   track: "Trace",
   other: "Document",
+};
+
+/** Damper adjusters (D-79): the full name, and the abbreviation used on the parts and in manuals. */
+export const DAMPER_ADJUSTER_LABELS: Record<DamperAdjuster, { name: string; short: string }> = {
+  low_speed_rebound: { name: "Rebond basse vitesse", short: "LSR" },
+  high_speed_rebound: { name: "Rebond haute vitesse", short: "HSR" },
+  low_speed_compression: { name: "Compression basse vitesse", short: "LSC" },
+  high_speed_compression: { name: "Compression haute vitesse", short: "HSC" },
+};
+
+export const SPRING_TYPE_LABELS: Record<SpringType, string> = {
+  air: "Air",
+  coil: "Ressort",
+};
+
+/** The three views of the "Réglages" tab (D-79). */
+export const SETUP_UNIT_LABELS: Record<SuspensionTypeCode | "tires", string> = {
+  fork: "Fourche",
+  rear_shock: "Amortisseur",
+  tires: "Pneus",
 };

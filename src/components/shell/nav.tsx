@@ -97,7 +97,7 @@ export function Sidebar() {
       <div className="mt-auto grid w-full justify-items-center gap-0.5 border-t border-border pt-3 lg:justify-items-stretch">
         <button type="button" className={item} onClick={onOpenSettings}>
           <Settings aria-hidden />
-          <span className="sr-only lg:not-sr-only">Réglages</span>
+          <span className="sr-only lg:not-sr-only">Paramètres</span>
         </button>
         <div className="flex min-w-0 items-center gap-2.5 pt-2 pb-0.5 lg:px-1">
           <Avatar name={user.name} />

@@ -127,11 +127,11 @@ of the navigation shows a "Bientôt ici" page rather than a 404.
 |-----|--------|-------|
 | `/` | Accueil | "À prévoir", "À racheter", bikes, latest activity |
 | `/bikes` | Vélos | Active bikes as cards; stored, sold, stolen and retired bikes folded; "Ajouter un vélo" (sheet) |
-| `/bikes/[bikeId]` | Page vélo | `?tab=` selects the tab (`plan`, the default, is left out; `history` at every width, the others below 1024 px, D-78); `?year=`, `?month=` and `?kind=` (repeated: `ride`, `maintenance`, `task`) filter the history (D-78). The tab and the filters are kept in the address as they change. `?done=<rule>`, `?replace=<item>` and `?event=<maintenance event>` (D-70) open a sheet on arrival, then leave the address |
+| `/bikes/[bikeId]` | Page vélo | `?tab=` selects the tab (`plan`, the default, is left out; `setup` and `history` at every width, the others below 1024 px, D-78, D-79); the bike cards' "Réglages" shortcut opens `?tab=setup`; `?year=`, `?month=` and `?kind=` (repeated: `ride`, `maintenance`, `task`) filter the history (D-78). The tab and the filters are kept in the address as they change. `?done=<rule>`, `?replace=<item>` and `?event=<maintenance event>` (D-70) open a sheet on arrival, then leave the address |
 | `/activity` | Activité | Rides, maintenance and done tasks log (features 4, 5 and 7; D-77) |
 | `/workshop` | Atelier | `?tab=rebuy`, `?bike=`, `?q=` keep the filters in the URL |
 | `/workshop/[itemId]` | Fiche d'un objet | Under 1024 px it replaces the list; from 1024 px the list stays beside it |
-| `/settings` | Réglages | Account and sign-out, theme of this device, "Exporter mes données" (feature 12, D-68) |
+| `/settings` | Paramètres | Account and sign-out, theme of this device, "Exporter mes données" (feature 12, D-68; labelled "Paramètres" since D-80) |
 | `/login`, `/setup` | Connexion, premier lancement | Unchanged |
 | `/api/uploads`, `/api/uploads/[id]` | Pièces jointes | `POST /api/uploads?owner=<kind>&id=<n>&lastModified=<ms>[&cover=1]`: the raw file as body, its name in `X-File-Name` (URI-encoded), 201 `{ id }` or an error `{ error, message }` (401, 404, 413, 415). `GET /api/uploads/<id>[?size=thumb\|display][&download=1]`: signed in, scoped, `nosniff`, private cache revalidated by ETag (D-76) |
 | `/api/export` | Export ZIP | Current workspace only, auth tables never included; 401 when signed out (D-68) |
@@ -239,7 +239,7 @@ Backing up is the operator's job (D-12); the app makes it easy:
   inconsistent state. Either snapshot the whole volume (filesystem or VM/container snapshot:
   SQLite in WAL mode normally recovers from a crash-consistent copy), or make a consistent copy
   first with `sqlite3 bikebook.db ".backup copy.db"` (or `VACUUM INTO`) while the app runs.
-- **Built-in export (MVP):** Réglages › "Exporter mes données": one ZIP with every table as CSV
+- **Built-in export (MVP):** Paramètres › "Exporter mes données": one ZIP with every table as CSV
   and JSON, the data dictionary (D-68) and the attachments' originals under `uploads/` (feature
   10; 4 GiB at most, pitfall 10). A portable,
   readable copy you can keep anywhere, and a safety net for mistakes noticed late. The app

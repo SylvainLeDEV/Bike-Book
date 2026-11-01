@@ -17,6 +17,7 @@ import type {
   Quantity,
   ReplacePartVM,
   RuleTemplateChoice,
+  SuspensionSpecsInput,
 } from "@/lib/view-models";
 import type { Component, ComponentType, RuleTemplate } from "@/server/db";
 import { componentName, counterUnit, fittedSlots } from "@/server/domain/components";
@@ -73,7 +74,12 @@ export function templateChoices(templates: RuleTemplate[]): RuleTemplateChoice[]
   );
 }
 
-export function componentForm(component: Component, timeZone: string): ComponentFormVM {
+export function componentForm(
+  component: Component,
+  timeZone: string,
+  /** Fork and rear shock: their suspension specs (D-79). */
+  suspension: SuspensionSpecsInput | null = null,
+): ComponentFormVM {
   return {
     id: component.id,
     typeCode: component.typeCode,
@@ -91,6 +97,7 @@ export function componentForm(component: Component, timeZone: string): Component
     shop: component.shop ? { name: component.shop.name, kind: component.shop.kind } : null,
     warrantyEndsOn: component.warrantyEndsOn,
     notes: component.notes,
+    suspension,
   };
 }
 
@@ -109,6 +116,8 @@ export function bikeComponents(
   statuses: Map<number, RuleStatus> = new Map(),
   /** A part's photos (feature 10), fitted or removed. */
   photosOf: (componentId: number) => PhotoVM[] = () => [],
+  /** A fork's or rear shock's suspension specs (D-79). */
+  suspensionOf: (componentId: number) => SuspensionSpecsInput | null = () => null,
 ): BikeComponents {
   const groupOf = new Map(types.map((type) => [type.code, type.componentGroup]));
   const slots = fittedSlots(components, rides).sort(
@@ -147,7 +156,7 @@ export function bikeComponents(
     }),
     forms: components
       .filter((component) => component.removedAt == null)
-      .map((component) => componentForm(component, timeZone)),
+      .map((component) => componentForm(component, timeZone, suspensionOf(component.id))),
     replaceSlots: vms.map(({ vm, fitted }) => ({
       componentId: vm.id,
       label: vm.typeLabel,

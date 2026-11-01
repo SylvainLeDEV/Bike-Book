@@ -1326,6 +1326,66 @@ const purchaseCents = 429_900;
 const riddenM = 2846 * KM;
 const totalCents = purchaseCents + shopCents + homeCents;
 
+// "Réglages" (D-79): fictitious values; the clicks of these parts are not the makers' figures.
+const NO_CLICKS = {
+  low_speed_rebound: null,
+  high_speed_rebound: null,
+  low_speed_compression: null,
+  high_speed_compression: null,
+};
+const SPECTRAL_SETUP_BIKE_PARK = {
+  setOn: "2026-10-17",
+  label: "Bike park",
+  notes: "Plus de pression et un clic de compression en plus pour les réceptions.",
+  tireFrontPressureBar: 1.7,
+  tireRearPressureBar: 1.85,
+  suspensions: [
+    {
+      componentId: 1,
+      airPressurePsi: 84,
+      springRateLbPerIn: null,
+      volumeSpacers: 2,
+      sagMm: 30,
+      clicks: {
+        ...NO_CLICKS,
+        low_speed_rebound: 9,
+        low_speed_compression: 3,
+        high_speed_compression: 3,
+      },
+    },
+    {
+      componentId: 2,
+      airPressurePsi: 195,
+      springRateLbPerIn: null,
+      volumeSpacers: 1,
+      sagMm: 17,
+      clicks: { ...NO_CLICKS, low_speed_rebound: 7, low_speed_compression: 2 },
+    },
+  ],
+};
+const SPECTRAL_SETUP_TRAIL = {
+  ...SPECTRAL_SETUP_BIKE_PARK,
+  setOn: "2026-05-02",
+  label: "Rando",
+  notes: null,
+  tireFrontPressureBar: 1.6,
+  tireRearPressureBar: 1.75,
+  suspensions: [
+    {
+      ...SPECTRAL_SETUP_BIKE_PARK.suspensions[0],
+      airPressurePsi: 80,
+      sagMm: 32,
+      clicks: {
+        ...NO_CLICKS,
+        low_speed_rebound: 9,
+        low_speed_compression: 2,
+        high_speed_compression: 2,
+      },
+    },
+    { ...SPECTRAL_SETUP_BIKE_PARK.suspensions[1], airPressurePsi: 185, sagMm: 18 },
+  ],
+};
+
 export const SPECTRAL_PAGE: BikePageVM = {
   today: TODAY,
   bike: {
@@ -1602,6 +1662,72 @@ export const SPECTRAL_PAGE: BikePageVM = {
     },
   },
   photos: SPECTRAL_PHOTOS,
+  setup: {
+    units: [
+      {
+        componentId: 1,
+        typeCode: "fork",
+        name: "RockShox Lyrik Ultimate",
+        specs: {
+          springType: "air",
+          travelMm: 160,
+          maxClicks: {
+            ...NO_CLICKS,
+            low_speed_rebound: 18,
+            low_speed_compression: 5,
+            high_speed_compression: 5,
+          },
+        },
+      },
+      {
+        componentId: 2,
+        typeCode: "rear_shock",
+        name: "RockShox Super Deluxe Ultimate",
+        specs: {
+          springType: "air",
+          travelMm: 62.5,
+          maxClicks: { ...NO_CLICKS, low_speed_rebound: 15, low_speed_compression: 5 },
+        },
+      },
+    ],
+    rigidFork: null,
+    entries: [
+      {
+        id: 2,
+        setOn: SPECTRAL_SETUP_BIKE_PARK.setOn,
+        label: SPECTRAL_SETUP_BIKE_PARK.label,
+        notes: SPECTRAL_SETUP_BIKE_PARK.notes,
+        values: SPECTRAL_SETUP_BIKE_PARK,
+        changes: [
+          { unit: "fork", field: "Pression", from: "80 psi", to: "84 psi" },
+          { unit: "fork", field: "SAG", from: "32 mm", to: "30 mm" },
+          { unit: "fork", field: "LSC", from: "2 clics", to: "3 clics" },
+          { unit: "fork", field: "HSC", from: "2 clics", to: "3 clics" },
+          { unit: "rear_shock", field: "Pression", from: "185 psi", to: "195 psi" },
+          { unit: "rear_shock", field: "SAG", from: "18 mm", to: "17 mm" },
+          { unit: "tires", field: "Avant", from: "1,6 bar", to: "1,7 bar" },
+          { unit: "tires", field: "Arrière", from: "1,75 bar", to: "1,85 bar" },
+        ],
+        first: false,
+      },
+      {
+        id: 1,
+        setOn: SPECTRAL_SETUP_TRAIL.setOn,
+        label: SPECTRAL_SETUP_TRAIL.label,
+        notes: null,
+        values: SPECTRAL_SETUP_TRAIL,
+        changes: [
+          { unit: "fork", field: "Pression", from: null, to: "80 psi" },
+          { unit: "fork", field: "Tokens", from: null, to: "2" },
+          { unit: "fork", field: "SAG", from: null, to: "32 mm" },
+          { unit: "rear_shock", field: "Pression", from: null, to: "185 psi" },
+          { unit: "tires", field: "Avant", from: null, to: "1,6 bar" },
+          { unit: "tires", field: "Arrière", from: null, to: "1,75 bar" },
+        ],
+        first: true,
+      },
+    ],
+  },
 };
 
 // --- Sheets ----------------------------------------------------------------------------------------

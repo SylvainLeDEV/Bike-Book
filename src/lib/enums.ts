@@ -163,6 +163,29 @@ export type RemovalReason = (typeof REMOVAL_REASONS)[number];
 export const RULE_STATUSES = ["ok", "due_soon", "overdue", "snoozed"] as const;
 export type RuleStatus = (typeof RULE_STATUSES)[number];
 
+/** The parts that take a suspension setup (D-79): a suspension fork and a rear shock. */
+export const SUSPENSION_TYPE_CODES = [
+  "fork",
+  "rear_shock",
+] as const satisfies readonly ComponentTypeCode[];
+export type SuspensionTypeCode = (typeof SUSPENSION_TYPE_CODES)[number];
+
+/** How a fork or a rear shock is sprung (D-79): air (pressure in psi) or a coil (rate in lb/in). */
+export const SPRING_TYPES = ["air", "coil"] as const;
+export type SpringType = (typeof SPRING_TYPES)[number];
+
+/**
+ * Damping adjusters of a fork or a rear shock (D-79), in the order shown: rebound, then
+ * compression, as in the manufacturers' tuning guides. Clicks are counted from fully closed.
+ */
+export const DAMPER_ADJUSTERS = [
+  "low_speed_rebound",
+  "high_speed_rebound",
+  "low_speed_compression",
+  "high_speed_compression",
+] as const;
+export type DamperAdjuster = (typeof DAMPER_ADJUSTERS)[number];
+
 /** One-off to-dos (D-34): to do, done, or dropped. */
 export const TASK_STATUSES = ["open", "done", "cancelled"] as const;
 export type TaskStatus = (typeof TASK_STATUSES)[number];

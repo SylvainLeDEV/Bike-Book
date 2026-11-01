@@ -42,7 +42,7 @@ export function DesignShell({
           nav: DESIGN_NAV,
           theme,
           onSignOut: () => toast("Déconnexion : désactivée sur /design"),
-          onOpenSettings: () => toast("Réglages : pas encore dans la phase 1"),
+          onOpenSettings: () => toast("Paramètres : pas encore dans la phase 1"),
         }}
         quickRide={QUICK_RIDE}
         onQuickRideSubmit={(input) => {

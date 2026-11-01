@@ -5,7 +5,8 @@ and effort are rough guesses (**Estimates**): S = an evening or two, M = a few e
 
 | Idea | Value | Effort | Notes |
 |------|-------|--------|-------|
-| Setup per ride (which setup was used on a given ride) | Medium | S | Extension of the per-bike setup log (D-24) |
+| Setup per ride (which setup was used on a given ride) | Medium | S | Extension of the per-bike setup log (D-24, built by D-79) |
+| Suspension adjusters beyond LSR/HSR/LSC/HSC: single knob, lever, second air chamber, coil preload | Depends | S | Q-13; additive columns on `suspension_specs` and `setup_suspensions` |
 | Pre-ride or pre-trip checklist (bike park weekend) | Medium | S | |
 | Telegram "log a ride" command | Medium | M | The digest and alerts are planned (D-18) |
 | Season mode: a bike stored for the winter pauses its day-based rules | Medium | S | Snooze already exists |

@@ -111,6 +111,29 @@ function otherGarage() {
       maintenanceItemId: line.id,
     })
     .run();
+  // Setup log (D-79): a rear shock with its specs, one setup with its values.
+  const shock = db
+    .insert(schema.components)
+    .values({
+      bikeId: bike.id,
+      typeCode: "rear_shock",
+      position: "none",
+      origin: "stock",
+      installedAt: new Date(NOW),
+    })
+    .returning()
+    .get();
+  db.insert(schema.suspensionSpecs)
+    .values({ componentId: shock.id, springType: "coil", travelMm: 55 })
+    .run();
+  const setup = db
+    .insert(schema.setups)
+    .values({ bikeId: bike.id, setOn: "2026-10-24", tireFrontPressureBar: 3.5 })
+    .returning()
+    .get();
+  db.insert(schema.setupSuspensions)
+    .values({ setupId: setup.id, componentId: shock.id, springRateLbPerIn: 350 })
+    .run();
   const file = (owner: Partial<typeof schema.attachments.$inferInsert>, n: number) => ({
     ...owner,
     kind: "invoice" as const,
@@ -192,7 +215,9 @@ describe("exportWorkspaceTables", () => {
         continue;
       }
       expect(shared, table.name).toEqual([]);
-      const expected = ["inventory_movements", "attachments"].includes(table.name) ? 2 : 1;
+      const expected = ["inventory_movements", "attachments", "components"].includes(table.name)
+        ? 2
+        : 1;
       expect(mine.size, table.name).toBe(expected);
     }
 

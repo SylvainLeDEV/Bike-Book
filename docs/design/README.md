@@ -41,6 +41,7 @@ rebuilt when their phase starts. It is then deleted (git history keeps it).
 | Dashboard, bike page (record, components, original spec, stock, history, photo gallery and viewer), quick ride entry, workshop (parts, restocking, add and replace sheets), Foundation board | `/design` (and the mockup) | Done (step A) |
 | Bike edit sheet, "Joindre un document", "Ajouter des photos" (upload rows with progress) | Built in the app (features 1 and 10, D-54, D-74): `src/components/attachments/` | Done (2026-10-26, 2026-10-27) |
 | Maintenance entry and "C'est fait" without a procedure | Not mocked: the toast stands in | With features 5 and 6 |
+| "Réglages" tab (suspension and tyre setup, sag scale, advice, setup log, "Débattement et molettes"), the "Suspension" section of the component sheet, the bike cards' "Réglages" shortcut | Not mocked: built in the app (D-79, D-83, D-54) | Not needed |
 | Workshop products (four levels, containers) and tools (owned or not) | Mockup only | Phase 1.5 |
 | Photo labels, photos across all bikes (Activité › Photos) | Mockup only | Phase 1.5 |
 | Maintenance procedures (list, detail, editor, rule link) and workshop mode (run, summary) | Mockup only | Phase 1.5 |

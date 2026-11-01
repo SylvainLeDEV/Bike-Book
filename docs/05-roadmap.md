@@ -74,12 +74,13 @@ weeks of real use.
 ## Phase 1.5 — Comfort (optional, in order of need)
 
 - [ ] Notifications (D-18): dedicated Telegram bot (weekly digest + threshold crossed) and a calendar feed (ICS) behind a secret-token URL
-- [ ] Setup log per bike (D-24): current setup, dated changes, "restore this setup" view
+- [x] Setup log per bike (D-24): the bike page's "Réglages" tab, suspension specs on the fork and shock, dated setups, "Revenir à ce réglage", advice from the manufacturers' guides (done 2026-11-01, D-79 to D-81; reviewed the same day, D-83)
+- [ ] A model's own starting values for a setup (pressure by rider weight, clicks by pressure, from the manufacturer's guide, D-81)
 - [ ] E-bike readings (D-19): typed from the Bosch eBike Flow app, battery capacity and cycles charts
 - [ ] Photo labels and the photo search across bikes, in Activité › Photos (D-45)
-- [ ] Workshop: products (four levels plus containers, D-36) and tools (D-33): rebuild their screens in `/design` first, from the mockup
-- [ ] Maintenance procedures: list, detail, editor, rule → procedure link (D-47; ≈ 3–4 evenings, **Estimate**)
-- [ ] Workshop mode: one step at a time, summary, save with undo (D-47; ≈ 2–3 evenings, **Estimate**)
+- [ ] Workshop: products (four levels plus containers, D-36) and tools (D-33), **next** (D-82: before the procedures, so their material links to the stock); built directly in the app from the mockup (D-54)
+- [ ] Maintenance procedures ("fiches"): list (an Atelier tab), detail, editor, task or rule → procedure link (D-47, D-82; ≈ 3–4 evenings, **Estimate**)
+- [ ] Runs ("suivi"): to do, in progress, done, stored in the database, steps checked with comments and photos, summary that writes the maintenance event (D-82, revising D-47's workshop mode; ≈ 3–4 evenings, **Estimate**)
 - [ ] Statistics: km and hours per bike per month, cost per bike per year, cost per 100 km over time (D-23, D-44)
 - [ ] Search and filters beyond the workshop (the bike history's year, month and kind filters exist, D-78; next: the same in Activité with a bike filter, text search, place, ride type, conditions, totals per period)
 - [ ] CSV import (only if H-06 turns out wrong)

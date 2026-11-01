@@ -5,29 +5,36 @@ import { cn } from "cn";
 import { replaceQuery, writeBikeTab, type BikeTabId } from "@/lib/bike-tabs";
 
 /*
- * Bike page sections (D-48, D-78). Below 1024 px (phone and tablet): five tabs, only the selected
- * tab's panels show. From 1024 px: two tabs, "Vue d'ensemble" (the two columns) and "Historique"
- * (full width). Every section is rendered once. The selected tab is kept in the address
- * (`?tab=`). The bars scroll sideways when the labels do not fit; arrow keys, Home and End move
- * between tabs.
+ * Bike page sections (D-48, D-78, D-79). Below 1024 px (phone and tablet): six tabs, only the
+ * selected tab's panels show. From 1024 px: three tabs, "Vue d'ensemble" (the two columns),
+ * "Réglages" and "Historique" (full width). Every section is rendered once. The selected tab is
+ * kept in the address (`?tab=`). The bars scroll sideways when the labels do not fit; arrow keys,
+ * Home and End move between tabs.
  */
 
 export type { BikeTabId };
 
 const TABS: { id: BikeTabId; label: string }[] = [
   { id: "plan", label: "À prévoir" },
+  { id: "setup", label: "Réglages" },
   { id: "components", label: "Composants" },
   { id: "history", label: "Historique" },
   { id: "record", label: "Fiche" },
   { id: "photos", label: "Photos" },
 ];
 
-type WideTabId = "overview" | "history";
+type WideTabId = "overview" | "setup" | "history";
 
 const WIDE_TABS: { id: WideTabId; label: string }[] = [
   { id: "overview", label: "Vue d'ensemble" },
+  { id: "setup", label: "Réglages" },
   { id: "history", label: "Historique" },
 ];
+
+/** The tab of the wide bar that shows a tab's panels: the full-width ones, or the overview. */
+function wideTabOf(tab: BikeTabId): WideTabId {
+  return tab === "history" || tab === "setup" ? tab : "overview";
+}
 
 type TabsContextValue = { selected: BikeTabId; select: (id: BikeTabId) => void };
 const TabsContext = React.createContext<TabsContextValue | null>(null);
@@ -157,25 +164,28 @@ export function BikeTabList() {
       />
       <TabBar
         tabs={WIDE_TABS}
-        selected={selected === "history" ? "history" : "overview"}
+        selected={wideTabOf(selected)}
         // Back to the overview keeps nothing to choose: its sections all show.
         onSelect={(id) => {
-          if (id === "history") select("history");
-          else if (selected === "history") select("plan");
+          if (id !== "overview") select(id);
+          else if (wideTabOf(selected) !== "overview") select("plan");
         }}
         idPrefix="bike-wide-tab"
-        controls={(id) => (id === "history" ? "bike-panel-history" : "bike-overview")}
+        controls={(id) => (id === "overview" ? "bike-overview" : `bike-panel-${id}`)}
         className="w-fit max-lg:hidden [&>button]:px-5"
       />
     </>
   );
 }
 
-/** Hides what the selected tab does not show: one tab below 1024 px, overview or history above. */
+/**
+ * Hides what the selected tab does not show: one tab below 1024 px; above, the overview's
+ * sections together, or one full-width tab.
+ */
 function hiddenClasses(selected: BikeTabId, tab: BikeTabId) {
   return cn(
     selected !== tab && "max-lg:hidden",
-    (tab === "history") !== (selected === "history") && "lg:hidden",
+    wideTabOf(tab) !== wideTabOf(selected) && "lg:hidden",
   );
 }
 
@@ -220,7 +230,7 @@ export function BikeTabExtra({
   );
 }
 
-/** The two columns of the overview (D-48), hidden from 1024 px while the history is shown. */
+/** The two columns of the overview (D-48), hidden from 1024 px while a full-width tab is shown. */
 export function BikeOverview({
   className,
   children,
@@ -232,7 +242,7 @@ export function BikeOverview({
   return (
     <div
       id="bike-overview"
-      className={cn(className, context.selected === "history" && "lg:hidden")}
+      className={cn(className, wideTabOf(context.selected) !== "overview" && "lg:hidden")}
     >
       {children}
     </div>

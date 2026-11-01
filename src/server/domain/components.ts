@@ -6,6 +6,7 @@ import type {
   ComponentTypeCode,
   RemovalReason,
 } from "@/lib/enums";
+import { decimalText } from "@/lib/parse";
 import { componentCounter, type RideUsage, type Usage } from "./wear";
 
 /** What the slot logic needs from a component. */
@@ -35,7 +36,9 @@ export function counterUnit(group: ComponentGroup): "duration_s" | "distance_m" 
 export function componentName(component: Pick<ComponentRecord, "brand" | "model" | "specs">) {
   const name = [component.brand, component.model].filter(Boolean).join(" ");
   const travel = component.specs?.travel_mm;
-  return [name || null, travel != null ? `${travel} mm` : null].filter(Boolean).join(" · ");
+  // A number in French ("62,5"); `travel_mm` may also come from the suspension specs (D-79).
+  const travelText = typeof travel === "number" ? decimalText(travel, 1) : travel;
+  return [name || null, travelText != null ? `${travelText} mm` : null].filter(Boolean).join(" · ");
 }
 
 export type SlotHistory = {

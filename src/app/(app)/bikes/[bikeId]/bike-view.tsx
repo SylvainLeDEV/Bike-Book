@@ -29,6 +29,12 @@ import {
   updateMaintenanceAction,
 } from "@/server/actions/maintenance";
 import { saveRuleAction, snoozeRuleAction, undoSnoozeAction } from "@/server/actions/rules";
+import {
+  createSetupAction,
+  deleteSetupAction,
+  saveSuspensionSpecsAction,
+  updateSetupAction,
+} from "@/server/actions/setups";
 import type { BikePage } from "@/server/views/bikes";
 import { useSnooze } from "../../use-snooze";
 import { useTaskDone } from "../../use-task-done";
@@ -149,6 +155,12 @@ export function BikeView({
                 open: true,
                 component: page.components.forms.find((form) => form.id === componentId) ?? null,
               }),
+            setup: {
+              onCreate: (input) => createSetupAction(bikeId, input),
+              onUpdate: (setupId, input) => updateSetupAction(setupId, input),
+              onDelete: (setupId) => deleteSetupAction(setupId),
+              onSaveSpecs: (componentId, specs) => saveSuspensionSpecsAction(componentId, specs),
+            },
             onReplacePart: async (input) => {
               const result = await replacePartAction(input);
               if (!result.ok) return result;
@@ -214,6 +226,7 @@ export function BikeView({
         stockInstalledOn={page.components.stockInstalledOn}
         today={page.vm.today}
         shops={page.components.shops}
+        suspensionByDefault={page.components.suspensionByDefault}
         onSubmit={async (componentId, input) => {
           const result = await saveComponentAction(bikeId, componentId, input);
           if (result.ok) toast(result.message);

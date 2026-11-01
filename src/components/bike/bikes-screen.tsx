@@ -54,7 +54,11 @@ export function BikesScreen({
         <ul className={`m-0 list-none p-0 ${grid}`}>
           {vm.active.map((card) => (
             <li key={card.bike.id}>
-              <BikeCard card={card} href={bikeHref(card.bike.id)} />
+              <BikeCard
+                card={card}
+                href={bikeHref(card.bike.id)}
+                setupHref={`${bikeHref(card.bike.id)}?tab=setup`}
+              />
             </li>
           ))}
         </ul>
@@ -77,7 +81,11 @@ export function BikesScreen({
           <ul className={`m-0 mt-2 list-none p-0 ${grid}`}>
             {vm.others.map((card) => (
               <li key={card.bike.id}>
-                <BikeCard card={card} href={bikeHref(card.bike.id)} />
+                <BikeCard
+                  card={card}
+                  href={bikeHref(card.bike.id)}
+                  setupHref={`${bikeHref(card.bike.id)}?tab=setup`}
+                />
               </li>
             ))}
           </ul>

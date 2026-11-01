@@ -14,6 +14,7 @@ import type {
   ComponentOrigin,
   ComponentPosition,
   ComponentTypeCode,
+  DamperAdjuster,
   Discipline,
   EvidenceLevel,
   InventoryCategory,
@@ -28,6 +29,8 @@ import type {
   RideType,
   RuleStatus,
   ShopKind,
+  SpringType,
+  SuspensionTypeCode,
   WheelSize,
 } from "./enums";
 import type { LocalDate } from "./format";
@@ -364,6 +367,8 @@ export type BikePageVM = {
   history: TimelineItemVM[];
   record: BikeRecordVM;
   photos: PhotoVM[];
+  /** "Réglages": suspension and tyres (D-79). */
+  setup: SetupTabVM;
 };
 
 // --- "Voir le détail" of the bike's counters (principle 2) ------------------------------------------
@@ -735,6 +740,11 @@ export type ComponentInput = {
   shop: { name: string; kind: ShopKind } | null;
   warrantyEndsOn: LocalDate | null;
   notes: string | null;
+  /**
+   * Fork and rear shock (D-79): what the part is for its setup. null: a rigid fork, or a shock not
+   * described yet; always null for the other types.
+   */
+  suspension: SuspensionSpecsInput | null;
 };
 
 /** The component sheet in edit mode. */
@@ -748,3 +758,84 @@ export type ComponentFormVM = Omit<ComponentInput, "origin"> & {
 export type SaveComponentResult =
   | { ok: true; componentId: number; message: string }
   | { ok: false; error?: string; fieldErrors?: Partial<Record<keyof ComponentInput, string>> };
+
+// --- Setup tab: suspension and tyres (D-24, D-79) ----------------------------------------------------
+
+/** One count per damper adjuster; null: no such adjuster (specs) or not given (values). */
+export type ClicksInput = Record<DamperAdjuster, number | null>;
+
+/** What a suspension fork or a rear shock is: spring, own travel, adjusters and their clicks. */
+export type SuspensionSpecsInput = {
+  springType: SpringType;
+  /** A fork's travel, a shock's stroke, in mm. */
+  travelMm: number | null;
+  /** Clicks from fully closed to fully open; null: the part has no such adjuster. */
+  maxClicks: ClicksInput;
+};
+
+/** The values of one fork or rear shock in a setup; clicks counted from fully closed. */
+export type SuspensionValuesInput = {
+  componentId: number;
+  airPressurePsi: number | null;
+  springRateLbPerIn: number | null;
+  volumeSpacers: number | null;
+  sagMm: number | null;
+  clicks: ClicksInput;
+};
+
+/** A setup as the sheet writes it: tyre pressures and the values of the bike's fork and shock. */
+export type SetupInput = {
+  setOn: LocalDate;
+  label: string | null;
+  notes: string | null;
+  tireFrontPressureBar: number | null;
+  tireRearPressureBar: number | null;
+  suspensions: SuspensionValuesInput[];
+};
+
+/**
+ * A suspension part fitted today: the rear shock always; the fork when it has specs, or on a
+ * mountain bike (D-83).
+ */
+export type SuspensionUnitVM = {
+  componentId: number;
+  typeCode: SuspensionTypeCode;
+  /** "Fox 38 Factory". */
+  name: string;
+  /** null: not described yet (spring, travel, adjusters). */
+  specs: SuspensionSpecsInput | null;
+};
+
+/** One line of what a setup changed from the one before it: "Pression 80 → 85 psi". */
+export type SetupChangeVM = {
+  unit: SuspensionTypeCode | "tires";
+  field: string;
+  from: string | null;
+  to: string | null;
+};
+
+export type SetupEntryVM = {
+  id: number;
+  setOn: LocalDate;
+  label: string | null;
+  notes: string | null;
+  values: SetupInput;
+  /** What changed from the previous setup; for the first one, every value given. */
+  changes: SetupChangeVM[];
+  first: boolean;
+};
+
+export type SetupTabVM = {
+  /** Fork first, then the rear shock. */
+  units: SuspensionUnitVM[];
+  /** A fitted fork without specs on a bike other than a mountain bike: rigid, unless told otherwise. */
+  rigidFork: { componentId: number; name: string } | null;
+  /** The current setup first. */
+  entries: SetupEntryVM[];
+};
+
+/** Field errors of the setup sheet: header fields, or `<componentId>.<field>` for a part's value. */
+export type SetupFieldErrors = Record<string, string>;
+
+export type SaveSetupResult =
+  { ok: true; message: string } | { ok: false; error?: string; fieldErrors?: SetupFieldErrors };

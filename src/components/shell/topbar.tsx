@@ -59,7 +59,7 @@ export function AccountMenu() {
         <DropdownMenuSeparator />
         <DropdownMenuItem onSelect={onOpenSettings}>
           <Settings aria-hidden />
-          Réglages
+          Paramètres
         </DropdownMenuItem>
         <DropdownMenuItem onSelect={() => startTransition(async () => onSignOut())}>
           <LogOut aria-hidden />

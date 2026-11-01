@@ -43,6 +43,10 @@ erDiagram
     BIKE |o--o| ATTACHMENT : "has as cover"
     INVENTORY_ITEM |o--o| ATTACHMENT : "has as photo"
     INVENTORY_ITEM |o--o{ COMPONENT : "becomes"
+    COMPONENT ||--o| SUSPENSION_SPECS : "is described by"
+    BIKE ||--o{ SETUP : "is set up as"
+    SETUP ||--o{ SETUP_SUSPENSION : "holds"
+    COMPONENT ||--o{ SETUP_SUSPENSION : "is set to"
 ```
 
 The workshop's own tables are in [Workshop](#workshop-d-33-to-d-42).
@@ -87,8 +91,9 @@ Scoping rules:
 - Link tables between two workspace-owned rows (`inventory_item_bikes`, `attachment_tags`,
   `procedure_bikes`) carry no workspace: the data-access layer checks that both rows belong to
   the current workspace.
-- Everything below a bike (components, rides, maintenance, rules, readings, setups)
-  inherits the workspace through `bike_id`, so no extra column is needed there. Attachments
+- Everything below a bike (components, rides, maintenance, rules, readings, setups, and the
+  suspension specs and setup values below a component or a setup) inherits the workspace through
+  `bike_id`, so no extra column is needed there. Attachments
   inherit it from their one element (a bike or something below it, a task, a workshop item).
 - Per-person data carries a `user_id`: Garmin integration (each person has their own Garmin
   account), notification preferences, sessions.
@@ -643,24 +648,61 @@ from these readings.
 | `source` | enum: `manual`, `import` | `import` kept for a future official access |
 | `notes` | text | |
 
-### `setups` — suspension and tyre setup log (D-24)
+### Suspension and tyre setup (D-24, D-79)
 
-One row per change; the latest row of a bike is its current setup. Per bike, not per ride.
+Status: **Built** on 2026-11-01 (migration `0011_setups`, three new tables, nothing rebuilt; D-69).
+The bike page's "Réglages" tab shows them (D-79).
+
+Three ideas carry it:
+
+1. **What a part is lives on the part.** A fork or a rear shock gets a `suspension_specs` row: its
+   spring, its own travel, and the damping adjusters it has with their number of clicks. A fork
+   without one is rigid. A new fork (a replacement) starts without specs and without values.
+2. **A setup is a dated full copy.** Each change adds a `setups` row with the tyre pressures, and
+   one `setup_suspensions` row per part with values. The latest setup of a bike (by `set_on`, then
+   `id`) is its current setup; "Revenir à ce réglage" adds a new row, it never rewrites an old one.
+3. **Values belong to their part.** A `setup_suspensions` row names the component it was measured
+   on, so the values of a removed fork stay with that fork and never show on its successor.
+
+The sag percentage is computed from `sag_mm` and the part's `travel_mm` (`sagPercent` in
+`src/lib/setup.ts`), never stored (D-50); so is the target in mm (`sagTargetOf` in
+`src/lib/setup-advice.ts`, D-83). What each setup changed is computed too
+(`setupChanges` in `src/server/domain/setups.ts`).
+
+**`suspension_specs`**: one row per suspension fork or rear shock.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `component_id` | integer PK, FK `components`, `ON DELETE CASCADE` | A `fork` or `rear_shock` component; the row inherits the workspace through its bike (D-25). A fitted fork without a row is rigid |
+| `spring_type` | enum, required | `air`: an air spring, set by its pressure (psi); `coil`: a coil spring, set by its rate (lb/in) |
+| `travel_mm` | real, nullable | The part's own travel in millimetres: a fork's travel, a rear shock's stroke (not the rear wheel travel). > 0. Used for the sag percentage |
+| `low_speed_rebound_max_clicks`, `high_speed_rebound_max_clicks`, `low_speed_compression_max_clicks`, `high_speed_compression_max_clicks` | integer, nullable | Number of clicks of that damper adjuster, from fully closed to fully open; > 0. `null`: the part has no such adjuster (LSR, HSR, LSC, HSC) |
+| `created_at`, `updated_at` | timestamp | Instants, UTC epoch milliseconds |
+
+**`setups`**: one row per dated setup of a bike.
 
 | Field | Type | Notes |
 |-------|------|-------|
 | `id` | integer PK | |
-| `bike_id` | FK `bikes` | |
-| `set_on` | date | |
-| `fork_pressure_psi`, `shock_pressure_psi` | real, nullable | |
-| `fork_rebound_clicks`, `fork_low_speed_compression_clicks`, `fork_high_speed_compression_clicks` | integer, nullable | Counted from fully closed (convention shown in the UI) |
-| `shock_rebound_clicks`, `shock_low_speed_compression_clicks`, `shock_high_speed_compression_clicks` | integer, nullable | |
-| `fork_volume_spacers`, `shock_volume_spacers` | integer, nullable | Number of volume spacers ("tokens") |
-| `sag_front_percent`, `sag_rear_percent` | real, nullable | |
-| `tire_front_bar`, `tire_rear_bar` | real, nullable | |
-| `extra` | JSON | Anything else (coil spring rate, inserts…) |
-| `label` | text | E.g. "bike park", "winter" |
-| `notes` | text | Why it changed, how it felt |
+| `bike_id` | FK `bikes`, required, `ON DELETE CASCADE` | The setup inherits the workspace through its bike (D-25) |
+| `set_on` | date, required | The day this setup was set. The latest `set_on` (then the highest `id`) is the bike's current setup |
+| `label` | text, nullable | Optional name: "Bike park", "Hiver" |
+| `tire_front_pressure_bar`, `tire_rear_pressure_bar` | real, nullable | Tyre pressures in bar, > 0 |
+| `notes` | text, nullable | Why it changed, how it felt |
+| `created_at`, `updated_at` | timestamp | Instants, UTC epoch milliseconds |
+
+**`setup_suspensions`**: the values of one fork or rear shock in a setup. A part with nothing
+given has no row.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `setup_id` | FK `setups`, required, `ON DELETE CASCADE` | Primary key on (`setup_id`, `component_id`) |
+| `component_id` | FK `components`, required, `ON DELETE CASCADE` | The fork or rear shock measured, a part of the setup's bike (checked by the data-access layer). Deleting the part (only "Annuler" right after fitting it, D-60) deletes its values, not the setup |
+| `air_pressure_psi` | real, nullable | Air spring pressure in psi, > 0 |
+| `spring_rate_lb_per_in` | integer, nullable | Coil spring rate in lb/in, > 0 |
+| `volume_spacers` | integer, nullable | Number of volume spacers ("tokens") in the air spring, ≥ 0 |
+| `sag_mm` | real, nullable | Sag measured on the part, in millimetres, ≥ 0; the percentage is computed from `suspension_specs.travel_mm` |
+| `low_speed_rebound_clicks`, `high_speed_rebound_clicks`, `low_speed_compression_clicks`, `high_speed_compression_clicks` | integer, nullable | Position of that adjuster in clicks **counted from fully closed** (0 = closed), ≥ 0 and at most the part's `*_max_clicks` (checked by the app) |
 
 ### Technical tables
 
@@ -793,7 +835,9 @@ availability is stored.
 rule, which restarts it; `inventory_movements` for the parts used (`use`) and the product levels
 (`level_after`, one level down by default), linked to those items; the photos taken as
 attachments of the event. Undo removes all of it. Until it is saved, a run in progress lives in
-the browser's `localStorage`, not in the database.
+the browser's `localStorage`, not in the database. **Revised by D-82 (2026-11-01):** a run is
+stored in the database, with its status (to do, in progress, done) and a comment and photos per
+step, and a task can point to a procedure too; its tables are written here when it is built.
 
 ## Phase 2 additions (Garmin)
 

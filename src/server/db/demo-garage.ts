@@ -18,6 +18,7 @@ import { createMaintenanceEvent } from "./maintenance";
 import { listRuleTemplates } from "./reference";
 import { listRideUsages } from "./rides";
 import { createRule } from "./rules";
+import { createSetup, type SetupData, type SuspensionSpecsData } from "./setups";
 import { createTask } from "./tasks";
 
 // The demo garage's parts and their history, as on /design (fictitious, D-22). Dates are those of
@@ -31,7 +32,16 @@ type DemoPart = {
   brand: string;
   model: string;
   specs?: Record<string, string | number>;
+  /** Fork and rear shock (D-79). Fictitious clicks, not the makers' figures. */
+  suspension?: SuspensionSpecsData;
   initialDistanceM?: number;
+};
+
+const NO_CLICKS = {
+  low_speed_rebound: null,
+  high_speed_rebound: null,
+  low_speed_compression: null,
+  high_speed_compression: null,
 };
 
 type DemoReplacement = {
@@ -258,6 +268,16 @@ const PARTS: DemoPart[] = [
     brand: "RockShox",
     model: "Lyrik Ultimate",
     specs: { travel_mm: 160 },
+    suspension: {
+      springType: "air",
+      travelMm: 160,
+      maxClicks: {
+        ...NO_CLICKS,
+        low_speed_rebound: 18,
+        low_speed_compression: 5,
+        high_speed_compression: 5,
+      },
+    },
   },
   {
     key: "s.shock",
@@ -265,6 +285,11 @@ const PARTS: DemoPart[] = [
     type: "rear_shock",
     brand: "RockShox",
     model: "Super Deluxe Ultimate",
+    suspension: {
+      springType: "air",
+      travelMm: 62.5,
+      maxClicks: { ...NO_CLICKS, low_speed_rebound: 15, low_speed_compression: 5 },
+    },
   },
   { key: "s.chain", bike: "Spectral", type: "chain", brand: "SRAM", model: "GX Eagle T-Type" },
   { key: "s.cassette", bike: "Spectral", type: "cassette", brand: "SRAM", model: "XS-1275 10-52" },
@@ -331,6 +356,11 @@ const PARTS: DemoPart[] = [
     brand: "Fox",
     model: "38 Performance",
     specs: { travel_mm: 170 },
+    suspension: {
+      springType: "air",
+      travelMm: 170,
+      maxClicks: { ...NO_CLICKS, low_speed_rebound: 12, low_speed_compression: 8 },
+    },
   },
   {
     key: "l.shock",
@@ -338,6 +368,11 @@ const PARTS: DemoPart[] = [
     type: "rear_shock",
     brand: "Fox",
     model: "Float X Performance",
+    suspension: {
+      springType: "air",
+      travelMm: 65,
+      maxClicks: { ...NO_CLICKS, low_speed_rebound: 12 },
+    },
   },
   { key: "l.chain", bike: "Le Lourd", type: "chain", brand: "Shimano", model: "CN-M8100" },
   {
@@ -606,6 +641,7 @@ export function seedDemoParts(input: {
         shop: null,
         warrantyEndsOn: null,
         notes: null,
+        suspension: part.suspension ?? null,
       },
     );
     if (!outcome.ok) throw new Error(`Demo part ${part.key}: ${outcome.reason}`);
@@ -813,5 +849,108 @@ export function seedDemoParts(input: {
       notes: null,
     });
     if (!created.ok) throw new Error(`Demo task ${task.title}: ${created.reason}`);
+  }
+
+  // Setups of /design (D-79): fictitious values.
+  const part = (key: string) => {
+    const found = current.get(key);
+    if (!found) throw new Error(`Demo setup: no part ${key}`);
+    return found.id;
+  };
+  const values = (
+    key: string,
+    fields: Partial<Omit<SetupData["suspensions"][number], "componentId">>,
+  ) => ({
+    componentId: part(key),
+    airPressurePsi: null,
+    springRateLbPerIn: null,
+    volumeSpacers: null,
+    sagMm: null,
+    clicks: { ...NO_CLICKS },
+    ...fields,
+  });
+  const setupsToSeed: [string, SetupData][] = [
+    [
+      "Spectral",
+      {
+        setOn: day("2026-05-02"),
+        label: "Rando",
+        notes: null,
+        tireFrontPressureBar: 1.6,
+        tireRearPressureBar: 1.75,
+        suspensions: [
+          values("s.fork", {
+            airPressurePsi: 80,
+            volumeSpacers: 2,
+            sagMm: 32,
+            clicks: {
+              ...NO_CLICKS,
+              low_speed_rebound: 9,
+              low_speed_compression: 2,
+              high_speed_compression: 2,
+            },
+          }),
+          values("s.shock", {
+            airPressurePsi: 185,
+            volumeSpacers: 1,
+            sagMm: 18,
+            clicks: { ...NO_CLICKS, low_speed_rebound: 7, low_speed_compression: 2 },
+          }),
+        ],
+      },
+    ],
+    [
+      "Spectral",
+      {
+        setOn: day("2026-10-17"),
+        label: "Bike park",
+        notes: "Plus de pression et un clic de compression en plus pour les réceptions.",
+        tireFrontPressureBar: 1.7,
+        tireRearPressureBar: 1.85,
+        suspensions: [
+          values("s.fork", {
+            airPressurePsi: 84,
+            volumeSpacers: 2,
+            sagMm: 30,
+            clicks: {
+              ...NO_CLICKS,
+              low_speed_rebound: 9,
+              low_speed_compression: 3,
+              high_speed_compression: 3,
+            },
+          }),
+          values("s.shock", {
+            airPressurePsi: 195,
+            volumeSpacers: 1,
+            sagMm: 17,
+            clicks: { ...NO_CLICKS, low_speed_rebound: 7, low_speed_compression: 2 },
+          }),
+        ],
+      },
+    ],
+    [
+      "Le Lourd",
+      {
+        setOn: day("2026-06-20"),
+        label: null,
+        notes: null,
+        tireFrontPressureBar: 1.5,
+        tireRearPressureBar: 1.7,
+        suspensions: [
+          values("l.fork", {
+            airPressurePsi: 78,
+            sagMm: 35,
+            clicks: { ...NO_CLICKS, low_speed_rebound: 6 },
+          }),
+          values("l.shock", { airPressurePsi: 205, sagMm: 19 }),
+        ],
+      },
+    ],
+  ];
+  for (const [bikeName, data] of setupsToSeed) {
+    const bike = bikes.get(bikeName);
+    if (!bike) throw new Error(`Demo setup: no bike ${bikeName}`);
+    const created = createSetup(ctx, bike.id, data);
+    if (!created.ok) throw new Error(`Demo setup of ${bikeName}: ${created.reason}`);
   }
 }

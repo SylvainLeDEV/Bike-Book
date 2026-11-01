@@ -2,10 +2,11 @@
 
 Track all your bikes in one place — rides, maintenance, parts and upcoming service.
 
-> **Status (2026-10-26): Phase 1 — MVP, in progress.** Accounts, the app shell (light and dark
+> **Status (2026-11-01): Phase 1 — MVP, built; phase 1.5 started.** Accounts, the app shell (light and dark
 > themes), bikes with their full record, components and their history, rides, maintenance, the
-> rule engine ("À prévoir"), tasks, the workshop ("À racheter") and the ZIP export. Photos and
-> documents come next.
+> rule engine ("À prévoir"), tasks, the workshop ("À racheter"), photos and documents, the ZIP
+> export, and each bike's suspension and tyre setup ("Réglages"). Maintenance procedures come
+> next, after the workshop's products and tools.
 
 ## Quick start
 
@@ -54,6 +55,7 @@ private network.
 | Wear in bike park | Descent time if entered, else moving time, else total time | Decided |
 | Design | Turquoise accent, light and dark themes, bottom bar / rail / sidebar by width | Decided |
 | Workshop | Parts in stock and restocking in phase 1; products, tools and maintenance procedures in 1.5 | Decided |
+| Setup | Per bike: fork and shock described on the parts, dated setups, advice from the manufacturers' guides | Decided, built (D-79) |
 | GPS import (phase 2) | Garmin **Personal API** (new on 2026-10-21), FIT file upload as fallback | Decided |
 
 The full list, with assumptions and open questions, is in

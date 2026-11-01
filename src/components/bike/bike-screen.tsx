@@ -11,6 +11,7 @@ import { PhotoGallery } from "@/components/photos/photo-gallery";
 import { PhotoViewerProvider } from "@/components/photos/photo-viewer";
 import { PlanList, type PlanActions } from "@/components/plan/plan-list";
 import { useQuickRide } from "@/components/rides/quick-ride";
+import { SetupSection, type SetupActions } from "@/components/setup/setup-section";
 import { Timeline } from "@/components/timeline";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -53,6 +54,8 @@ export type BikeScreenActions = PlanActions & {
   onShowRules?: () => void;
   /** Opens an entry of the history in its edit sheet (D-70). */
   onEditHistoryItem?: (item: TimelineItemVM) => void;
+  /** The "Réglages" tab's setup log and part sheets (D-79). */
+  setup?: SetupActions;
 };
 
 export type BikeScreenLinks = {
@@ -117,8 +120,9 @@ function Stat({
 const RECENT_COUNT = 5;
 
 /**
- * Bike page (D-43, D-48, D-78): counters, "À prévoir" and the latest entries, components, stock,
- * record, photos, and the history with its filters in a tab of its own.
+ * Bike page (D-43, D-48, D-78, D-79): counters, "À prévoir" and the latest entries, components,
+ * stock, record, photos; the setup (suspension and tyres) and the history with its filters in tabs
+ * of their own.
  */
 export function BikeScreen({
   vm,
@@ -505,6 +509,15 @@ function BikeScreenContent({
           </BikeTabPanel>
         </div>
       </BikeOverview>
+
+      <BikeTabPanel tab="setup">
+        <SetupSection
+          vm={vm.setup}
+          bikeName={bike.name}
+          today={vm.today}
+          actions={actions.setup ?? {}}
+        />
+      </BikeTabPanel>
 
       <BikeTabPanel tab="history">
         <section aria-labelledby="bike-history-title">
