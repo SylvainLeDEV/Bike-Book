@@ -36,6 +36,11 @@ export const suspensionSpecsSchema = z.object({
     .gt(0, "Débattement invalide.")
     .max(300, "300 mm au maximum.")
     .nullable(),
+  wheelTravelMm: z
+    .number({ error: "Débattement invalide." })
+    .gt(0, "Débattement invalide.")
+    .max(300, "300 mm au maximum.")
+    .nullable(),
   maxClicks: z.object({
     low_speed_rebound: maxClicks,
     high_speed_rebound: maxClicks,

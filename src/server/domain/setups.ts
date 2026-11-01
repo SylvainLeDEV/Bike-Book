@@ -20,6 +20,7 @@ const SUSPENSION_FIELDS = [
   "springRateLbPerIn",
   "volumeSpacers",
   "sagMm",
+  "sagTargetPercent",
 ] as const;
 
 /**

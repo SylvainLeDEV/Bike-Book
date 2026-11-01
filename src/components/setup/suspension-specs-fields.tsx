@@ -10,20 +10,26 @@ import { CLICKS_CONVENTION } from "@/lib/setup-advice";
 import type { SuspensionSpecsInput } from "@/lib/view-models";
 
 /*
- * The "Suspension" part of the component sheet (D-79), for a fork or a rear shock: whether a fork
- * is a suspension fork, its spring, its own travel, and the clicks of each damper adjuster it has.
- * The "Réglages" tab of the bike page is built from these.
+ * The "Suspension" part of the component sheet (D-79), and the "Débattement et molettes" sheet of
+ * the setup tab (D-83), for a fork or a rear shock: whether a fork is a suspension fork, its
+ * spring, its travel (a fork's total travel; a shock's stroke and the rear wheel travel, D-84) and
+ * the clicks of each damper adjuster it has.
  */
 
 export type SuspensionFormValues = {
   /** A fork only: unticked, the fork is rigid. A rear shock is always a suspension part. */
   suspended: boolean;
   springType: SpringType;
+  /** A fork's travel, a shock's stroke: the sag is measured on it. */
   travel: string;
+  /** Rear shock only: the bike's rear wheel travel. */
+  wheelTravel: string;
   maxClicks: Record<DamperAdjuster, string>;
 };
 
-export type SuspensionFormErrors = Partial<Record<"travel" | DamperAdjuster, string>>;
+export type SuspensionFormErrors = Partial<
+  Record<"travel" | "wheelTravel" | DamperAdjuster, string>
+>;
 
 export function suspensionFormValues(
   specs: SuspensionSpecsInput | null,
@@ -33,6 +39,7 @@ export function suspensionFormValues(
     suspended: specs ? true : suspendedByDefault,
     springType: specs?.springType ?? "air",
     travel: specs?.travelMm != null ? decimalText(specs.travelMm, 1) : "",
+    wheelTravel: specs?.wheelTravelMm != null ? decimalText(specs.wheelTravelMm, 1) : "",
     maxClicks: Object.fromEntries(
       DAMPER_ADJUSTERS.map((a) => [
         a,
@@ -49,10 +56,16 @@ export function readSuspensionForm(
 ): { specs: SuspensionSpecsInput | null; errors: SuspensionFormErrors } {
   if (typeCode === "fork" && !values.suspended) return { specs: null, errors: {} };
   const errors: SuspensionFormErrors = {};
-  const travel = parseDecimalInput(values.travel);
-  if (travel != null && (Number.isNaN(travel) || travel <= 0 || travel > 300)) {
-    errors.travel = "Un nombre de millimètres, 300 au plus.";
-  }
+  const millimetres = (text: string, field: "travel" | "wheelTravel") => {
+    const value = parseDecimalInput(text);
+    if (value != null && (Number.isNaN(value) || value <= 0 || value > 300)) {
+      errors[field] = "Un nombre de millimètres, 300 au plus.";
+    }
+    return value == null || Number.isNaN(value) ? null : value;
+  };
+  const travel = millimetres(values.travel, "travel");
+  const wheelTravel =
+    typeCode === "rear_shock" ? millimetres(values.wheelTravel, "wheelTravel") : null;
   const maxClicks = {} as Record<DamperAdjuster, number | null>;
   for (const adjuster of DAMPER_ADJUSTERS) {
     const text = values.maxClicks[adjuster].trim();
@@ -65,7 +78,8 @@ export function readSuspensionForm(
   return {
     specs: {
       springType: values.springType,
-      travelMm: travel == null || Number.isNaN(travel) ? null : travel,
+      travelMm: travel,
+      wheelTravelMm: wheelTravel,
       maxClicks,
     },
     errors,
@@ -75,6 +89,7 @@ export function readSuspensionForm(
 /** The id of the first field in error, to focus it. */
 export function firstSuspensionErrorId(errors: SuspensionFormErrors): string | null {
   if (errors.travel) return "part-travel";
+  if (errors.wheelTravel) return "part-wheel-travel";
   const adjuster = DAMPER_ADJUSTERS.find((a) => errors[a]);
   return adjuster ? `part-max-${adjuster}` : null;
 }
@@ -123,44 +138,73 @@ export function SuspensionSpecsFields({
       ) : null}
       {shown ? (
         <>
-          <div className="grid grid-cols-2 items-start gap-2.5">
-            <Fieldset legend="Ressort" legendClassName="mb-1.5">
-              <ChipRow>
-                {(["air", "coil"] as const).map((spring) => (
-                  <Chip
-                    key={spring}
-                    size="sm"
-                    name="springType"
-                    value={spring}
-                    checked={values.springType === spring}
-                    onChange={() => set("springType", spring)}
-                  >
-                    {SPRING_TYPE_LABELS[spring]}
-                  </Chip>
-                ))}
-              </ChipRow>
-            </Fieldset>
+          <Fieldset legend="Ressort" legendClassName="mb-1.5">
+            <ChipRow>
+              {(["air", "coil"] as const).map((spring) => (
+                <Chip
+                  key={spring}
+                  size="sm"
+                  name="springType"
+                  value={spring}
+                  checked={values.springType === spring}
+                  onChange={() => set("springType", spring)}
+                >
+                  {SPRING_TYPE_LABELS[spring]}
+                </Chip>
+              ))}
+            </ChipRow>
+          </Fieldset>
+          {typeCode === "fork" ? (
             <Field
-              label={typeCode === "fork" ? "Débattement" : "Course"}
+              label="Débattement"
               id="part-travel"
               error={errors.travel}
+              hint="Le débattement total de la fourche : ton SAG en % est calculé dessus."
             >
               <Input
                 inputMode="decimal"
                 autoComplete="off"
-                placeholder={typeCode === "fork" ? "160" : "65"}
+                placeholder="160"
                 suffix="mm"
                 value={values.travel}
                 onChange={(e) => set("travel", e.target.value)}
               />
             </Field>
-          </div>
-          {typeCode === "rear_shock" ? (
-            <p className="-mt-1 hint">
-              La course de l&apos;amortisseur, pas le débattement de la roue : le SAG se mesure
-              dessus.
-            </p>
-          ) : null}
+          ) : (
+            <div className="grid gap-1.5">
+              <div className="grid grid-cols-2 items-start gap-2.5">
+                <Field label="Course de l'amortisseur" id="part-travel" error={errors.travel}>
+                  <Input
+                    inputMode="decimal"
+                    autoComplete="off"
+                    placeholder="65"
+                    suffix="mm"
+                    value={values.travel}
+                    onChange={(e) => set("travel", e.target.value)}
+                  />
+                </Field>
+                <Field
+                  label="Débattement roue arrière"
+                  id="part-wheel-travel"
+                  error={errors.wheelTravel}
+                >
+                  <Input
+                    inputMode="decimal"
+                    autoComplete="off"
+                    placeholder="160"
+                    suffix="mm"
+                    value={values.wheelTravel}
+                    onChange={(e) => set("wheelTravel", e.target.value)}
+                  />
+                </Field>
+              </div>
+              <p className="hint">
+                Le SAG se mesure sur la course : la partie de la tige qui rentre dans le corps, le
+                2ᵉ chiffre de la taille (230 × 65 → 65 mm). Le débattement de la roue est indiqué
+                pour mémoire.
+              </p>
+            </div>
+          )}
           <div className="grid gap-2">
             <p className="flex items-center gap-1 text-[13.5px] font-semibold">
               Molettes · clics de fermé à ouvert

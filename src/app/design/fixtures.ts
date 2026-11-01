@@ -1346,6 +1346,7 @@ const SPECTRAL_SETUP_BIKE_PARK = {
       springRateLbPerIn: null,
       volumeSpacers: 2,
       sagMm: 30,
+      sagTargetPercent: 20,
       clicks: {
         ...NO_CLICKS,
         low_speed_rebound: 9,
@@ -1359,6 +1360,7 @@ const SPECTRAL_SETUP_BIKE_PARK = {
       springRateLbPerIn: null,
       volumeSpacers: 1,
       sagMm: 17,
+      sagTargetPercent: 27,
       clicks: { ...NO_CLICKS, low_speed_rebound: 7, low_speed_compression: 2 },
     },
   ],
@@ -1671,6 +1673,7 @@ export const SPECTRAL_PAGE: BikePageVM = {
         specs: {
           springType: "air",
           travelMm: 160,
+          wheelTravelMm: null,
           maxClicks: {
             ...NO_CLICKS,
             low_speed_rebound: 18,
@@ -1686,6 +1689,7 @@ export const SPECTRAL_PAGE: BikePageVM = {
         specs: {
           springType: "air",
           travelMm: 62.5,
+          wheelTravelMm: 150,
           maxClicks: { ...NO_CLICKS, low_speed_rebound: 15, low_speed_compression: 5 },
         },
       },

@@ -185,9 +185,11 @@ export function getBikePage(ctx: AccessContext, bikeId: number): BikePage | null
   const shops = listShops(ctx);
   const suspensionSpecs = listSuspensionSpecs(ctx, bike.id);
   const specsById = new Map(suspensionSpecs.map((specs) => [specs.componentId, specs]));
-  // A suspension part's travel (D-79) is shown after its name, as `specs.travel_mm` is.
+  // A fork's travel (D-79) is shown after its name, as `specs.travel_mm` is; not a shock's
+  // stroke, which would read as the bike's travel.
   const components = listComponents(ctx, bike.id).map((component) => {
-    const travelMm = specsById.get(component.id)?.travelMm;
+    const travelMm =
+      component.typeCode === "fork" ? specsById.get(component.id)?.travelMm : undefined;
     return travelMm == null
       ? component
       : { ...component, specs: { ...component.specs, travel_mm: travelMm } };

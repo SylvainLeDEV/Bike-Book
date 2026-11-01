@@ -74,7 +74,9 @@ export function sagTargetOf(
 export function sagHowTo(typeCode: SuspensionTypeCode): string[] {
   return [
     ...(typeCode === "fork" ? ["Ouvre à fond la molette de compression basse vitesse (LSC)."] : []),
-    "Pousse le joint torique contre le joint racleur.",
+    typeCode === "fork"
+      ? "Pousse le joint torique du plongeur contre le joint racleur."
+      : "Pousse le joint torique de la tige de l'amortisseur contre son joint racleur.",
     "Monte sur le vélo avec ton équipement, en position de pilotage, sans bouger : appuie-toi contre un mur.",
     "Descends sans faire rebondir le vélo.",
     `Mesure entre le joint torique et le joint racleur : c'est ton SAG, en mm. L'app le compare ${typeCode === "fork" ? "au débattement" : "à la course de l'amortisseur"}.`,

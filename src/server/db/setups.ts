@@ -21,8 +21,10 @@ export type ClicksByAdjuster = Record<DamperAdjuster, number | null>;
 /** What a suspension fork or a rear shock is (D-79). */
 export type SuspensionSpecsData = {
   springType: SpringType;
-  /** The part's own travel in mm: a fork's travel, a shock's stroke. */
+  /** The travel the sag is measured on, in mm: a fork's travel, a shock's stroke. */
   travelMm: number | null;
+  /** Rear shock only: the bike's rear wheel travel, in mm (D-84). */
+  wheelTravelMm: number | null;
   /** Clicks from fully closed to fully open, per adjuster the part has. */
   maxClicks: ClicksByAdjuster;
 };
@@ -36,6 +38,8 @@ export type SuspensionValues = {
   springRateLbPerIn: number | null;
   volumeSpacers: number | null;
   sagMm: number | null;
+  /** The sag aimed for, in percent of the travel it is measured on (D-84). */
+  sagTargetPercent: number | null;
   clicks: ClicksByAdjuster;
 };
 
@@ -96,6 +100,7 @@ export function listSuspensionSpecs(ctx: AccessContext, bikeId: number): Suspens
       componentId: specs.componentId,
       springType: specs.springType,
       travelMm: specs.travelMm,
+      wheelTravelMm: specs.wheelTravelMm,
       maxClicks: byAdjuster((a) => specs[MAX_CLICK_COLUMNS[a]]),
     }));
 }
@@ -116,6 +121,7 @@ export function writeSuspensionSpecs(
   const values = {
     springType: data.springType,
     travelMm: data.travelMm,
+    wheelTravelMm: data.wheelTravelMm,
     lowSpeedReboundMaxClicks: data.maxClicks.low_speed_rebound,
     highSpeedReboundMaxClicks: data.maxClicks.high_speed_rebound,
     lowSpeedCompressionMaxClicks: data.maxClicks.low_speed_compression,
@@ -193,6 +199,7 @@ export function listSetups(ctx: AccessContext, bikeId: number): Setup[] {
         springRateLbPerIn: value.springRateLbPerIn,
         volumeSpacers: value.volumeSpacers,
         sagMm: value.sagMm,
+        sagTargetPercent: value.sagTargetPercent,
         clicks: byAdjuster((a) => value[CLICK_COLUMNS[a]]),
       })),
   }));
@@ -228,6 +235,7 @@ function hasValues(values: SuspensionValues): boolean {
     values.springRateLbPerIn != null ||
     values.volumeSpacers != null ||
     values.sagMm != null ||
+    values.sagTargetPercent != null ||
     DAMPER_ADJUSTERS.some((a) => values.clicks[a] != null)
   );
 }
@@ -240,6 +248,7 @@ function insertValues(tx: Tx, setupId: number, suspensions: SuspensionValues[]):
     springRateLbPerIn: values.springRateLbPerIn,
     volumeSpacers: values.volumeSpacers,
     sagMm: values.sagMm,
+    sagTargetPercent: values.sagTargetPercent,
     lowSpeedReboundClicks: values.clicks.low_speed_rebound,
     highSpeedReboundClicks: values.clicks.high_speed_rebound,
     lowSpeedCompressionClicks: values.clicks.low_speed_compression,

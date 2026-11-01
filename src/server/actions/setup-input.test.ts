@@ -8,6 +8,7 @@ const TODAY = "2026-11-01";
 const specs: SuspensionSpecsInput = {
   springType: "air",
   travelMm: 160,
+  wheelTravelMm: null,
   maxClicks: { ...NO_CLICKS, low_speed_rebound: 18 },
 };
 

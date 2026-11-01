@@ -767,8 +767,10 @@ export type ClicksInput = Record<DamperAdjuster, number | null>;
 /** What a suspension fork or a rear shock is: spring, own travel, adjusters and their clicks. */
 export type SuspensionSpecsInput = {
   springType: SpringType;
-  /** A fork's travel, a shock's stroke, in mm. */
+  /** The travel the sag is measured on, in mm: a fork's travel, a shock's stroke. */
   travelMm: number | null;
+  /** Rear shock only: the bike's rear wheel travel, in mm (D-84). */
+  wheelTravelMm: number | null;
   /** Clicks from fully closed to fully open; null: the part has no such adjuster. */
   maxClicks: ClicksInput;
 };
@@ -780,6 +782,8 @@ export type SuspensionValuesInput = {
   springRateLbPerIn: number | null;
   volumeSpacers: number | null;
   sagMm: number | null;
+  /** The sag aimed for, in percent of the travel it is measured on (D-84). */
+  sagTargetPercent: number | null;
   clicks: ClicksInput;
 };
 

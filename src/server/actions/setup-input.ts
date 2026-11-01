@@ -50,6 +50,11 @@ export function setupInputSchema(today: LocalDate) {
             .min(0, "SAG invalide.")
             .max(300, "SAG invalide.")
             .nullable(),
+          sagTargetPercent: z
+            .number({ error: "SAG visé invalide." })
+            .gt(0, "SAG visé invalide.")
+            .max(100, "SAG visé invalide.")
+            .nullable(),
           clicks: z.object({
             low_speed_rebound: clicks,
             high_speed_rebound: clicks,

@@ -20,6 +20,7 @@ const OLD_FORK = 9;
 const forkSpecs: SuspensionSpecsInput = {
   springType: "air",
   travelMm: 160,
+  wheelTravelMm: null,
   maxClicks: { ...NO_CLICKS, low_speed_rebound: 18, high_speed_compression: 8 },
 };
 

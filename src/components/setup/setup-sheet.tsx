@@ -5,6 +5,7 @@ import { Check, Minus, Plus, Trash2 } from "lucide-react";
 import { DeleteConfirm } from "@/components/delete-confirm";
 import { SagHowTo } from "./sag-how-to";
 import { Button } from "@/components/ui/button";
+import { Chip } from "@/components/ui/chip";
 import { Field, FieldError, Input, Textarea } from "@/components/ui/field";
 import { InfoPopover } from "@/components/ui/info-popover";
 import {
@@ -15,13 +16,16 @@ import {
 } from "@/components/ui/segmented-tabs";
 import { Sheet, SheetBody, SheetContent, SheetFooter, SheetForm } from "@/components/ui/sheet";
 import { DAMPER_ADJUSTERS, type DamperAdjuster, type SuspensionTypeCode } from "@/lib/enums";
-import { formatDate, formatInteger, isLocalDate, withUnit, type LocalDate } from "@/lib/format";
+import { formatDate, isLocalDate, withUnit, type LocalDate } from "@/lib/format";
 import { DAMPER_ADJUSTER_LABELS, SETUP_UNIT_LABELS } from "@/lib/labels";
 import { decimalText, parseDecimalInput } from "@/lib/parse";
 import {
   adjustersOf,
+  formatMillimetres,
   formatSagTargetMm,
   formatSagTargetPercent,
+  roundedSagPercent,
+  sagMmFromPercent,
   sagPercent,
   suspensionValueErrors,
 } from "@/lib/setup";
@@ -51,11 +55,17 @@ export type SetupSheetMode =
     }
   | { kind: "edit"; id: number; values: SetupInput; unit: SetupUnitView };
 
+/** How the sag is typed (D-84): in mm, or in % of the travel it is measured on. */
+type SagUnit = "mm" | "%";
+
 type UnitForm = {
   pressure: string;
   spring: string;
   spacers: string;
+  /** The measured sag and the sag aimed for, both in `sagUnit`. */
   sag: string;
+  sagTarget: string;
+  sagUnit: SagUnit;
   clicks: Record<DamperAdjuster, string>;
 };
 
@@ -71,12 +81,15 @@ type Form = {
 const text = (value: number | null, digits: number) =>
   value == null ? "" : decimalText(value, digits);
 
-function unitForm(values: SuspensionValuesInput | undefined): UnitForm {
+function unitForm(values: SuspensionValuesInput | undefined, travelMm: number | null): UnitForm {
+  const target = values?.sagTargetPercent ?? null;
   return {
     pressure: text(values?.airPressurePsi ?? null, 1),
     spring: text(values?.springRateLbPerIn ?? null, 0),
     spacers: text(values?.volumeSpacers ?? null, 0),
     sag: text(values?.sagMm ?? null, 1),
+    sagTarget: target == null ? "" : text(sagMmFromPercent(target, travelMm), 1),
+    sagUnit: "mm",
     clicks: Object.fromEntries(
       DAMPER_ADJUSTERS.map((a) => [a, text(values?.clicks[a] ?? null, 0)]),
     ) as Record<DamperAdjuster, string>,
@@ -93,7 +106,10 @@ function initialForm(units: SuspensionUnitVM[], values: SetupInput): Form {
     units: Object.fromEntries(
       units.map((unit) => [
         unit.componentId,
-        unitForm(values.suspensions.find((s) => s.componentId === unit.componentId)),
+        unitForm(
+          values.suspensions.find((s) => s.componentId === unit.componentId),
+          unit.specs?.travelMm ?? null,
+        ),
       ]),
     ),
   };
@@ -220,8 +236,28 @@ function SetupForm({
     const suspensions: SuspensionValuesInput[] = units.map((unit) => {
       const f = form.units[unit.componentId];
       const key = (field: string) => `${unit.componentId}.${field}`;
-      const sag = parseDecimalInput(f.sag);
-      if (sag != null && Number.isNaN(sag)) next[key("sagMm")] = "SAG invalide.";
+      // The sag is stored in mm, its target in % of the travel (D-84), whatever the unit typed.
+      const travel = unit.specs?.travelMm ?? null;
+      const sagText = parseDecimalInput(f.sag);
+      const targetText = parseDecimalInput(f.sagTarget);
+      if (sagText != null && Number.isNaN(sagText)) next[key("sagMm")] = "SAG invalide.";
+      if (targetText != null && (Number.isNaN(targetText) || targetText <= 0)) {
+        next[key("sagTargetPercent")] = "SAG visé invalide.";
+      }
+      const typed = (value: number | null) => (value == null || Number.isNaN(value) ? null : value);
+      const sag =
+        f.sagUnit === "%" && typed(sagText) != null
+          ? sagMmFromPercent(typed(sagText)!, travel)
+          : typed(sagText);
+      const before = mode.values.suspensions.find((s) => s.componentId === unit.componentId);
+      const sagTargetPercent =
+        travel == null
+          ? (before?.sagTargetPercent ?? null)
+          : typed(targetText) == null
+            ? null
+            : f.sagUnit === "%"
+              ? typed(targetText)
+              : roundedSagPercent(typed(targetText)!, travel);
       const values: SuspensionValuesInput = {
         componentId: unit.componentId,
         airPressurePsi: decimal(f.pressure, key("airPressurePsi"), "Pression invalide."),
@@ -231,7 +267,8 @@ function SetupForm({
           "Un nombre entier de lb/in.",
         ),
         volumeSpacers: integer(f.spacers, key("volumeSpacers"), "Un nombre entier."),
-        sagMm: sag == null || Number.isNaN(sag) ? null : sag,
+        sagMm: sag,
+        sagTargetPercent,
         clicks: Object.fromEntries(
           DAMPER_ADJUSTERS.map((a) => [
             a,
@@ -438,12 +475,6 @@ function UnitFields({
   const key = (field: string) => `${unit.componentId}.${field}`;
   const coil = unit.specs?.springType === "coil";
   const adjusters = adjustersOf(unit.specs);
-  const travel = unit.specs?.travelMm ?? null;
-  const sag = parseDecimalInput(form.sag);
-  const percent = sag == null || Number.isNaN(sag) ? null : sagPercent(sag, travel);
-  const target = sagTargetOf(unit.typeCode, unit.specs?.springType ?? null);
-  const targetMm = formatSagTargetMm(target, travel);
-  const of = unit.typeCode === "fork" ? "du débattement" : "de la course";
 
   return (
     <div className="grid gap-4">
@@ -492,38 +523,8 @@ function UnitFields({
             </Field>
           </>
         )}
-        <Field
-          label="SAG mesuré"
-          id={fieldId(key("sagMm"))}
-          error={errors[key("sagMm")]}
-          className="col-span-2"
-          hint={
-            <span className="flex flex-wrap items-center gap-x-1">
-              {percent != null ? (
-                <span className="font-semibold text-fg">
-                  {withUnit(formatInteger(percent), "%")} {of} ·
-                </span>
-              ) : null}
-              <span>
-                repère {formatSagTargetPercent(target)}
-                {targetMm ? ` (${targetMm})` : ""}
-                {travel == null
-                  ? ` · indique ${unit.typeCode === "fork" ? "le débattement" : "la course"} (Modifier, dans l'onglet) pour voir ton %`
-                  : ""}
-              </span>
-              <SagHowTo typeCode={unit.typeCode} />
-            </span>
-          }
-        >
-          <Input
-            inputMode="decimal"
-            autoComplete="off"
-            suffix="mm"
-            value={form.sag}
-            onChange={(e) => onChange({ sag: e.target.value })}
-          />
-        </Field>
       </div>
+      <SagFields unit={unit} form={form} errors={errors} onChange={onChange} keyOf={key} />
 
       {adjusters.length ? (
         <div className="grid gap-2">
@@ -618,5 +619,146 @@ function ClickStepper({
       </div>
       {error ? <FieldError id={`${id}-error`}>{error}</FieldError> : null}
     </>
+  );
+}
+
+/**
+ * The sag (D-84): measured and aimed for, typed in mm or in % of the travel it is measured on (a
+ * fork's travel, a shock's stroke); the other unit is shown below, with the FOX target.
+ */
+function SagFields({
+  unit,
+  form,
+  errors,
+  onChange,
+  keyOf,
+}: {
+  unit: SuspensionUnitVM;
+  form: UnitForm;
+  errors: SetupFieldErrors;
+  onChange: (patch: Partial<UnitForm>) => void;
+  keyOf: (field: string) => string;
+}) {
+  const travel = unit.specs?.travelMm ?? null;
+  const fork = unit.typeCode === "fork";
+  const travelName = fork ? "débattement de la fourche" : "course de l'amortisseur";
+  const reference = sagTargetOf(unit.typeCode, unit.specs?.springType ?? null);
+  const referenceMm = formatSagTargetMm(reference, travel);
+  const inPercent = form.sagUnit === "%";
+
+  // Both values in mm and %, whatever the unit typed.
+  const read = (text: string) => {
+    const value = parseDecimalInput(text);
+    if (value == null || Number.isNaN(value)) return null;
+    return inPercent
+      ? { mm: sagMmFromPercent(value, travel), percent: value }
+      : { mm: value, percent: sagPercent(value, travel) };
+  };
+  const measured = read(form.sag);
+  const target = read(form.sagTarget);
+  const both = (v: { mm: number | null; percent: number | null } | null) =>
+    v
+      ? [
+          v.mm != null ? formatMillimetres(v.mm) : null,
+          v.percent != null ? withUnit(decimalText(v.percent, 1), "%") : null,
+        ]
+          .filter(Boolean)
+          .join(" = ")
+      : null;
+
+  // Switching the unit converts what is typed.
+  const switchTo = (next: SagUnit) => {
+    if (next === form.sagUnit || travel == null) return;
+    const convert = (text: string) => {
+      const value = parseDecimalInput(text);
+      if (value == null || Number.isNaN(value)) return text;
+      return next === "%"
+        ? decimalText(sagPercent(value, travel) ?? 0, 1)
+        : decimalText(sagMmFromPercent(value, travel) ?? 0, 1);
+    };
+    onChange({ sagUnit: next, sag: convert(form.sag), sagTarget: convert(form.sagTarget) });
+  };
+
+  return (
+    <div className="grid gap-2.5 rounded-control border border-border p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="flex items-center gap-1 text-[13.5px] font-semibold">
+          SAG
+          <SagHowTo typeCode={unit.typeCode} />
+        </span>
+        <fieldset className="m-0 flex items-center gap-1.5 border-0 p-0">
+          <legend className="sr-only">Saisir le SAG en</legend>
+          {(["mm", "%"] as const).map((u) => (
+            <Chip
+              key={u}
+              size="sm"
+              name={`sag-unit-${unit.componentId}`}
+              value={u}
+              checked={form.sagUnit === u}
+              disabled={u === "%" && travel == null}
+              onChange={() => switchTo(u)}
+            >
+              {u}
+            </Chip>
+          ))}
+        </fieldset>
+      </div>
+      <div className="grid grid-cols-2 gap-2.5">
+        <Field label="Mesuré" id={fieldId(keyOf("sagMm"))} error={errors[keyOf("sagMm")]}>
+          <Input
+            inputMode="decimal"
+            autoComplete="off"
+            suffix={form.sagUnit}
+            value={form.sag}
+            onChange={(e) => onChange({ sag: e.target.value })}
+          />
+        </Field>
+        <Field
+          label="Visé"
+          id={fieldId(keyOf("sagTargetPercent"))}
+          error={errors[keyOf("sagTargetPercent")]}
+        >
+          <Input
+            inputMode="decimal"
+            autoComplete="off"
+            suffix={form.sagUnit}
+            disabled={travel == null}
+            value={form.sagTarget}
+            onChange={(e) => onChange({ sagTarget: e.target.value })}
+          />
+        </Field>
+      </div>
+      <p className="text-[13px] leading-snug text-fg-muted">
+        {travel == null ? (
+          <>
+            Indique {fork ? "le débattement" : "la course"} avec « Modifier », dans l&apos;onglet,
+            pour voir le % et fixer un SAG visé.
+          </>
+        ) : (
+          <>
+            {measured ? (
+              <span className="block">
+                Mesuré : <span className="font-semibold text-fg">{both(measured)}</span>
+              </span>
+            ) : null}
+            {target ? (
+              <span className="block">
+                Visé : <span className="font-semibold text-fg">{both(target)}</span>
+              </span>
+            ) : null}
+            <span className="block">
+              Sur {formatMillimetres(travel)} ({travelName}). Repère FOX :{" "}
+              {formatSagTargetPercent(reference)}
+              {referenceMm ? (
+                <>
+                  , soit <span className="whitespace-nowrap">{referenceMm}</span>
+                </>
+              ) : null}
+              .
+            </span>
+          </>
+        )}
+      </p>
+    </div>
   );
 }

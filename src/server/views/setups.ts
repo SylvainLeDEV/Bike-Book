@@ -9,7 +9,8 @@ import {
   formatSpringRate,
   isSuspensionType,
 } from "@/lib/setup";
-import { formatInteger } from "@/lib/format";
+import { formatInteger, withUnit } from "@/lib/format";
+import { decimalText } from "@/lib/parse";
 import type {
   SetupChangeVM,
   SetupInput,
@@ -28,6 +29,7 @@ const FIELD_LABELS: Record<SetupFieldKey, string> = {
   springRateLbPerIn: "Ressort",
   volumeSpacers: "Tokens",
   sagMm: "SAG",
+  sagTargetPercent: "SAG visé",
   tireFrontPressureBar: "Avant",
   tireRearPressureBar: "Arrière",
   ...(Object.fromEntries(
@@ -45,6 +47,8 @@ function formatValue(field: SetupFieldKey, value: number): string {
       return formatInteger(value);
     case "sagMm":
       return formatMillimetres(value);
+    case "sagTargetPercent":
+      return withUnit(decimalText(value, 1), "%");
     case "tireFrontPressureBar":
     case "tireRearPressureBar":
       return formatBar(value);
@@ -60,7 +64,12 @@ function partName(component: Component): string {
 
 export function toSpecsInput(specs: SuspensionSpecs | undefined): SuspensionSpecsInput | null {
   return specs
-    ? { springType: specs.springType, travelMm: specs.travelMm, maxClicks: { ...specs.maxClicks } }
+    ? {
+        springType: specs.springType,
+        travelMm: specs.travelMm,
+        wheelTravelMm: specs.wheelTravelMm,
+        maxClicks: { ...specs.maxClicks },
+      }
     : null;
 }
 

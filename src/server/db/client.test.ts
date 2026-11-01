@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import Database from "better-sqlite3";
@@ -92,5 +92,53 @@ describe("openDatabase migrations", () => {
     expect(() => openDatabase(file, migrationsFolder)).toThrow(
       /2 broken foreign key reference\(s\) \(children -> parents\)/,
     );
+  });
+
+  it("keeps the setups through migration 0012 (D-84): new columns empty, values intact", () => {
+    // The real migrations, first up to 0011, then all of them.
+    const real = path.join(process.cwd(), "src/server/db/migrations");
+    const journal = JSON.parse(readFileSync(path.join(real, "meta/_journal.json"), "utf8"));
+    const upTo = (tag: string) => {
+      rmSync(migrationsFolder, { recursive: true, force: true });
+      cpSync(real, migrationsFolder, { recursive: true });
+      const last = journal.entries.findIndex((e: { tag: string }) => e.tag === tag);
+      writeFileSync(
+        path.join(migrationsFolder, "meta/_journal.json"),
+        JSON.stringify({ ...journal, entries: journal.entries.slice(0, last + 1) }),
+      );
+    };
+    upTo("0011_setups");
+    const before = openDatabase(file, migrationsFolder).sqlite;
+    before.exec(`
+      INSERT INTO workspaces (id, name, created_at) VALUES (1, 'Garage', 0);
+      INSERT INTO bikes (id, workspace_id, name, discipline, created_at, updated_at)
+        VALUES (1, 1, 'Spectral', 'enduro', 0, 0);
+      INSERT INTO components (id, bike_id, type_code, position, origin, installed_at, created_at, updated_at)
+        VALUES (1, 1, 'rear_shock', 'none', 'stock', 0, 0, 0);
+      INSERT INTO suspension_specs (component_id, spring_type, travel_mm, low_speed_rebound_max_clicks, created_at, updated_at)
+        VALUES (1, 'air', 65, 12, 0, 0);
+      INSERT INTO setups (id, bike_id, set_on, created_at, updated_at) VALUES (1, 1, '2026-10-17', 0, 0);
+      INSERT INTO setup_suspensions (setup_id, component_id, air_pressure_psi, sag_mm, low_speed_rebound_clicks)
+        VALUES (1, 1, 195, 17, 7);
+    `);
+    before.close();
+
+    upTo("0012_setup_targets");
+    const { sqlite } = openDatabase(file, migrationsFolder);
+    expect(sqlite.prepare("SELECT * FROM suspension_specs").get()).toMatchObject({
+      travel_mm: 65,
+      wheel_travel_mm: null,
+      low_speed_rebound_max_clicks: 12,
+    });
+    expect(sqlite.prepare("SELECT * FROM setup_suspensions").get()).toMatchObject({
+      air_pressure_psi: 195,
+      sag_mm: 17,
+      sag_target_percent: null,
+      low_speed_rebound_clicks: 7,
+    });
+    expect(() => sqlite.exec("UPDATE setup_suspensions SET sag_target_percent = 120")).toThrow(
+      /CHECK/,
+    );
+    sqlite.close();
   });
 });

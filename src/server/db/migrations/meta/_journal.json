@@ -85,6 +85,13 @@
       "when": 1793550418686,
       "tag": "0011_setups",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1793555351742,
+      "tag": "0012_setup_targets",
+      "breakpoints": true
     }
   ]
 }

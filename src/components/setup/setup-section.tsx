@@ -25,6 +25,7 @@ import {
   formatSagTargetMm,
   formatSagTargetPercent,
   formatSpringRate,
+  sagMmFromPercent,
   sagPercent,
   setupPrefill,
   valuesOf,
@@ -326,11 +327,15 @@ function UnitPanel({
   const coil = unit.specs?.springType === "coil";
   const travel = unit.specs?.travelMm ?? null;
   const partLabel = SETUP_UNIT_LABELS[unit.typeCode].toLowerCase();
+  const wheelTravel = unit.specs?.wheelTravelMm ?? null;
   const meta = [
     unit.specs ? SPRING_TYPE_LABELS[unit.specs.springType] : null,
     travel != null
-      ? `${decimalText(travel, 1)} mm ${unit.typeCode === "fork" ? "de débattement" : "de course"}`
+      ? unit.typeCode === "fork"
+        ? `${decimalText(travel, 1)} mm de débattement`
+        : `course ${decimalText(travel, 1)} mm`
       : null,
+    wheelTravel != null ? `roue arrière ${decimalText(wheelTravel, 1)} mm` : null,
     adjusters.length ? `${adjusters.length} molette${adjusters.length > 1 ? "s" : ""}` : null,
   ].filter((part): part is string => Boolean(part));
 
@@ -420,7 +425,11 @@ function UnitPanel({
         </div>
       )}
 
-      <SagBlock unit={unit} sagMm={values?.sagMm ?? null} />
+      <SagBlock
+        unit={unit}
+        sagMm={values?.sagMm ?? null}
+        targetPercent={values?.sagTargetPercent ?? null}
+      />
 
       {adjusters.length ? (
         <div className="border-t border-border px-4 py-3">
@@ -460,19 +469,30 @@ function UnitPanel({
 }
 
 /**
- * The sag: measured value in mm and in % of the part's travel, on a scale with the target zone,
- * and the target in % and in mm for this part (D-83).
+ * The sag (D-83, D-84): measured value in mm and in % of the travel it is measured on (a fork's
+ * travel, a shock's stroke, named), the sag aimed for in % and in mm, a 0–50 % scale with the FOX
+ * target zone, the aim and the measure, and the FOX target in % and in mm for this part.
  */
-function SagBlock({ unit, sagMm }: { unit: SuspensionUnitVM; sagMm: number | null }) {
+function SagBlock({
+  unit,
+  sagMm,
+  targetPercent,
+}: {
+  unit: SuspensionUnitVM;
+  sagMm: number | null;
+  targetPercent: number | null;
+}) {
   const travel = unit.specs?.travelMm ?? null;
-  const target = sagTargetOf(unit.typeCode, unit.specs?.springType ?? null);
+  const fork = unit.typeCode === "fork";
+  const reference = sagTargetOf(unit.typeCode, unit.specs?.springType ?? null);
   const percent = sagPercent(sagMm, travel);
-  const targetMm = formatSagTargetMm(target, travel);
-  const of = unit.typeCode === "fork" ? "du débattement" : "de la course";
-  // Scale: 0 to 50 %, wider when the sag goes beyond.
-  const scale = Math.max(50, Math.ceil(((percent ?? 0) + 5) / 10) * 10);
+  const referenceMm = formatSagTargetMm(reference, travel);
+  const aimMm = targetPercent == null ? null : sagMmFromPercent(targetPercent, travel);
+  // Scale: 0 to 50 %, wider when the sag or the aim goes beyond.
+  const highest = Math.max(percent ?? 0, targetPercent ?? 0);
+  const scale = Math.max(50, Math.ceil((highest + 5) / 10) * 10);
   const at = (value: number) => `${(Math.min(value, scale) / scale) * 100}%`;
-  const single = target.minPercent === target.maxPercent;
+  const single = reference.minPercent === reference.maxPercent;
 
   return (
     <div className="grid gap-2 border-t border-border px-4 py-3">
@@ -491,25 +511,51 @@ function SagBlock({ unit, sagMm }: { unit: SuspensionUnitVM; sagMm: number | nul
               <span className="num text-[17px] font-semibold text-fg">
                 {formatInteger(percent)}
               </span>
-              {" "}% {of}
+              {"\u00a0"}%
             </span>
           ) : null}
         </span>
       </div>
+      {targetPercent != null ? (
+        <p className="flex items-baseline justify-between gap-3 text-[13.5px]">
+          <span className="text-fg-muted">Visé</span>
+          <span>
+            <span className="num text-[17px] font-semibold">
+              {withUnit(decimalText(targetPercent, 1), "%")}
+            </span>
+            {aimMm != null ? (
+              <span className="text-fg-muted"> · {formatMillimetres(aimMm)} à atteindre</span>
+            ) : null}
+          </span>
+        </p>
+      ) : null}
       {travel != null ? (
         <div className="grid gap-1">
           <div
             role="img"
-            aria-label={`${percent != null ? `SAG à ${formatInteger(percent)} %` : "SAG pas noté"} ; repère ${formatSagTargetPercent(target)} ${of}`}
+            aria-label={[
+              percent != null ? `SAG à ${formatInteger(percent)} %` : "SAG pas noté",
+              targetPercent != null ? `visé ${decimalText(targetPercent, 1)} %` : null,
+              `repère ${formatSagTargetPercent(reference)}`,
+            ]
+              .filter(Boolean)
+              .join(" ; ")}
             className="relative h-2.5 rounded-full bg-surface-2"
           >
             <span
               className="absolute inset-y-0 rounded-full bg-[color-mix(in_oklch,var(--brand),transparent_60%)]"
               style={{
-                left: at(single ? target.minPercent - 0.75 : target.minPercent),
-                width: `${((single ? 1.5 : target.maxPercent - target.minPercent) / scale) * 100}%`,
+                left: at(single ? reference.minPercent - 0.75 : reference.minPercent),
+                width: `${((single ? 1.5 : reference.maxPercent - reference.minPercent) / scale) * 100}%`,
               }}
             />
+            {targetPercent != null ? (
+              // The aim: a thin bar across the scale.
+              <span
+                className="absolute -inset-y-1 w-0.5 -translate-x-1/2 rounded-full bg-fg"
+                style={{ left: at(targetPercent) }}
+              />
+            ) : null}
             {percent != null ? (
               <span
                 className="absolute top-1/2 size-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-surface bg-brand"
@@ -517,10 +563,10 @@ function SagBlock({ unit, sagMm }: { unit: SuspensionUnitVM; sagMm: number | nul
               />
             ) : null}
           </div>
-          {/* The target's edges under the scale. */}
+          {/* The FOX target's edges under the scale. */}
           <div aria-hidden className="relative h-4 text-[11.5px] text-fg-muted">
             <span className="absolute left-0">0</span>
-            {(single ? [target.minPercent] : [target.minPercent, target.maxPercent]).map(
+            {(single ? [reference.minPercent] : [reference.minPercent, reference.maxPercent]).map(
               (value) => (
                 <span key={value} className="absolute -translate-x-1/2" style={{ left: at(value) }}>
                   {value}
@@ -531,17 +577,29 @@ function SagBlock({ unit, sagMm }: { unit: SuspensionUnitVM; sagMm: number | nul
           </div>
         </div>
       ) : null}
-      <p className="text-[13px] text-fg-muted">
-        Repère FOX : {formatSagTargetPercent(target)} {of}
-        {targetMm ? (
+      <p className="text-[13px] leading-snug text-fg-muted">
+        {travel != null ? (
           <>
-            , soit <span className="whitespace-nowrap">{targetMm}</span>
+            % calculé sur{" "}
+            <span className="font-semibold text-fg">
+              {formatMillimetres(travel)},{" "}
+              {fork ? "le débattement de la fourche" : "la course de l'amortisseur"}
+            </span>
+            {targetPercent != null ? " · trait : ton SAG visé" : ""}.{" "}
+          </>
+        ) : (
+          <>
+            Indique {fork ? "le débattement" : "la course de l'amortisseur"} (Modifier) pour voir
+            ton %.{" "}
+          </>
+        )}
+        Repère FOX : {formatSagTargetPercent(reference)}
+        {referenceMm ? (
+          <>
+            , soit <span className="whitespace-nowrap">{referenceMm}</span>
           </>
         ) : null}
         .
-        {travel == null
-          ? ` Indique ${unit.typeCode === "fork" ? "le débattement" : "la course"} (Modifier) pour voir ton %.`
-          : ""}
       </p>
     </div>
   );

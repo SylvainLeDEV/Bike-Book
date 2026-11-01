@@ -9,7 +9,7 @@ feature 10, on 2026-10-27, D-73 to D-76; done tasks in the history, D-77, and th
 own tab with filters, D-78, on 2026-10-28). Left before real data: the phase 1 exit criteria, the
 real-iPhone check of the upload through the local network, and the deployment-side phase 0
 items (backups with a tested restore, a 10 MB upload through the proxy). Phase 1.5 started on
-2026-11-01 with the setup log, the bike page's "Réglages" tab (D-79 to D-81, D-83); the settings page
+2026-11-01 with the setup log, the bike page's "Réglages" tab (D-79 to D-84); the settings page
 is now "Paramètres" (D-80). Next, decided in D-82: workshop products and tools, then maintenance
 procedures ("fiches") and runs ("suivi").
 

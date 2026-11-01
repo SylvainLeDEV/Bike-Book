@@ -74,7 +74,7 @@ weeks of real use.
 ## Phase 1.5 — Comfort (optional, in order of need)
 
 - [ ] Notifications (D-18): dedicated Telegram bot (weekly digest + threshold crossed) and a calendar feed (ICS) behind a secret-token URL
-- [x] Setup log per bike (D-24): the bike page's "Réglages" tab, suspension specs on the fork and shock, dated setups, "Revenir à ce réglage", advice from the manufacturers' guides (done 2026-11-01, D-79 to D-81; reviewed the same day, D-83)
+- [x] Setup log per bike (D-24): the bike page's "Réglages" tab, suspension specs on the fork and shock, dated setups, "Revenir à ce réglage", advice from the manufacturers' guides (done 2026-11-01, D-79 to D-81; reviewed the same day, D-83, D-84: travel used for the sag, sag aimed for in mm or %)
 - [ ] A model's own starting values for a setup (pressure by rider weight, clicks by pressure, from the manufacturer's guide, D-81)
 - [ ] E-bike readings (D-19): typed from the Bosch eBike Flow app, battery capacity and cycles charts
 - [ ] Photo labels and the photo search across bikes, in Activité › Photos (D-45)

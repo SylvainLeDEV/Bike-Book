@@ -271,6 +271,7 @@ const PARTS: DemoPart[] = [
     suspension: {
       springType: "air",
       travelMm: 160,
+      wheelTravelMm: null,
       maxClicks: {
         ...NO_CLICKS,
         low_speed_rebound: 18,
@@ -288,6 +289,7 @@ const PARTS: DemoPart[] = [
     suspension: {
       springType: "air",
       travelMm: 62.5,
+      wheelTravelMm: 150,
       maxClicks: { ...NO_CLICKS, low_speed_rebound: 15, low_speed_compression: 5 },
     },
   },
@@ -359,6 +361,7 @@ const PARTS: DemoPart[] = [
     suspension: {
       springType: "air",
       travelMm: 170,
+      wheelTravelMm: null,
       maxClicks: { ...NO_CLICKS, low_speed_rebound: 12, low_speed_compression: 8 },
     },
   },
@@ -371,6 +374,7 @@ const PARTS: DemoPart[] = [
     suspension: {
       springType: "air",
       travelMm: 65,
+      wheelTravelMm: 160,
       maxClicks: { ...NO_CLICKS, low_speed_rebound: 12 },
     },
   },
@@ -866,6 +870,7 @@ export function seedDemoParts(input: {
     springRateLbPerIn: null,
     volumeSpacers: null,
     sagMm: null,
+    sagTargetPercent: null,
     clicks: { ...NO_CLICKS },
     ...fields,
   });
@@ -883,6 +888,7 @@ export function seedDemoParts(input: {
             airPressurePsi: 80,
             volumeSpacers: 2,
             sagMm: 32,
+            sagTargetPercent: 20,
             clicks: {
               ...NO_CLICKS,
               low_speed_rebound: 9,
@@ -894,6 +900,7 @@ export function seedDemoParts(input: {
             airPressurePsi: 185,
             volumeSpacers: 1,
             sagMm: 18,
+            sagTargetPercent: 28,
             clicks: { ...NO_CLICKS, low_speed_rebound: 7, low_speed_compression: 2 },
           }),
         ],
@@ -912,6 +919,7 @@ export function seedDemoParts(input: {
             airPressurePsi: 84,
             volumeSpacers: 2,
             sagMm: 30,
+            sagTargetPercent: 20,
             clicks: {
               ...NO_CLICKS,
               low_speed_rebound: 9,
@@ -923,6 +931,7 @@ export function seedDemoParts(input: {
             airPressurePsi: 195,
             volumeSpacers: 1,
             sagMm: 17,
+            sagTargetPercent: 27,
             clicks: { ...NO_CLICKS, low_speed_rebound: 7, low_speed_compression: 2 },
           }),
         ],

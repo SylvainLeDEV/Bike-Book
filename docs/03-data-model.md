@@ -651,7 +651,9 @@ from these readings.
 ### Suspension and tyre setup (D-24, D-79)
 
 Status: **Built** on 2026-11-01 (migration `0011_setups`, three new tables, nothing rebuilt; D-69).
-The bike page's "Réglages" tab shows them (D-79).
+The bike page's "Réglages" tab shows them (D-79). Migration `0012_setup_targets` (D-84) adds
+`suspension_specs.wheel_travel_mm` and `setup_suspensions.sag_target_percent`, rebuilding these two
+tables, which no other table references (D-69; a test upgrades a 0011 database and keeps its rows).
 
 Three ideas carry it:
 
@@ -675,7 +677,8 @@ The sag percentage is computed from `sag_mm` and the part's `travel_mm` (`sagPer
 |-------|------|-------|
 | `component_id` | integer PK, FK `components`, `ON DELETE CASCADE` | A `fork` or `rear_shock` component; the row inherits the workspace through its bike (D-25). A fitted fork without a row is rigid |
 | `spring_type` | enum, required | `air`: an air spring, set by its pressure (psi); `coil`: a coil spring, set by its rate (lb/in) |
-| `travel_mm` | real, nullable | The part's own travel in millimetres: a fork's travel, a rear shock's stroke (not the rear wheel travel). > 0. Used for the sag percentage |
+| `travel_mm` | real, nullable | The travel the sag is measured on, in millimetres, > 0: a fork's travel (its total travel), a rear shock's stroke (the shaft travel, the second figure of its size: 230 × 65 → 65 mm), never the rear wheel travel. Used for the sag percentage |
+| `wheel_travel_mm` | real, nullable | Rear shock only: the bike's rear wheel travel in millimetres, > 0, shown beside the stroke; not used for the sag (D-84) |
 | `low_speed_rebound_max_clicks`, `high_speed_rebound_max_clicks`, `low_speed_compression_max_clicks`, `high_speed_compression_max_clicks` | integer, nullable | Number of clicks of that damper adjuster, from fully closed to fully open; > 0. `null`: the part has no such adjuster (LSR, HSR, LSC, HSC) |
 | `created_at`, `updated_at` | timestamp | Instants, UTC epoch milliseconds |
 
@@ -701,7 +704,8 @@ given has no row.
 | `air_pressure_psi` | real, nullable | Air spring pressure in psi, > 0 |
 | `spring_rate_lb_per_in` | integer, nullable | Coil spring rate in lb/in, > 0 |
 | `volume_spacers` | integer, nullable | Number of volume spacers ("tokens") in the air spring, ≥ 0 |
-| `sag_mm` | real, nullable | Sag measured on the part, in millimetres, ≥ 0; the percentage is computed from `suspension_specs.travel_mm` |
+| `sag_mm` | real, nullable | Sag measured on the part, in millimetres, ≥ 0; the percentage is computed from `suspension_specs.travel_mm`. Typed in mm or in % (D-84), always stored in mm |
+| `sag_target_percent` | real, nullable | The sag aimed for, in percent of `suspension_specs.travel_mm`, > 0 and ≤ 100, to 0.1 %; the mm to reach are computed. Typed in % or in mm (D-84). Kept with each setup, so the log shows when it changes |
 | `low_speed_rebound_clicks`, `high_speed_rebound_clicks`, `low_speed_compression_clicks`, `high_speed_compression_clicks` | integer, nullable | Position of that adjuster in clicks **counted from fully closed** (0 = closed), ≥ 0 and at most the part's `*_max_clicks` (checked by the app) |
 
 ### Technical tables

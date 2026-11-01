@@ -56,6 +56,7 @@ const NO_CLICKS = {
 const airFork: SuspensionSpecsData = {
   springType: "air",
   travelMm: 160,
+  wheelTravelMm: null,
   maxClicks: { ...NO_CLICKS, low_speed_rebound: 18, low_speed_compression: 5 },
 };
 
@@ -89,7 +90,7 @@ function garage(name: string) {
     ctx,
     created.bikeId,
     { typeCode: "rear_shock", position: "none" },
-    part({ springType: "coil", travelMm: 65, maxClicks: { ...NO_CLICKS } }),
+    part({ springType: "coil", travelMm: 65, wheelTravelMm: 160, maxClicks: { ...NO_CLICKS } }),
   );
   if (!fork.ok || !shock.ok) throw new Error("parts");
   return { ctx, bikeId: created.bikeId, forkId: fork.componentId, shockId: shock.componentId };
@@ -101,6 +102,7 @@ const values = (componentId: number, fields: Partial<SuspensionValues> = {}): Su
   springRateLbPerIn: null,
   volumeSpacers: null,
   sagMm: null,
+  sagTargetPercent: null,
   clicks: { ...NO_CLICKS },
   ...fields,
 });
@@ -130,6 +132,7 @@ describe("suspension specs", () => {
         componentId: shockId,
         springType: "coil",
         travelMm: 65,
+        wheelTravelMm: 160,
         maxClicks: { ...NO_CLICKS },
       },
     ]);

@@ -21,7 +21,12 @@ import type {
 
 /** The fields of a part's values, as used in the error keys `<componentId>.<field>`. */
 export type SuspensionField =
-  "airPressurePsi" | "springRateLbPerIn" | "volumeSpacers" | "sagMm" | DamperAdjuster;
+  | "airPressurePsi"
+  | "springRateLbPerIn"
+  | "volumeSpacers"
+  | "sagMm"
+  | "sagTargetPercent"
+  | DamperAdjuster;
 
 export function isSuspensionType(code: string): code is SuspensionTypeCode {
   return (SUSPENSION_TYPE_CODES as readonly string[]).includes(code);
@@ -58,6 +63,7 @@ export function emptyValues(componentId: number): SuspensionValuesInput {
     springRateLbPerIn: null,
     volumeSpacers: null,
     sagMm: null,
+    sagTargetPercent: null,
     clicks: { ...NO_CLICKS },
   };
 }
@@ -77,6 +83,7 @@ export function isEmptyValues(values: SuspensionValuesInput): boolean {
     values.springRateLbPerIn == null &&
     values.volumeSpacers == null &&
     values.sagMm == null &&
+    values.sagTargetPercent == null &&
     DAMPER_ADJUSTERS.every((a) => values.clicks[a] == null)
   );
 }
@@ -186,4 +193,16 @@ export function formatSagTargetMm(
   return target.minPercent === target.maxPercent
     ? `≈${NBSP}${withUnit(decimalText(min, 1), "mm")}`
     : withUnit(`${decimalText(min, 1)}–${decimalText(max, 1)}`, "mm");
+}
+
+/** The sag in mm for a percentage of the travel, to 0.1 mm; null when the travel is unknown. */
+export function sagMmFromPercent(percent: number, travelMm: number | null): number | null {
+  if (travelMm == null || travelMm <= 0) return null;
+  return Math.round((percent / 100) * travelMm * 10) / 10;
+}
+
+/** The sag in % of the travel, to 0.1 %, as stored for a target (D-84). */
+export function roundedSagPercent(sagMm: number, travelMm: number | null): number | null {
+  const percent = sagPercent(sagMm, travelMm);
+  return percent == null ? null : Math.round(percent * 10) / 10;
 }

@@ -34,6 +34,7 @@ const forkSpecs: SuspensionSpecs = {
   componentId: 1,
   springType: "air",
   travelMm: 170,
+  wheelTravelMm: null,
   maxClicks: { ...NO_CLICKS, high_speed_compression: 15 },
 };
 

@@ -841,8 +841,9 @@ export const attachments = sqliteTable(
 // --- Suspension and tyre setup (D-24, D-79) ------------------------------------------------------
 
 /**
- * What a suspension fork or a rear shock is: its spring, its own travel and the damping adjusters
- * it has, with their number of clicks. One row per part; a fork without one is rigid (D-79).
+ * What a suspension fork or a rear shock is: its spring, its travel (a shock's stroke, and the
+ * rear wheel travel) and the damping adjusters it has, with their number of clicks. One row per part; on a bike other than a
+ * mountain bike, a fork without one is rigid (D-79, D-83, D-84).
  */
 export const suspensionSpecs = sqliteTable(
   "suspension_specs",
@@ -851,8 +852,13 @@ export const suspensionSpecs = sqliteTable(
       .primaryKey()
       .references(() => components.id, { onDelete: "cascade" }),
     springType: text("spring_type", { enum: SPRING_TYPES }).notNull(),
-    /** The part's own travel in mm: a fork's travel, a shock's stroke (not the wheel travel). */
+    /**
+     * The travel the sag is measured on, in mm: a fork's travel (its total travel), a shock's
+     * stroke (the second figure of its size, 230 × 65), never the rear wheel travel.
+     */
     travelMm: real("travel_mm"),
+    /** Rear shock only: the bike's rear wheel travel in mm, shown beside the stroke (D-84). */
+    wheelTravelMm: real("wheel_travel_mm"),
     /** Clicks from fully closed to fully open; null: the part has no such adjuster. */
     lowSpeedReboundMaxClicks: integer("low_speed_rebound_max_clicks"),
     highSpeedReboundMaxClicks: integer("high_speed_rebound_max_clicks"),
@@ -865,7 +871,7 @@ export const suspensionSpecs = sqliteTable(
     enumCheck("suspension_specs_spring_type_check", table.springType, SPRING_TYPES),
     check(
       "suspension_specs_values_check",
-      sql`(${table.travelMm} is null or ${table.travelMm} > 0) and (${table.lowSpeedReboundMaxClicks} is null or ${table.lowSpeedReboundMaxClicks} > 0) and (${table.highSpeedReboundMaxClicks} is null or ${table.highSpeedReboundMaxClicks} > 0) and (${table.lowSpeedCompressionMaxClicks} is null or ${table.lowSpeedCompressionMaxClicks} > 0) and (${table.highSpeedCompressionMaxClicks} is null or ${table.highSpeedCompressionMaxClicks} > 0)`,
+      sql`(${table.travelMm} is null or ${table.travelMm} > 0) and (${table.wheelTravelMm} is null or ${table.wheelTravelMm} > 0) and (${table.lowSpeedReboundMaxClicks} is null or ${table.lowSpeedReboundMaxClicks} > 0) and (${table.highSpeedReboundMaxClicks} is null or ${table.highSpeedReboundMaxClicks} > 0) and (${table.lowSpeedCompressionMaxClicks} is null or ${table.lowSpeedCompressionMaxClicks} > 0) and (${table.highSpeedCompressionMaxClicks} is null or ${table.highSpeedCompressionMaxClicks} > 0)`,
     ),
   ],
 );
@@ -916,8 +922,10 @@ export const setupSuspensions = sqliteTable(
     airPressurePsi: real("air_pressure_psi"),
     springRateLbPerIn: integer("spring_rate_lb_per_in"),
     volumeSpacers: integer("volume_spacers"),
-    /** Measured sag in mm; the percentage is computed from the part's travel. */
+    /** Measured sag in mm; the percentage is computed from the travel it is measured on. */
     sagMm: real("sag_mm"),
+    /** The sag aimed for, in percent of that travel (D-84). */
+    sagTargetPercent: real("sag_target_percent"),
     lowSpeedReboundClicks: integer("low_speed_rebound_clicks"),
     highSpeedReboundClicks: integer("high_speed_rebound_clicks"),
     lowSpeedCompressionClicks: integer("low_speed_compression_clicks"),
@@ -928,7 +936,7 @@ export const setupSuspensions = sqliteTable(
     index("setup_suspensions_component_id_idx").on(table.componentId),
     check(
       "setup_suspensions_values_check",
-      sql`(${table.airPressurePsi} is null or ${table.airPressurePsi} > 0) and (${table.springRateLbPerIn} is null or ${table.springRateLbPerIn} > 0) and (${table.volumeSpacers} is null or ${table.volumeSpacers} >= 0) and (${table.sagMm} is null or ${table.sagMm} >= 0) and (${table.lowSpeedReboundClicks} is null or ${table.lowSpeedReboundClicks} >= 0) and (${table.highSpeedReboundClicks} is null or ${table.highSpeedReboundClicks} >= 0) and (${table.lowSpeedCompressionClicks} is null or ${table.lowSpeedCompressionClicks} >= 0) and (${table.highSpeedCompressionClicks} is null or ${table.highSpeedCompressionClicks} >= 0)`,
+      sql`(${table.airPressurePsi} is null or ${table.airPressurePsi} > 0) and (${table.springRateLbPerIn} is null or ${table.springRateLbPerIn} > 0) and (${table.volumeSpacers} is null or ${table.volumeSpacers} >= 0) and (${table.sagMm} is null or ${table.sagMm} >= 0) and (${table.sagTargetPercent} is null or (${table.sagTargetPercent} > 0 and ${table.sagTargetPercent} <= 100)) and (${table.lowSpeedReboundClicks} is null or ${table.lowSpeedReboundClicks} >= 0) and (${table.highSpeedReboundClicks} is null or ${table.highSpeedReboundClicks} >= 0) and (${table.lowSpeedCompressionClicks} is null or ${table.lowSpeedCompressionClicks} >= 0) and (${table.highSpeedCompressionClicks} is null or ${table.highSpeedCompressionClicks} >= 0)`,
     ),
   ],
 );
