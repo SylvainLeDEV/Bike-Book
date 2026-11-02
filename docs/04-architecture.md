@@ -248,7 +248,10 @@ Backing up is the operator's job (D-12); the app makes it easy:
   replace it.
 - **History matters more than frequency:** a deletion noticed a week later needs a backup from
   before it. Keep at least a few weeks of history if you can.
-- **Test a restore** once before entering real data.
+- **Test a restore** once before relying on the backups: before entering real data, or with only
+  a few entries you could type again (D-89). Restore to a separate copy, never over the running
+  app. The copy answers at another address: set its `PUBLIC_URL` to that address, or sign-in is
+  refused (origin check).
 
 ## Security
 

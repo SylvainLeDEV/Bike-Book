@@ -15,7 +15,9 @@ publicly yet.
 ## Phase 0 — Foundations (≈ 4–6 evenings)
 
 Goal: an empty app, deployed the way it will run for real, with a backup that has been
-restored once, **before any real data goes in**.
+restored once, **before any real data goes in**. **Revised by D-89 (2026-11-02):** the restore
+is tested with a little real data in, in this order: the proxy and iPhone checks before any
+entry, a few entries, the restore, then the full entry.
 
 - [x] Validate proposals P-01 to P-06 (done 2026-10-24: D-10 to D-15)
 - [x] Answer Q-01 to Q-07 (done 2026-10-24: D-16 to D-22)
@@ -24,12 +26,12 @@ restored once, **before any real data goes in**.
 - [x] Dockerfile (non-root, health check) and a local compose file (done 2026-10-24)
 - [x] CI: lint and tests on each push; build the image and push it to GHCR on each `v*` tag (written 2026-10-24, not run on GitHub yet)
 - [x] Deploy the image on the target host, behind its reverse proxy (done 2026-10-25 with 0.1.0; installation-specific steps are kept outside this repository)
-- [ ] Backups of the data directory in place, restore tested once
-- [ ] Check through the proxy: a form submit (Server Actions origin check) and a 10 MB upload (the upload route exists since feature 10, 2026-10-27: still to test once deployed, with a 25 MB file too)
+- [ ] Backups of the data directory in place, restore tested once (D-89: a backup holding the first real entries, restored to a separate copy, before the full entry; an export ZIP after each entry session until then)
+- [ ] Check through the proxy: a form submit (Server Actions origin check) and a 10 MB upload (the upload route exists since feature 10, 2026-10-27: still to test once deployed, with a 25 MB file too), and a photo from a real iPhone; first thing after deploying, before any entry (D-89)
 - [x] Health check monitored (done 2026-10-25: probed directly and through the proxy, alert on failure)
 
 **Exit:** the empty app answers on its address, locally and through the VPN, and a restore has
-been tested.
+been tested (with the first real entries in, D-89).
 
 ## Phase 1 — MVP, manual entry (≈ 18–28 evenings)
 

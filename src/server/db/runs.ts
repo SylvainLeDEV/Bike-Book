@@ -681,6 +681,24 @@ export function undoFinishRun(
     if (!run || run.status !== "done" || run.maintenanceEventId !== undo.eventId) {
       return { ok: false, reason: "not_found" };
     }
+    // The token comes back from the browser: its line must be on the run's event and its
+    // procedure the one the run saved, or a forged token could delete another line (D-25).
+    if ((undo.eventId == null) !== (undo.lineId == null)) {
+      return { ok: false, reason: "not_found" };
+    }
+    if (undo.eventId != null && undo.lineId != null) {
+      const line = tx
+        .select({ id: maintenanceItems.id })
+        .from(maintenanceItems)
+        .where(
+          and(eq(maintenanceItems.id, undo.lineId), eq(maintenanceItems.eventId, undo.eventId)),
+        )
+        .get();
+      if (!line) return { ok: false, reason: "not_found" };
+    }
+    if (undo.procedureId != null && run.procedureId !== undo.procedureId) {
+      return { ok: false, reason: "not_found" };
+    }
     if (undo.eventId != null && undo.lineId != null) {
       if (undo.eventCreated) {
         const others = tx

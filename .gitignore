@@ -21,6 +21,8 @@ next-env.d.ts
 *.db-shm
 *.sqlite
 uploads/
+# ...but not the upload Route Handlers: code, matched by the line above (feature 10)
+!/src/app/api/uploads/
 
 # Environment files: secrets stay local. Only the example is versioned.
 .env*

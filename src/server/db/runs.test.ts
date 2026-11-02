@@ -396,4 +396,38 @@ describe("runs (D-87)", () => {
       reason: "not_found",
     });
   });
+
+  it("refuses a forged « Annuler »: another workspace's line, a procedure it did not save", () => {
+    const { ctx: owner, bikeId: ownerBike, procedureId: ownerProcedure } = garage("Victime");
+    const ownerRun = startRun(
+      owner,
+      { from: "procedure", procedureId: ownerProcedure, bikeId: ownerBike },
+      NOW,
+    );
+    if (!ownerRun.ok) throw new Error(ownerRun.reason);
+    const ownerDone = finishRun(owner, ownerRun.runId, finish());
+    if (!ownerDone.ok) throw new Error(ownerDone.reason);
+
+    const { ctx: intruder, bikeId, procedureId } = garage("Faussaire");
+    const task = createTask(intruder, { bikeId, title: "Purger", dueOn: null, notes: null });
+    if (!task.ok) throw new Error("task");
+    const started = startRun(intruder, { from: "task", taskId: task.taskId }, NOW);
+    if (!started.ok) throw new Error(started.reason);
+    const done = finishRun(intruder, started.runId, finish());
+    if (!done.ok) throw new Error(done.reason);
+
+    const refused = { ok: false, reason: "not_found" };
+    expect(
+      undoFinishRun(intruder, { ...done, eventCreated: false, lineId: ownerDone.lineId }),
+    ).toEqual(refused);
+    expect(undoFinishRun(intruder, { ...done, procedureId })).toEqual(refused);
+    expect(undoFinishRun(intruder, { ...done, lineId: null })).toEqual(refused);
+    expect(listMaintenanceEvents(owner, ownerBike)[0].items).toHaveLength(1);
+    expect(listProcedures(intruder).some((p) => p.id === procedureId)).toBe(true);
+    expect(getRun(intruder, started.runId)?.status).toBe("done");
+
+    // The token "Terminer" gave still works.
+    expect(undoFinishRun(intruder, done)).toEqual({ ok: true });
+    expect(getRun(intruder, started.runId)?.status).toBe("in_progress");
+  });
 });
