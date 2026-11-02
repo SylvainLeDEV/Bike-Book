@@ -49,6 +49,8 @@ export function ruleInputSchema(today: LocalDate) {
         .max(2000, "2000 caractères au maximum.")
         .nullable()
         .transform((value) => value || null),
+      /** The procedure it is done with (D-86); checked against the workspace when saved. */
+      procedureId: z.number().int().positive().nullable().optional(),
     })
     .refine(
       (rule) =>
@@ -78,5 +80,6 @@ export function toRuleData(input: RuleInput, trackingStartAt: number, timeZone: 
     counterStartAt: input.lastDoneOn ? endOfLocalDay(input.lastDoneOn, timeZone) : trackingStartAt,
     active: input.active,
     notes: input.notes,
+    procedureId: input.procedureId,
   };
 }

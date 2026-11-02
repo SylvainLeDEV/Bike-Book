@@ -232,5 +232,17 @@ export const ATTACHMENT_OWNERS = [
   "ride",
   "task",
   "inventory_item",
+  "procedure",
+  "procedure_step",
 ] as const;
 export type AttachmentOwnerKind = (typeof ATTACHMENT_OWNERS)[number];
+
+// --- Maintenance procedures ("fiches", D-47, D-82, D-86) -----------------------------------------
+
+/** How hard a procedure is, as its author judges it. */
+export const PROCEDURE_DIFFICULTIES = ["easy", "medium", "hard"] as const;
+export type ProcedureDifficulty = (typeof PROCEDURE_DIFFICULTIES)[number];
+
+/** What a procedure links to: a video (a link card, never a player), a web page, a note. */
+export const PROCEDURE_RESOURCE_KINDS = ["video", "link", "note"] as const;
+export type ProcedureResourceKind = (typeof PROCEDURE_RESOURCE_KINDS)[number];

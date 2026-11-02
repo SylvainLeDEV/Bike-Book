@@ -10,6 +10,7 @@ import { FilteredHistory, useHistoryFilter } from "@/components/history-filters"
 import { PhotoGallery } from "@/components/photos/photo-gallery";
 import { PhotoViewerProvider } from "@/components/photos/photo-viewer";
 import { PlanList, type PlanActions } from "@/components/plan/plan-list";
+import { ProcedureRowContent } from "@/components/procedures/procedure-row";
 import { useQuickRide } from "@/components/rides/quick-ride";
 import { SetupSection, type SetupActions } from "@/components/setup/setup-section";
 import { Timeline } from "@/components/timeline";
@@ -64,6 +65,12 @@ export type BikeScreenLinks = {
   workshopForBike: string;
   /** "À racheter", filtered on this bike. */
   rebuyForBike: string;
+  /** "Fiches d'entretien" (D-86): the procedure, prepared for this bike. */
+  procedure?: (procedureId: number) => string;
+  /** The workshop's "Fiches", filtered on this bike. */
+  proceduresForBike?: string;
+  /** "Nouvelle fiche pour ce vélo": the editor, opened in the workshop. */
+  newProcedureForBike?: string;
 };
 
 function SectionHead({
@@ -335,6 +342,50 @@ function BikeScreenContent({
                 actions={actions}
               />
             </section>
+            {vm.procedures && links.procedure ? (
+              <section aria-labelledby="bike-procedures-title">
+                <SectionHead
+                  id="bike-procedures-title"
+                  title="Fiches d'entretien"
+                  side={
+                    vm.procedures.total && links.proceduresForBike ? (
+                      <Button variant="link" asChild>
+                        <Link href={links.proceduresForBike}>
+                          Tout voir ({vm.procedures.total})
+                        </Link>
+                      </Button>
+                    ) : null
+                  }
+                />
+                <Card asChild className="overflow-hidden">
+                  <ul className="m-0 list-none divide-y divide-border p-0">
+                    {vm.procedures.rows.map((row) => (
+                      <li key={row.id}>
+                        <Link href={links.procedure!(row.id)} className={inventoryRowClasses}>
+                          <ProcedureRowContent row={row} allBikes={[]} />
+                        </Link>
+                      </li>
+                    ))}
+                    {vm.procedures.rows.length ? null : (
+                      <li className="px-4 py-3 text-[13px] text-fg-muted">
+                        Aucune fiche pour ce vélo : écris une fois comment tu fais une purge ou un
+                        entretien, et suis-la la prochaine fois.
+                      </li>
+                    )}
+                    {links.newProcedureForBike ? (
+                      <li className="px-2 py-1.5">
+                        <Button variant="ghost" size="sm" asChild>
+                          <Link href={links.newProcedureForBike}>
+                            <Plus />
+                            Nouvelle fiche pour ce vélo
+                          </Link>
+                        </Button>
+                      </li>
+                    ) : null}
+                  </ul>
+                </Card>
+              </section>
+            ) : null}
           </BikeTabPanel>
 
           <BikeTabPanel tab="components">

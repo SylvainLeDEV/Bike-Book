@@ -17,12 +17,14 @@ import {
   listComponents,
   listComponentTypes,
   listInventory,
+  listProcedures,
   listRides,
   listRuleResets,
   listRules,
   type AccessContext,
   type Bike,
   type InventoryItem,
+  type Procedure,
   type Ride,
 } from "@/server/db";
 import { canBeRidden } from "@/server/domain/bikes";
@@ -37,6 +39,7 @@ import {
 } from "@/server/domain/inventory";
 import { getEnv } from "@/server/env";
 import { today } from "@/server/time";
+import { procedureRefOf } from "./procedures";
 import { bikeRef } from "./refs";
 import { evaluateBikeRules, type EvaluatedRule } from "./rules";
 
@@ -51,6 +54,8 @@ export type Garage = {
   rides: Map<number, Ride[]>;
   rules: Map<number, EvaluatedRule[]>;
   items: InventoryItemVM[];
+  /** Archived ones included (D-86). */
+  procedures: Procedure[];
 };
 
 export function loadGarage(ctx: AccessContext): Garage {
@@ -89,13 +94,16 @@ export function loadGarage(ctx: AccessContext): Garage {
   const items = listInventory(ctx)
     .filter((item) => item.archivedAt == null)
     .map((item) => itemVM(item, bikes, ridable, rules, timeZone));
-  // A rule row shows the workshop part that serves its slot (the sealant's "vide · à commander").
+  const procedures = listProcedures(ctx);
+  // A rule row shows the workshop part that serves its slot (the sealant's "vide · à commander")
+  // and the procedure it is done with (D-86).
   for (const [bikeId, evaluated] of rules) {
     for (const entry of evaluated) {
       entry.row.stock = stockLine(entry.rule.componentTypeCode, bikeId, items);
+      entry.row.procedure = procedureRefOf(entry.rule.procedureId, procedures);
     }
   }
-  return { bikes, ridable, rides, rules, items };
+  return { bikes, ridable, rides, rules, items, procedures };
 }
 
 /** What an item holds, with the words to say it: its unit, its container (D-85). */

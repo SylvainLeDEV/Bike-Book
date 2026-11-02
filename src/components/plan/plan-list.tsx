@@ -4,6 +4,7 @@ import {
   CalendarClock,
   Check,
   ListChecks,
+  ListOrdered,
   PackageCheck,
   PackageX,
   Pencil,
@@ -18,7 +19,7 @@ import { Card } from "@/components/ui/card";
 import { formatItemStock, formatQuantity, ruleNote } from "@/lib/display";
 import { formatDate, type LocalDate } from "@/lib/format";
 import { REBUY_STATE_LABELS } from "@/lib/labels";
-import type { RuleRowVM, TaskRowVM } from "@/lib/view-models";
+import type { ProcedureRef, RuleRowVM, TaskRowVM } from "@/lib/view-models";
 import { ActionButton } from "./action-button";
 
 export type PlanActions = {
@@ -30,7 +31,34 @@ export type PlanActions = {
   onAddTask?: () => void | Promise<void>;
   /** Where "Voir dans l'atelier" leads for a stock item. */
   workshopItemHref?: (itemId: number) => string;
+  /** Where "Fiche : …" leads (D-86): the procedure, prepared for that bike. */
+  procedureHref?: (procedureId: number, bikeId: number | null) => string;
 };
+
+/** "Fiche : Purge des freins" under a rule or a task that points to a procedure (D-86). */
+function ProcedureLine({
+  procedure,
+  bikeId,
+  actions,
+}: {
+  procedure: ProcedureRef;
+  bikeId: number | null;
+  actions: PlanActions;
+}) {
+  return (
+    <p className="mt-2 text-[13px] text-fg-muted [&_svg]:mr-1.5 [&_svg]:inline [&_svg]:size-[15px] [&_svg]:align-[-3px]">
+      <ListOrdered aria-hidden />
+      Fiche :{" "}
+      {actions.procedureHref ? (
+        <Button variant="link" asChild className="text-[13px]">
+          <Link href={actions.procedureHref(procedure.id, bikeId)}>{procedure.title}</Link>
+        </Button>
+      ) : (
+        procedure.title
+      )}
+    </p>
+  );
+}
 
 function Lead({ rule, withBike }: { rule: RuleRowVM; withBike: boolean }) {
   if (withBike)
@@ -112,6 +140,9 @@ function RuleRow({
             ) : null}
           </p>
         ) : null}
+        {rule.procedure ? (
+          <ProcedureLine procedure={rule.procedure} bikeId={rule.bike.id} actions={actions} />
+        ) : null}
       </div>
       {rule.status !== "ok" ? (
         <div className={actionsClasses}>
@@ -177,6 +208,13 @@ function TaskRow({
             ? `Avant le ${formatDate(task.dueOn, { year: "auto", today })}`
             : "Sans échéance"}
         </p>
+        {task.procedure ? (
+          <ProcedureLine
+            procedure={task.procedure}
+            bikeId={task.bike?.id ?? null}
+            actions={actions}
+          />
+        ) : null}
       </div>
       <div className={actionsClasses}>
         {actions.onTaskEdit ? (

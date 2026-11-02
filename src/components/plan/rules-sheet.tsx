@@ -168,6 +168,13 @@ function RuleForm({
   const [lastDoneOn, setLastDoneOn] = React.useState(rule?.lastDoneOn ?? "");
   const [active, setActive] = React.useState(rule?.active ?? true);
   const [notes, setNotes] = React.useState(rule?.notes ?? "");
+  const [procedureId, setProcedureId] = React.useState(
+    rule?.procedureId != null ? String(rule.procedureId) : "",
+  );
+  // The procedures for this bike, and the one chosen even if it no longer serves it (D-86).
+  const offered = (vm.procedures ?? []).filter(
+    (p) => p.bikeIds === "all" || p.bikeIds.includes(vm.bike.id) || String(p.id) === procedureId,
+  );
   const [error, setError] = React.useState<string | null>(null);
   const [pending, setPending] = React.useState(false);
 
@@ -196,6 +203,7 @@ function RuleForm({
           lastDoneOn: lastDoneOn || null,
           active,
           notes: notes.trim() || null,
+          procedureId: procedureId ? Number(procedureId) : null,
         }),
       );
     } catch {
@@ -310,6 +318,18 @@ function RuleForm({
         <Field label="Notes">
           <Textarea maxLength={2000} value={notes} onChange={(e) => setNotes(e.target.value)} />
         </Field>
+        {offered.length ? (
+          <Field label="Fiche d'entretien" hint="Le mode opératoire à suivre quand elle arrive.">
+            <NativeSelect value={procedureId} onChange={(e) => setProcedureId(e.target.value)}>
+              <option value="">Aucune</option>
+              {offered.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.title}
+                </option>
+              ))}
+            </NativeSelect>
+          </Field>
+        ) : null}
         {explanation ? (
           <div className="rounded-control bg-surface-2 px-3 py-2.5 text-[13.5px]">
             <p className="mb-1 flex items-center gap-1.5 font-semibold">

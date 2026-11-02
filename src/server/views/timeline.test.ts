@@ -147,6 +147,7 @@ describe("timeline", () => {
     status: "done",
     doneAt: 0,
     notes: null,
+    procedureId: null,
     ...fields,
   });
   const event: MaintenanceEvent = {

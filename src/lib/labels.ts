@@ -16,6 +16,8 @@ import type {
   InventoryUnit,
   MaintenanceAction,
   MovementKind,
+  ProcedureDifficulty,
+  ProcedureResourceKind,
   ProductLevel,
   RemovalReason,
   RideConditions,
@@ -326,4 +328,17 @@ export const SETUP_UNIT_LABELS: Record<SuspensionTypeCode | "tires", string> = {
   fork: "Fourche",
   rear_shock: "Amortisseur",
   tires: "Pneus",
+};
+
+/** A procedure's difficulty (D-86), with the number of bars its gauge fills. */
+export const PROCEDURE_DIFFICULTY_LABELS: Record<ProcedureDifficulty, string> = {
+  easy: "Facile",
+  medium: "Moyenne",
+  hard: "Difficile",
+};
+
+export const PROCEDURE_RESOURCE_KIND_LABELS: Record<ProcedureResourceKind, string> = {
+  video: "Vidéo",
+  link: "Lien",
+  note: "Note",
 };

@@ -1,9 +1,10 @@
 import "server-only";
-import type { QuickRideVM, ShellUserVM, ShopOption } from "@/lib/view-models";
-import { listBikes, listRides, listShops, type AccessContext } from "@/server/db";
+import type { ProcedureOption, QuickRideVM, ShellUserVM, ShopOption } from "@/lib/view-models";
+import { listBikes, listProcedures, listRides, listShops, type AccessContext } from "@/server/db";
 import { canBeRidden } from "@/server/domain/bikes";
 import { quickRideDefaults } from "@/server/domain/rides";
 import { today } from "@/server/time";
+import { procedureOptions } from "./procedures";
 import { bikeRef } from "./refs";
 
 export type AppFrameVM = {
@@ -11,6 +12,8 @@ export type AppFrameVM = {
   today: string;
   quickRide: QuickRideVM;
   shops: ShopOption[];
+  /** What "Nouvelle tâche" and "Modifier la tâche" can point to (D-86). */
+  procedures: ProcedureOption[];
 };
 
 /** What the signed-in shell needs on every page: account, quick ride entry, bike sheet. */
@@ -32,5 +35,6 @@ export function getAppFrameVM(ctx: AccessContext): AppFrameVM {
       recentLocations: defaults.recentLocations,
     },
     shops: listShops(ctx),
+    procedures: procedureOptions(listProcedures(ctx)),
   };
 }

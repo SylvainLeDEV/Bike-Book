@@ -44,7 +44,8 @@ rebuilt when their phase starts. It is then deleted (git history keeps it).
 | "Réglages" tab (suspension and tyre setup, sag scale, advice, setup log, "Débattement et molettes"), the "Suspension" section of the component sheet, the bike cards' "Réglages" shortcut | Not mocked: built in the app (D-79, D-83, D-54) | Not needed |
 | Workshop products (four levels, containers) and tools (owned or not), the Pièces · Produits · Outils · À racheter filters | Built in the app (D-85, D-54) | Not needed (D-85) |
 | Photo labels, photos across all bikes (Activité › Photos) | Mockup only | Phase 1.5 |
-| Maintenance procedures (list, detail, editor, rule link) and workshop mode (run, summary) | Mockup only | Phase 1.5 |
+| Maintenance procedures (list, detail, editor, rule link) | Built in the app (D-86, D-54) | Not needed (D-86) |
+| Workshop mode (run, summary) | Mockup only | Built in the app with runs (D-82) |
 | Phase 3 preview: certainty levels, suggestions, questions on the data | Mockup only | Phase 3 |
 
 **Why HTML rather than draw.io:** the mockup shows real behaviour (responsive layout, dark mode,

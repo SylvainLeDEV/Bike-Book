@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, eq, inArray, or, type SQL } from "drizzle-orm";
+import { and, asc, eq, inArray, or, type SQL, type SQLWrapper } from "drizzle-orm";
 import type {
   AttachmentKind,
   AttachmentOwnerKind,
@@ -18,6 +18,8 @@ import {
   components,
   inventoryItems,
   maintenanceEvents,
+  procedures,
+  procedureSteps,
   rides,
   tasks,
 } from "./schema";
@@ -62,6 +64,8 @@ const OWNER_COLUMNS = {
   ride: attachments.rideId,
   task: attachments.taskId,
   inventory_item: attachments.inventoryItemId,
+  procedure: attachments.procedureId,
+  procedure_step: attachments.procedureStepId,
 } as const;
 
 const OWNER_KEYS = {
@@ -71,6 +75,8 @@ const OWNER_KEYS = {
   ride: "rideId",
   task: "taskId",
   inventory_item: "inventoryItemId",
+  procedure: "procedureId",
+  procedure_step: "procedureStepId",
 } as const;
 
 type AttachmentRow = typeof attachments.$inferSelect;
@@ -106,7 +112,7 @@ function toAttachment(row: AttachmentRow): Attachment {
 
 /**
  * The element, if it belongs to the workspace, with the bike it concerns (null for a general
- * task or a workshop item) and its current cover (bikes and items only).
+ * task, a workshop item or a procedure) and its current cover (bikes and items only).
  */
 function findOwner(
   tx: Tx,
@@ -153,6 +159,23 @@ function findOwner(
         .get();
       return row ? { bikeId: null, coverId: row.cover } : null;
     }
+    case "procedure": {
+      const row = tx
+        .select({ id: procedures.id })
+        .from(procedures)
+        .where(and(eq(procedures.id, owner.id), eq(procedures.workspaceId, ws)))
+        .get();
+      return row ? { bikeId: null, coverId: null } : null;
+    }
+    case "procedure_step": {
+      const row = tx
+        .select({ id: procedureSteps.id })
+        .from(procedureSteps)
+        .innerJoin(procedures, eq(procedures.id, procedureSteps.procedureId))
+        .where(and(eq(procedureSteps.id, owner.id), eq(procedures.workspaceId, ws)))
+        .get();
+      return row ? { bikeId: null, coverId: null } : null;
+    }
   }
 }
 
@@ -176,6 +199,9 @@ export type OwnerDescription = { bikeName: string | null } & (
     }
   | { kind: "task"; title: string }
   | { kind: "inventory_item"; name: string }
+  | { kind: "procedure"; title: string }
+  /** `number`: the step's place, from 1. */
+  | { kind: "procedure_step"; procedureTitle: string; number: number }
 );
 
 /** Names an element of the workspace, or null. */
@@ -255,6 +281,35 @@ export function describeOwner(ctx: AccessContext, owner: AttachmentOwner): Owner
         .where(and(eq(inventoryItems.id, owner.id), eq(inventoryItems.workspaceId, ws)))
         .get();
       return row ? { kind: "inventory_item", name: row.name, bikeName: null } : null;
+    }
+    case "procedure": {
+      const row = db
+        .select({ title: procedures.title })
+        .from(procedures)
+        .where(and(eq(procedures.id, owner.id), eq(procedures.workspaceId, ws)))
+        .get();
+      return row ? { kind: "procedure", title: row.title, bikeName: null } : null;
+    }
+    case "procedure_step": {
+      const row = db
+        .select({ procedureId: procedures.id, title: procedures.title })
+        .from(procedureSteps)
+        .innerJoin(procedures, eq(procedures.id, procedureSteps.procedureId))
+        .where(and(eq(procedureSteps.id, owner.id), eq(procedures.workspaceId, ws)))
+        .get();
+      if (!row) return null;
+      const order = db
+        .select({ id: procedureSteps.id })
+        .from(procedureSteps)
+        .where(eq(procedureSteps.procedureId, row.procedureId))
+        .orderBy(asc(procedureSteps.sortOrder), asc(procedureSteps.id))
+        .all();
+      return {
+        kind: "procedure_step",
+        procedureTitle: row.title,
+        number: order.findIndex((step) => step.id === owner.id) + 1,
+        bikeName: null,
+      };
     }
   }
 }
@@ -517,7 +572,38 @@ export function workspaceScope(tx: Tx, workspaceIds: number[]): SQL {
         .from(inventoryItems)
         .where(inArray(inventoryItems.workspaceId, workspaceIds)),
     ),
+    procedureScope(
+      tx,
+      tx
+        .select({ id: procedures.id })
+        .from(procedures)
+        .where(inArray(procedures.workspaceId, workspaceIds)),
+    ),
   )!;
+}
+
+/** The attachments of procedures and of their steps (D-86). */
+function procedureScope(tx: Tx, procedureIds: SQLWrapper | number[]): SQL {
+  return or(
+    inArray(attachments.procedureId, procedureIds),
+    inArray(
+      attachments.procedureStepId,
+      tx
+        .select({ id: procedureSteps.id })
+        .from(procedureSteps)
+        .where(inArray(procedureSteps.procedureId, procedureIds)),
+    ),
+  )!;
+}
+
+/** Files of a procedure and of its steps, read before it is deleted. */
+export function procedureAttachmentPaths(procedureId: number): string[] {
+  return attachmentPaths((tx) => procedureScope(tx, [procedureId]));
+}
+
+/** Files of some steps, read before they are deleted (a step removed in the editor). */
+export function stepAttachmentPaths(stepIds: number[]): string[] {
+  return stepIds.length ? attachmentPaths(() => inArray(attachments.procedureStepId, stepIds)) : [];
 }
 
 /** Everything attached to the elements of these workspaces (the demo reset deletes them whole). */

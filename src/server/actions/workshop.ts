@@ -38,7 +38,7 @@ import {
   itemData,
   itemId as id,
   itemInputSchema,
-  itemOpening,
+  newItem,
   pageUrl,
   priceCents,
 } from "./workshop-input";
@@ -68,23 +68,7 @@ export async function saveItemAction(itemId: unknown, input: unknown): Promise<R
   }
   const data = parsed.data;
   if (parsedId.data == null) {
-    const link = data.link && (data.link.shopName || data.link.url) ? data.link : null;
-    const outcome = createItem(ctx, {
-      ...itemData(data),
-      kind: data.kind,
-      ...itemOpening(data),
-      link: link
-        ? {
-            shop: link.shopName
-              ? { name: link.shopName, kind: link.url ? "online" : "physical" }
-              : null,
-            url: link.url,
-            priceCents: link.priceCents,
-          }
-        : null,
-      at: Date.now(),
-      today: today(),
-    });
+    const outcome = createItem(ctx, newItem(data, Date.now(), today()));
     if (!outcome.ok) return { ok: false, error: "Vélo introuvable." };
     refresh();
     return { ok: true, message: `Nouvel objet dans l'atelier : ${data.name}` };

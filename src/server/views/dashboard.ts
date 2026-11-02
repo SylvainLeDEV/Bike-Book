@@ -56,7 +56,9 @@ export function getDashboardVM(ctx: AccessContext): DashboardVM {
       toRebuy: rebuy.length,
     },
     rules,
-    tasks: listOpenTasks(ctx).map((task) => taskRow(task, garage.bikes, timeZone)),
+    tasks: listOpenTasks(ctx).map((task) =>
+      taskRow(task, garage.bikes, timeZone, garage.procedures),
+    ),
     bikes: cards,
     rebuy,
     activity: timeline(

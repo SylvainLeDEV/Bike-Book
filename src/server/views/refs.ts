@@ -1,7 +1,7 @@
 import "server-only";
 import { localDateOf } from "@/lib/format";
 import type { BikeRef, TaskRowVM } from "@/lib/view-models";
-import type { Bike, Task } from "@/server/db";
+import type { Bike, Procedure, Task } from "@/server/db";
 
 /**
  * A bike as lists and pastilles name it: its cover photo (D-75), else one of the placeholder art
@@ -22,13 +22,18 @@ export function bikeRef(
   };
 }
 
-/** A task as "À prévoir" and "Modifier la tâche" show it; `doneOn` for a done one (D-77). */
+/**
+ * A task as "À prévoir" and "Modifier la tâche" show it; `doneOn` for a done one (D-77), the
+ * procedure it is done with when `procedures` names it (D-86).
+ */
 export function taskRow(
   task: Task,
   bikes: (Pick<Bike, "id" | "name"> & { coverAttachmentId?: number | null })[],
   timeZone: string,
+  procedures: Pick<Procedure, "id" | "title">[] = [],
 ): TaskRowVM {
   const bike = bikes.find((b) => b.id === task.bikeId);
+  const procedure = procedures.find((p) => p.id === task.procedureId);
   return {
     id: task.id,
     bike: bike ? bikeRef(bike) : null,
@@ -36,5 +41,6 @@ export function taskRow(
     dueOn: task.dueOn,
     notes: task.notes,
     doneOn: task.doneAt == null ? null : localDateOf(task.doneAt, timeZone),
+    procedure: procedure ? { id: procedure.id, title: procedure.title } : null,
   };
 }

@@ -4,6 +4,7 @@ import * as React from "react";
 import { cn } from "cn";
 import {
   ChevronRight,
+  ListOrdered,
   PackageCheck,
   PackageMinus,
   Plus,
@@ -14,6 +15,8 @@ import {
 } from "lucide-react";
 import { CATEGORY_ICONS } from "@/components/icons";
 import { EmptyState } from "@/components/empty-state";
+import { ProcedureDetail, type ProcedureActions } from "@/components/procedures/procedure-detail";
+import { ProcedureRowContent } from "@/components/procedures/procedure-row";
 import { useShell } from "@/components/shell/shell-context";
 import { Crumb, PageBody, Topbar } from "@/components/shell/topbar";
 import { Button } from "@/components/ui/button";
@@ -23,6 +26,7 @@ import { Input, NativeSelect } from "@/components/ui/field";
 import { replaceQuery } from "@/lib/address";
 import { formatMoney } from "@/lib/format";
 import { INVENTORY_CATEGORY_LABELS } from "@/lib/labels";
+import { procedureMatches, procedureRow, procedureServes } from "@/lib/procedures";
 import type {
   InventoryCategory,
   InventoryItemVM,
@@ -39,7 +43,26 @@ export type { WorkshopTab };
 
 export type WorkshopActions = ItemActions & {
   onAddItem?: (prefill?: AddItemPrefill) => void;
+  /** "Nouvelle fiche" (D-86). */
+  onNewProcedure?: () => void;
+  procedure?: ProcedureActions;
 };
+
+const PROCEDURE_ART = (
+  <svg viewBox="0 0 120 70" aria-hidden focusable="false">
+    <g
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="3.4"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <rect x="34" y="8" width="52" height="60" rx="6" />
+      <path d="M50 8 V4 H70 V8" />
+      <path d="M44 24 l4 4 l7 -8 M60 25 H76 M44 40 l4 4 l7 -8 M60 41 H76 M46 56 H54 M60 56 H76" />
+    </g>
+  </svg>
+);
 
 const TAB_KINDS: Partial<Record<WorkshopTab, InventoryKind>> = {
   parts: "part",
@@ -136,6 +159,7 @@ export function WorkshopScreen({
   actions,
   bikeHref,
   initial,
+  focusProcedure,
 }: {
   vm: WorkshopVM;
   actions: WorkshopActions;
@@ -146,19 +170,44 @@ export function WorkshopScreen({
     bikeId?: number | null;
     query?: string;
     itemId?: number | null;
+    procedureId?: number | null;
     receive?: boolean;
   };
+  /**
+   * A procedure just saved: shown at once; `id` null after a delete: back to the list (`n`
+   * changes for each signal).
+   */
+  focusProcedure?: { id: number | null; n: number } | null;
 }) {
   const { user } = useShell();
+  const procedures = React.useMemo(() => vm.procedures ?? [], [vm.procedures]);
   const initialItem = vm.items.find((item) => item.id === initial?.itemId) ?? null;
+  const initialProcedure = procedures.find((p) => p.id === initial?.procedureId) ?? null;
   const [tab, setTabState] = React.useState<WorkshopTab>(
-    initial?.tab ?? (initialItem ? kindTab(initialItem.kind) : "parts"),
+    initial?.tab ??
+      (initialItem ? kindTab(initialItem.kind) : initialProcedure ? "procedures" : "parts"),
   );
   const [query, setQuery] = React.useState(initial?.query ?? "");
   const [bikeId, setBikeId] = React.useState<number | null>(initial?.bikeId ?? null);
   const [selectedId, setSelectedId] = React.useState<number | null>(initialItem?.id ?? null);
+  const [selectedProcedureId, setSelectedProcedureId] = React.useState<number | null>(
+    initialProcedure?.id ?? null,
+  );
+  const [typeFilter, setTypeFilter] = React.useState("");
+  const [showArchived, setShowArchived] = React.useState(Boolean(initialProcedure?.archived));
   // Phone and tablet: the list, or one item in its place.
-  const [view, setView] = React.useState<"list" | "item">(initialItem ? "item" : "list");
+  const [view, setView] = React.useState<"list" | "item">(
+    (tab === "procedures" ? initialProcedure : initialItem) ? "item" : "list",
+  );
+  // A procedure just saved: its tab, opened (state adjusted while rendering, not in an effect).
+  const [seenFocus, setSeenFocus] = React.useState(focusProcedure ?? null);
+  if (focusProcedure && focusProcedure !== seenFocus) {
+    setSeenFocus(focusProcedure);
+    setTabState("procedures");
+    setSelectedProcedureId(focusProcedure.id);
+    setView(focusProcedure.id == null ? "list" : "item");
+  }
+  const isProcedures = tab === "procedures";
   const [focusReceive, setFocusReceive] = React.useState(Boolean(initial?.receive));
   const listRef = React.useRef<HTMLDivElement>(null);
 
@@ -204,17 +253,41 @@ export function WorkshopScreen({
       : (list.find((item) => item.id === selectedId) ??
         groups.find((g) => g.items.length)?.items[0])) ?? null;
 
-  // The view lives in the address, rewritten in place (D-85): a reload shows the same.
+  // The "Fiches" tab (D-86): search, bike, part type; archived ones on request.
+  const procedurePasses = (p: (typeof procedures)[number]) =>
+    (bikeId == null || procedureServes(p, bikeId)) &&
+    (!typeFilter || p.componentTypeCode === typeFilter) &&
+    procedureMatches(p, query, vm.items);
+  const procedureList = procedures
+    .filter((p) => (showArchived || !p.archived) && procedurePasses(p))
+    .sort(
+      (a, b) => Number(a.archived) - Number(b.archived) || a.title.localeCompare(b.title, "fr"),
+    );
+  const archivedCount = procedures.filter((p) => p.archived).length;
+  const procedureTypes = [
+    ...new Map(
+      procedures
+        .filter((p) => p.componentTypeCode && p.typeLabel)
+        .map((p) => [p.componentTypeCode!, p.typeLabel!]),
+    ),
+  ].sort((a, b) => a[1].localeCompare(b[1], "fr"));
+  const selectedProcedure =
+    (view === "item"
+      ? procedures.find((p) => p.id === selectedProcedureId)
+      : (procedureList.find((p) => p.id === selectedProcedureId) ?? procedureList[0])) ?? null;
+
+  // The view lives in the address, rewritten in place (D-85, D-86): a reload shows the same.
   React.useEffect(() => {
     replaceQuery((params) =>
       writeWorkshopView(params, {
         tab,
         bikeId,
         query,
-        itemId: view === "item" ? selectedId : null,
+        itemId: !isProcedures && view === "item" ? selectedId : null,
+        procedureId: isProcedures && view === "item" ? selectedProcedureId : null,
       }),
     );
-  }, [tab, bikeId, query, view, selectedId]);
+  }, [tab, isProcedures, bikeId, query, view, selectedId, selectedProcedureId]);
 
   /** A filter changed: back to the list, whose first item shows beside it from 1024 px. */
   function setTab(next: WorkshopTab) {
@@ -242,10 +315,33 @@ export function WorkshopScreen({
     }
   }
 
+  function openProcedure(id: number) {
+    setSelectedProcedureId(id);
+    setView("item");
+    if (window.matchMedia("(max-width: 1023px)").matches) {
+      window.scrollTo({ top: 0 });
+      requestAnimationFrame(() =>
+        document.getElementById("procedure-title")?.focus({ preventScroll: true }),
+      );
+    }
+  }
+
+  /** From a procedure's material: the item, in its own tab. */
+  function openItemFromProcedure(itemId: number) {
+    const item = vm.items.find((i) => i.id === itemId);
+    if (!item) return;
+    setTabState(kindTab(item.kind));
+    open(item.id);
+  }
+
   function back() {
     setView("list");
     requestAnimationFrame(() => {
-      const row = listRef.current?.querySelector<HTMLElement>(`[data-item-id="${selected?.id}"]`);
+      const row = listRef.current?.querySelector<HTMLElement>(
+        isProcedures
+          ? `[data-procedure-id="${selectedProcedure?.id}"]`
+          : `[data-item-id="${selected?.id}"]`,
+      );
       row?.focus({ preventScroll: true });
       row?.scrollIntoView({ block: "nearest" });
     });
@@ -254,11 +350,13 @@ export function WorkshopScreen({
   function clearFilters() {
     setQuery("");
     setBikeId(null);
+    setTypeFilter("");
     setView("list");
   }
 
-  const empty = vm.items.length === 0;
-  const filtered = Boolean(query.trim()) || bikeId != null;
+  const noItems = vm.items.length === 0;
+  const empty = noItems && procedures.length === 0;
+  const filtered = Boolean(query.trim()) || bikeId != null || (isProcedures && Boolean(typeFilter));
 
   const row = (item: InventoryItemVM, withAction: boolean) => {
     const link = withAction ? cheapestLink(item) : null;
@@ -346,7 +444,87 @@ export function WorkshopScreen({
   }
 
   let body: React.ReactNode;
-  if (empty) {
+  if (isProcedures) {
+    body = !procedures.length ? (
+      <EmptyState
+        art={PROCEDURE_ART}
+        title="Aucune fiche d'entretien"
+        action={
+          <>
+            <Button onClick={() => actions.onNewProcedure?.()}>
+              <Plus />
+              Créer ma première fiche
+            </Button>
+            <p className="hint">Une règle ou une tâche pourra ensuite pointer vers sa fiche.</p>
+          </>
+        }
+      >
+        Écris une fois comment tu fais une purge ou un entretien de fourche : les étapes, le
+        matériel de l&apos;atelier, les couples de serrage de ton manuel.
+      </EmptyState>
+    ) : (
+      <>
+        {procedureList.length ? (
+          <Card asChild className="overflow-hidden">
+            <ul className="m-0 list-none divide-y divide-border p-0">
+              {procedureList.map((p) => (
+                <li key={p.id}>
+                  <button
+                    type="button"
+                    data-procedure-id={p.id}
+                    aria-current={p.id === selectedProcedure?.id ? "true" : undefined}
+                    onClick={() => openProcedure(p.id)}
+                    className={cn(
+                      inventoryRowClasses,
+                      "lg:aria-[current=true]:bg-brand-soft lg:aria-[current=true]:[--pip-ring:var(--brand-soft)]",
+                    )}
+                  >
+                    <ProcedureRowContent
+                      row={procedureRow(p, vm.items, bikeId, vm.bikes)}
+                      allBikes={vm.bikes}
+                      archived={p.archived}
+                    />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </Card>
+        ) : (
+          <EmptyState
+            compact
+            title="Aucune fiche ne correspond"
+            action={
+              filtered ? (
+                <Button variant="secondary" size="sm" onClick={clearFilters}>
+                  <X />
+                  Effacer les filtres
+                </Button>
+              ) : null
+            }
+          >
+            Essaie un autre mot, un autre vélo ou un autre type de pièce.
+          </EmptyState>
+        )}
+        {archivedCount ? (
+          <div className="mt-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              aria-pressed={showArchived}
+              onClick={() => {
+                setShowArchived((on) => !on);
+                setView("list");
+              }}
+            >
+              {showArchived
+                ? "Masquer les fiches archivées"
+                : `Voir les fiches archivées (${archivedCount})`}
+            </Button>
+          </div>
+        ) : null}
+      </>
+    );
+  } else if (noItems) {
     body = (
       <EmptyState
         art={SHELF_ART}
@@ -438,16 +616,17 @@ export function WorkshopScreen({
     );
   }
 
-  const showDetail = Boolean(selected) && !empty;
+  const showDetail = (isProcedures ? Boolean(selectedProcedure) : Boolean(selected)) && !empty;
+  const currentName = isProcedures ? selectedProcedure?.title : selected?.name;
 
   return (
     <>
       <Topbar
         start={
-          view === "item" && selected ? (
+          view === "item" && currentName ? (
             <>
               <span className="lg:hidden">
-                <Crumb back={{ label: "Atelier", onClick: back }} current={selected.name} />
+                <Crumb back={{ label: "Atelier", onClick: back }} current={currentName} />
               </span>
               <span className="hidden text-[15px] font-semibold lg:inline">
                 {user.workspaceName}
@@ -474,7 +653,12 @@ export function WorkshopScreen({
                   Atelier
                 </h1>
               </div>
-              {empty ? null : (
+              {empty ? null : isProcedures ? (
+                <Button onClick={() => actions.onNewProcedure?.()}>
+                  <Plus />
+                  Nouvelle fiche
+                </Button>
+              ) : (
                 <Button onClick={() => actions.onAddItem?.()}>
                   <Plus />
                   Ajouter un objet
@@ -535,13 +719,27 @@ export function WorkshopScreen({
                       <ShoppingCart aria-hidden />À racheter{" "}
                       <ChipCount>{visible("rebuy").length}</ChipCount>
                     </Chip>
+                    <Chip
+                      name="workshop-tab"
+                      value="procedures"
+                      checked={isProcedures}
+                      onChange={() => setTab("procedures")}
+                    >
+                      <ListOrdered aria-hidden />
+                      Fiches{" "}
+                      <ChipCount>
+                        {procedures.filter((p) => !p.archived && procedurePasses(p)).length}
+                      </ChipCount>
+                    </Chip>
                   </ChipRow>
                 </fieldset>
-                <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
+                <div className="flex flex-wrap gap-2 [&>*:first-child]:min-w-[min(100%,12rem)] [&>*:first-child]:flex-1">
                   <Input
                     type="search"
-                    aria-label="Rechercher dans l'atelier"
-                    placeholder="Nom, marque, référence…"
+                    aria-label={isProcedures ? "Rechercher une fiche" : "Rechercher dans l'atelier"}
+                    placeholder={
+                      isProcedures ? "Titre, étape, matériel…" : "Nom, marque, référence…"
+                    }
                     autoComplete="off"
                     icon={<Search />}
                     value={query}
@@ -565,16 +763,52 @@ export function WorkshopScreen({
                       </option>
                     ))}
                   </NativeSelect>
+                  {isProcedures && procedureTypes.length ? (
+                    <NativeSelect
+                      aria-label="Filtrer par type de pièce"
+                      value={typeFilter}
+                      onChange={(e) => {
+                        setTypeFilter(e.target.value);
+                        setView("list");
+                      }}
+                    >
+                      <option value="">Tous les types</option>
+                      {procedureTypes.map(([code, label]) => (
+                        <option key={code} value={code}>
+                          {label}
+                        </option>
+                      ))}
+                    </NativeSelect>
+                  ) : null}
                 </div>
               </div>
             )}
             <p className="sr-only" role="status">
-              {list.length} objet{list.length > 1 ? "s" : ""}
+              {isProcedures
+                ? `${procedureList.length} fiche${procedureList.length > 1 ? "s" : ""}`
+                : `${list.length} objet${list.length > 1 ? "s" : ""}`}
             </p>
             {body}
           </div>
 
-          {showDetail && selected ? (
+          {showDetail && isProcedures && selectedProcedure ? (
+            <div
+              className={cn(
+                "min-w-0 lg:sticky lg:top-[68px] lg:-m-1 lg:max-h-[calc(100dvh-80px)] lg:overflow-y-auto lg:overscroll-contain lg:p-1",
+                view === "list" && "max-lg:hidden",
+              )}
+            >
+              <ProcedureDetail
+                key={`${selectedProcedure.id}-${bikeId ?? ""}`}
+                procedure={selectedProcedure}
+                items={vm.items}
+                bikes={vm.bikes}
+                initialBikeId={bikeId}
+                actions={{ ...actions.procedure, onOpenItem: openItemFromProcedure }}
+              />
+            </div>
+          ) : null}
+          {showDetail && !isProcedures && selected ? (
             <div
               className={cn(
                 "min-w-0 lg:sticky lg:top-[68px] lg:-m-1 lg:max-h-[calc(100dvh-80px)] lg:overflow-y-auto lg:overscroll-contain lg:p-1",

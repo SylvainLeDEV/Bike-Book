@@ -4,6 +4,7 @@
  */
 import {
   formatCount,
+  formatDecimal,
   formatDate,
   formatDays,
   formatDistance,
@@ -11,6 +12,7 @@ import {
   formatElevation,
   formatEta,
   formatMoney,
+  withUnit,
   type LocalDate,
 } from "./format";
 import type { ComponentPosition, ComponentTypeCode, InventoryKind } from "./enums";
@@ -192,4 +194,10 @@ export function agreed(typeCode: ComponentTypeCode, participle: string): string 
 /** "Chaîne remplacée", "Pneu avant remplacé", "Plaquettes arrière remplacées". */
 export function replacedTitle(typeCode: ComponentTypeCode, position: ComponentPosition): string {
   return `${slotLabel(typeCode, position)} ${agreed(typeCode, "remplacé")}`;
+}
+
+/** A tightening torque as manuals print it: 6.8 → "6,8 N·m", 25 → "25 N·m", 6.75 → "6,75 N·m". */
+export function formatTorque(newtonMetres: number): string {
+  const digits = Number.isInteger(newtonMetres) ? 0 : Number.isInteger(newtonMetres * 10) ? 1 : 2;
+  return withUnit(formatDecimal(newtonMetres, digits), "N·m");
 }

@@ -1,6 +1,7 @@
 import "server-only";
 import { z } from "zod";
 import { COMPONENT_TYPE_CODES, INVENTORY_CATEGORIES, INVENTORY_UNITS } from "@/lib/enums";
+import type { LocalDate } from "@/lib/format";
 import { cleanName } from "@/lib/names";
 import type { ItemData } from "@/server/db";
 
@@ -96,4 +97,25 @@ export function itemOpening(input: ItemInput) {
     case "tool":
       return { initialQuantity: input.owned ? 1 : 0, initialLevel: null, toOrder: !input.owned };
   }
+}
+
+/** Everything `createItem` needs for a new item: its description, first stock and link. */
+export function newItem(input: ItemInput, at: number, today: LocalDate) {
+  const link = input.link && (input.link.shopName || input.link.url) ? input.link : null;
+  return {
+    ...itemData(input),
+    kind: input.kind,
+    ...itemOpening(input),
+    link: link
+      ? {
+          shop: link.shopName
+            ? { name: link.shopName, kind: link.url ? ("online" as const) : ("physical" as const) }
+            : null,
+          url: link.url,
+          priceCents: link.priceCents,
+        }
+      : null,
+    at,
+    today,
+  };
 }

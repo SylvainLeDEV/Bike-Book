@@ -227,6 +227,7 @@ export function rulesSheet(input: BikeRulesInput, evaluated: EvaluatedRule[]): R
           : null,
       active: rule.active,
       notes: rule.notes,
+      procedureId: rule.procedureId,
       status: evaluation?.status ?? null,
       explanation: evaluation
         ? {

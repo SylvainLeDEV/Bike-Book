@@ -4,6 +4,7 @@ import type { TaskStatus } from "@/lib/enums";
 import type { LocalDate } from "@/lib/format";
 import type { AccessContext } from "./access-context";
 import { getDb, type Tx } from "./client";
+import { ownsProcedure } from "./procedures";
 import { bikes, tasks } from "./schema";
 
 // One-off tasks of the workspace (feature 7, D-34).
@@ -16,6 +17,8 @@ export type Task = {
   status: TaskStatus;
   doneAt: number | null;
   notes: string | null;
+  /** The procedure it is done with (D-86). */
+  procedureId: number | null;
 };
 
 export type TaskData = {
@@ -23,6 +26,8 @@ export type TaskData = {
   title: string;
   dueOn: LocalDate | null;
   notes: string | null;
+  /** A procedure of the workspace (D-86); left out, the link is kept as it is. */
+  procedureId?: number | null;
 };
 
 const taskColumns = {
@@ -33,6 +38,7 @@ const taskColumns = {
   status: tasks.status,
   doneAt: tasks.doneAt,
   notes: tasks.notes,
+  procedureId: tasks.procedureId,
 };
 
 /** Open tasks of the workspace (one bike's when `bikeId` is given): by due date, undated last. */
@@ -99,13 +105,20 @@ function ownsBike(tx: Tx, ctx: AccessContext, bikeId: number | null): boolean {
   );
 }
 
+/** No procedure, or one of the workspace. */
+function procedureAllowed(tx: Tx, ctx: AccessContext, procedureId: number | null | undefined) {
+  return procedureId == null || ownsProcedure(tx, ctx, procedureId);
+}
+
 /** Adds a task; its bike, if any, must belong to the workspace. */
 export function createTask(
   ctx: AccessContext,
   data: TaskData,
 ): { ok: true; taskId: number } | { ok: false; reason: "not_found" } {
   return getDb().transaction((tx) => {
-    if (!ownsBike(tx, ctx, data.bikeId)) return { ok: false, reason: "not_found" };
+    if (!ownsBike(tx, ctx, data.bikeId) || !procedureAllowed(tx, ctx, data.procedureId)) {
+      return { ok: false, reason: "not_found" };
+    }
     const { id } = tx
       .insert(tasks)
       .values({ ...data, workspaceId: ctx.workspace.id })
@@ -157,7 +170,9 @@ export function updateTask(
       .from(tasks)
       .where(and(eq(tasks.id, taskId), eq(tasks.workspaceId, ctx.workspace.id)))
       .get();
-    if (!task || !ownsBike(tx, ctx, data.bikeId)) return { ok: false, reason: "not_found" };
+    if (!task || !ownsBike(tx, ctx, data.bikeId) || !procedureAllowed(tx, ctx, data.procedureId)) {
+      return { ok: false, reason: "not_found" };
+    }
     tx.update(tasks).set(data).where(eq(tasks.id, taskId)).run();
     return { ok: true };
   });

@@ -5,6 +5,7 @@ import type { LocalDate } from "@/lib/format";
 import type { RuleDefinition } from "@/server/domain/rules";
 import type { AccessContext } from "./access-context";
 import { getDb, type Tx } from "./client";
+import { ownsProcedure } from "./procedures";
 import {
   bikes,
   maintenanceEvents,
@@ -22,6 +23,8 @@ export type Rule = RuleDefinition & {
   title: string;
   active: boolean;
   notes: string | null;
+  /** The procedure it is done with (D-86). */
+  procedureId: number | null;
 };
 
 export type RuleData = {
@@ -36,6 +39,8 @@ export type RuleData = {
   counterStartAt: number;
   active: boolean;
   notes: string | null;
+  /** A procedure of the workspace (D-86); left out, the link is kept as it is. */
+  procedureId?: number | null;
 };
 
 const ruleColumns = {
@@ -54,6 +59,7 @@ const ruleColumns = {
   active: maintenanceRules.active,
   snoozeEndsOn: maintenanceRules.snoozeEndsOn,
   notes: maintenanceRules.notes,
+  procedureId: maintenanceRules.procedureId,
 };
 
 /** The rules of a bike of the workspace (every bike when `bikeId` is null), in creation order. */
@@ -123,6 +129,11 @@ function ownedRule(tx: Tx, ctx: AccessContext, ruleId: number) {
     .get();
 }
 
+/** No procedure, or one of the workspace. */
+function procedureAllowed(tx: Tx, ctx: AccessContext, procedureId: number | null | undefined) {
+  return procedureId == null || ownsProcedure(tx, ctx, procedureId);
+}
+
 /** Adds a rule to a bike of the workspace. */
 export function createRule(
   ctx: AccessContext,
@@ -130,7 +141,9 @@ export function createRule(
   data: RuleData,
 ): { ok: true; ruleId: number } | { ok: false; reason: "not_found" } {
   return getDb().transaction((tx) => {
-    if (!ownsBike(tx, ctx, bikeId)) return { ok: false, reason: "not_found" };
+    if (!ownsBike(tx, ctx, bikeId) || !procedureAllowed(tx, ctx, data.procedureId)) {
+      return { ok: false, reason: "not_found" };
+    }
     const { id } = tx
       .insert(maintenanceRules)
       .values({ ...data, bikeId, counterStartAt: new Date(data.counterStartAt) })
@@ -147,7 +160,9 @@ export function updateRule(
   data: RuleData,
 ): { ok: true } | { ok: false; reason: "not_found" } {
   return getDb().transaction((tx) => {
-    if (!ownedRule(tx, ctx, ruleId)) return { ok: false, reason: "not_found" };
+    if (!ownedRule(tx, ctx, ruleId) || !procedureAllowed(tx, ctx, data.procedureId)) {
+      return { ok: false, reason: "not_found" };
+    }
     tx.update(maintenanceRules)
       .set({ ...data, counterStartAt: new Date(data.counterStartAt) })
       .where(eq(maintenanceRules.id, ruleId))

@@ -1,12 +1,13 @@
 import type { InventoryKind } from "./enums";
 
 /*
- * The workshop's view kept in the address (D-85): the tab (Pièces, Produits, Outils, À racheter),
- * the bike, the search and the item open. Pure: the server reads them from the page's query, the
- * browser writes them back in place (`replaceQuery`), so a reload or a shared link shows the same.
+ * The workshop's view kept in the address (D-85, D-86): the tab (Pièces, Produits, Outils,
+ * À racheter, Fiches), the bike, the search, the item or procedure open. Pure: the server reads
+ * them from the page's query, the browser writes them back in place (`replaceQuery`), so a reload
+ * or a shared link shows the same. `?new=1` opens "Nouvelle fiche" once, then leaves the address.
  */
 
-export const WORKSHOP_TABS = ["parts", "products", "tools", "rebuy"] as const;
+export const WORKSHOP_TABS = ["parts", "products", "tools", "rebuy", "procedures"] as const;
 
 export type WorkshopTab = (typeof WORKSHOP_TABS)[number];
 
@@ -16,6 +17,9 @@ export type WorkshopView = {
   bikeId: number | null;
   query: string;
   itemId: number | null;
+  procedureId: number | null;
+  /** "Nouvelle fiche pour ce vélo" from the bike page: open the editor on arrival. */
+  newProcedure?: boolean;
 };
 
 type Query = Record<string, string | string[] | undefined>;
@@ -40,14 +44,17 @@ export function parseWorkshopView(query: Query): WorkshopView {
     bikeId: id(first(query.bike)),
     query: (first(query.q) ?? "").slice(0, 100),
     itemId: id(first(query.item)),
+    procedureId: id(first(query.procedure)),
+    newProcedure: first(query.new) === "1",
   };
 }
 
-/** Writes the view into `params`; "Pièces", no bike, no search and no item are left out. */
+/** Writes the view into `params`; "Pièces", no bike, no search and nothing open are left out. */
 export function writeWorkshopView(params: URLSearchParams, view: WorkshopView): void {
-  for (const key of ["tab", "bike", "q", "item"]) params.delete(key);
+  for (const key of ["tab", "bike", "q", "item", "procedure", "new"]) params.delete(key);
   if (view.tab && view.tab !== "parts") params.set("tab", view.tab);
   if (view.bikeId != null) params.set("bike", String(view.bikeId));
   if (view.query.trim()) params.set("q", view.query);
   if (view.itemId != null) params.set("item", String(view.itemId));
+  if (view.procedureId != null) params.set("procedure", String(view.procedureId));
 }

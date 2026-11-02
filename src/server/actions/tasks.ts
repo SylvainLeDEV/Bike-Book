@@ -21,6 +21,8 @@ const taskSchema = z.object({
     .max(2000, "2000 caractères au maximum.")
     .nullable()
     .transform((value) => value || null),
+  /** The procedure it is done with (D-86); checked against the workspace when saved. */
+  procedureId: z.number().int().positive().nullable().optional(),
 }) satisfies z.ZodType<TaskInput, unknown>;
 
 /** "Nouvelle tâche" (D-34). */

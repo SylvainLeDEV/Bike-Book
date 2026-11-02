@@ -10,8 +10,8 @@ own tab with filters, D-78, on 2026-10-28). Left before real data: the phase 1 e
 real-iPhone check of the upload through the local network, and the deployment-side phase 0
 items (backups with a tested restore, a 10 MB upload through the proxy). Phase 1.5 started on
 2026-11-01 with the setup log, the bike page's "Réglages" tab (D-79 to D-84); the settings page
-is now "Paramètres" (D-80); then the workshop's products and tools (D-85), the first step of
-D-82. Next: maintenance procedures ("fiches"), then runs ("suivi"), D-82.
+is now "Paramètres" (D-80); then the workshop's products and tools (D-85) and the maintenance
+procedures ("fiches", D-86) on 2026-11-02, the first two steps of D-82. Next: runs ("suivi"), D-82.
 
 ## Read first
 
@@ -54,6 +54,9 @@ D-82. Next: maintenance procedures ("fiches"), then runs ("suivi"), D-82.
   containers) and tools (owned or not), all as movements; no movement kind was added
   (see the movements by kind in `docs/03-data-model.md`). No `/design` screen nor demo data for
   products and tools.
+- **Procedures (D-86):** the Atelier's "Fiches" filter and the bike page's section; rules and
+  tasks point to one from their own sheets; a PDF manual and the steps' photos are attachments;
+  archived, or deleted for good. Runs ("suivi", D-82) come next and rebuild `attachments` again.
 - **Setup (D-79, D-81):** a fork's or shock's spring, travel and adjusters (clicks from fully
   closed) live on the part (`suspension_specs`); each setup is a dated full copy whose values belong
   to the part measured. Advice only from manufacturers' documents, each with its source and date.
@@ -92,7 +95,8 @@ src/
 │                   # api/auth/[...all] (Better Auth), api/healthz, api/export (ZIP, D-68),
 │                   # api/uploads (POST, raw body streamed) and api/uploads/[id] (GET, D-76).
 │                   # Routes: /, /bikes, /bikes/[bikeId], /activity, /workshop (D-54), /settings;
-│                   # /workshop?tab=, ?bike=, ?q=, ?item= stay in the address (D-85);
+│                   # /workshop?tab=, ?bike=, ?q=, ?item=, ?procedure= stay in the address
+│                   # (D-85, D-86), ?new=1 opens "Nouvelle fiche";
 │                   # /bikes/[id]?done=<rule>, ?replace=<item> and ?event=<id> (edit,
 │                   # D-70) open a sheet on arrival; ?tab= (setup: "Réglages", D-79) and
 │                   # the history's ?year=, ?month=, ?kind= stay in the address (D-78)
@@ -116,12 +120,14 @@ src/
 │                   # primitives in components/ui (shadcn/ui style, Radix), shell/ = app shell,
 │                   # attachments/ = the "Pièces jointes" block and its service context (D-74),
 │                   # setup/ = the "Réglages" tab, its sheet and the component sheet's
-│                   # "Suspension" section (D-79)
+│                   # "Suspension" section (D-79), procedures/ = rows, detail and editor of the
+│                   # maintenance procedures (D-86)
 ├── lib/            # client-safe: enums.ts (enum values, shared with the schema),
 │                   # format.ts / parse.ts (French formats), labels.ts (enum labels), names.ts,
 │                   # view-models.ts, display.ts, theme.ts, auth client, history-filter.ts and
 │                   # bike-tabs.ts (history filters and bike tab in the address, D-78),
 │                   # workshop-filter.ts (the workshop's view, D-85), address.ts (replaceQuery),
+│                   # procedures.ts (a procedure's material read for a bike, search, D-86),
 │                   # setup.ts and setup-advice.ts (sag %, setup checks, sourced advice, D-79)
 ├── test/           # Vitest setup
 └── instrumentation.ts  # opens the database (migrations) at startup; scheduler later

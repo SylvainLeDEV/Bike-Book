@@ -71,7 +71,7 @@ src/
 ├── components/            # Screens and building blocks, data received as view models (props)
 │   ├── ui/                # Primitives (shadcn/ui style, Radix): button, field, chip, sheet, toast…
 │   ├── shell/             # App shell: sidebar / rail / bottom bar, top bar, theme, account
-│   ├── dashboard/ bike/ workshop/ rides/ plan/ photos/
+│   ├── dashboard/ bike/ workshop/ rides/ plan/ photos/ setup/ procedures/
 │   ├── attachments/       # "Pièces jointes" block, upload rows, editor, service context
 │   └── …                  # Shared: wear bar and badges, timeline, bike cover, empty state
 ├── lib/                   # Client-safe: enum values (enums.ts), French formatting and parsing,
@@ -129,7 +129,7 @@ of the navigation shows a "Bientôt ici" page rather than a 404.
 | `/bikes` | Vélos | Active bikes as cards; stored, sold, stolen and retired bikes folded; "Ajouter un vélo" (sheet) |
 | `/bikes/[bikeId]` | Page vélo | `?tab=` selects the tab (`plan`, the default, is left out; `setup` and `history` at every width, the others below 1024 px, D-78, D-79); the bike cards' "Réglages" shortcut opens `?tab=setup`; `?year=`, `?month=` and `?kind=` (repeated: `ride`, `maintenance`, `task`) filter the history (D-78). The tab and the filters are kept in the address as they change. `?done=<rule>`, `?replace=<item>` and `?event=<maintenance event>` (D-70) open a sheet on arrival, then leave the address |
 | `/activity` | Activité | Rides, maintenance and done tasks log (features 4, 5 and 7; D-77) |
-| `/workshop` | Atelier | Parts, products and tools (D-85). `?tab=` selects the filter (`parts`, the default, is left out; `products`, `tools`, `rebuy`), `?bike=` the bike, `?q=` the search, `?item=` the item open: read on arrival (an item alone opens its kind's tab) and rewritten in place as they change (`src/lib/workshop-filter.ts`, D-85). The item page is not a route of its own: under 1024 px it replaces the list, from 1024 px the list stays beside it |
+| `/workshop` | Atelier | Parts, products, tools (D-85) and maintenance procedures ("Fiches", D-86). `?tab=` selects the filter (`parts`, the default, is left out; `products`, `tools`, `rebuy`, `procedures`), `?bike=` the bike, `?q=` the search, `?item=` the item open, `?procedure=` the procedure open: read on arrival (an item alone opens its kind's tab) and rewritten in place as they change (`src/lib/workshop-filter.ts`, D-85). `?new=1` opens "Nouvelle fiche" on arrival (from a bike page, with `?bike=`), then leaves the address. Items and procedures are not routes of their own: under 1024 px they replace the list, from 1024 px the list stays beside them |
 | `/settings` | Paramètres | Account and sign-out, theme of this device, "Exporter mes données" (feature 12, D-68; labelled "Paramètres" since D-80) |
 | `/login`, `/setup` | Connexion, premier lancement | Unchanged |
 | `/api/uploads`, `/api/uploads/[id]` | Pièces jointes | `POST /api/uploads?owner=<kind>&id=<n>&lastModified=<ms>[&cover=1]`: the raw file as body, its name in `X-File-Name` (URI-encoded), 201 `{ id }` or an error `{ error, message }` (401, 404, 413, 415). `GET /api/uploads/<id>[?size=thumb\|display][&download=1]`: signed in, scoped, `nosniff`, private cache revalidated by ETag (D-76) |

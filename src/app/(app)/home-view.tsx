@@ -30,6 +30,8 @@ export function HomeView({ vm }: { vm: DashboardVM }) {
             onTaskEdit: (task) => taskSheet.edit(task),
             onAddTask: () => taskSheet.open(),
             workshopItemHref: (id) => `/workshop?item=${id}`,
+            procedureHref: (id, bikeId) =>
+              `/workshop?tab=procedures&procedure=${id}${bikeId != null ? `&bike=${bikeId}` : ""}`,
           }}
           links={{
             bike: (id) => `/bikes/${id}`,

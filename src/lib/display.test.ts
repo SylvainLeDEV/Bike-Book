@@ -5,6 +5,7 @@ import {
   formatItemStock,
   formatQuantity,
   formatStock,
+  formatTorque,
   movementTitle,
   initialsOf,
   maskSerial,
@@ -185,5 +186,13 @@ describe("workshop stock in words (D-85)", () => {
     expect(movementTitle("tool", { kind: "adjustment", quantityDelta: -1 })).toBe(
       "Plus dans l'atelier",
     );
+  });
+});
+
+describe("formatTorque", () => {
+  it("keeps the decimals a manual prints", () => {
+    expect(formatTorque(6.8)).toBe(fr("6,8~N·m"));
+    expect(formatTorque(25)).toBe(fr("25~N·m"));
+    expect(formatTorque(6.75)).toBe(fr("6,75~N·m"));
   });
 });

@@ -1,4 +1,5 @@
 import "server-only";
+import { procedureRow, procedureServes } from "@/lib/procedures";
 import type { Discipline } from "@/lib/enums";
 import { daysBetween, localDateOf, startOfLocalDay, type LocalDate } from "@/lib/format";
 import { RIDE_TYPE_LABELS } from "@/lib/labels";
@@ -57,6 +58,7 @@ import {
 import { bikeRef, taskRow } from "./refs";
 import { setupTab, toSpecsInput } from "./setups";
 import { maintenanceEdit, rideForm, timeline } from "./timeline";
+import { procedureOptions, procedureRefOf, procedureVMs } from "./procedures";
 import { bikeStock, isPartItem, loadGarage, stockLine } from "./workshop";
 
 /** Disciplines whose new forks are suspension forks by default (D-79): the mountain bikes. */
@@ -213,10 +215,20 @@ export function getBikePage(ctx: AccessContext, bikeId: number): BikePage | null
     timeZone,
   };
   const evaluated = evaluateBikeRules(rulesInput);
-  const workshop = loadGarage(ctx).items;
+  const garage = loadGarage(ctx);
+  const workshop = garage.items;
   for (const entry of evaluated) {
     entry.row.stock = stockLine(entry.rule.componentTypeCode, bike.id, workshop);
+    entry.row.procedure = procedureRefOf(entry.rule.procedureId, garage.procedures);
   }
+  // The bike's procedures (D-86), their material read for this bike.
+  const allBikes = garage.bikes.map(bikeRef);
+  const bikeProcedures = procedureVMs(
+    garage.procedures.filter((p) => p.archivedAt == null),
+    garage.bikes,
+    new Map(),
+    [],
+  ).filter((p) => procedureServes(p, bike.id));
   const attachments = bikeAttachments(ctx, bike);
   const parts = bikeComponents(
     components,
@@ -249,9 +261,17 @@ export function getBikePage(ctx: AccessContext, bikeId: number): BikePage | null
       trackedSince,
     },
     rules: evaluated.map((entry) => entry.row),
-    tasks: listOpenTasks(ctx, bike.id).map((task) => taskRow(task, [bike], timeZone)),
+    tasks: listOpenTasks(ctx, bike.id).map((task) =>
+      taskRow(task, [bike], timeZone, garage.procedures),
+    ),
     components: { purchasedOn: bike.purchasedOn, groups: parts.groups },
     stock: bikeStock(workshop, bike.id),
+    procedures: {
+      rows: bikeProcedures
+        .map((p) => procedureRow(p, workshop, bike.id, allBikes))
+        .sort((a, b) => a.title.localeCompare(b.title, "fr")),
+      total: bikeProcedures.length,
+    },
     history: timeline(
       rides,
       events,
@@ -347,7 +367,10 @@ export function getBikePage(ctx: AccessContext, bikeId: number): BikePage | null
         };
       }),
     },
-    rules: rulesSheet(rulesInput, evaluated),
+    rules: {
+      ...rulesSheet(rulesInput, evaluated),
+      procedures: procedureOptions(garage.procedures),
+    },
     components: {
       suspensionByDefault: SUSPENSION_DISCIPLINES.includes(bike.discipline),
       forms: parts.forms,

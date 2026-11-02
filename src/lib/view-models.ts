@@ -24,6 +24,8 @@ import type {
   MaintenancePerformer,
   MeasurementUnit,
   MovementKind,
+  ProcedureDifficulty,
+  ProcedureResourceKind,
   ProductLevel,
   RemovalReason,
   RestockStatus,
@@ -49,6 +51,8 @@ export type {
   InventoryUnit,
   MaintenancePerformer,
   MovementKind,
+  ProcedureDifficulty,
+  ProcedureResourceKind,
   ProductLevel,
   RemovalReason,
   RestockStatus,
@@ -102,6 +106,8 @@ export type RuleRowVM = {
   lastDoneOn: LocalDate | null;
   /** The workshop part, else product, this slot uses on the bike; tools are never shown (D-85). */
   stock: ({ itemId: number; name: string; state: RebuyState | null } & ItemStockVM) | null;
+  /** The procedure ("fiche") it is done with (D-86). */
+  procedure?: ProcedureRef | null;
 };
 
 /** "Nouvelle tâche" (feature 7). */
@@ -111,6 +117,8 @@ export type TaskInput = {
   title: string;
   dueOn: LocalDate | null;
   notes: string | null;
+  /** The procedure it is done with (D-86); left out, the link is kept. */
+  procedureId?: number | null;
 };
 
 export type TaskRowVM = {
@@ -122,6 +130,8 @@ export type TaskRowVM = {
   notes: string | null;
   /** Local date of `done_at` for a done task (history, D-77), which the sheet offers to reopen. */
   doneOn: LocalDate | null;
+  /** The procedure ("fiche") it is done with (D-86). */
+  procedure?: ProcedureRef | null;
 };
 
 // --- Timeline (rides and maintenance) ------------------------------------------------------------
@@ -385,6 +395,8 @@ export type BikePageVM = {
   photos: PhotoVM[];
   /** "Réglages": suspension and tyres (D-79). */
   setup: SetupTabVM;
+  /** "Fiches d'entretien" (D-86): the bike's procedures, their material read for it. */
+  procedures?: { rows: ProcedureRowVM[]; total: number };
 };
 
 // --- "Voir le détail" of the bike's counters (principle 2) ------------------------------------------
@@ -423,6 +435,8 @@ export type RuleInput = {
   lastDoneOn: LocalDate | null;
   active: boolean;
   notes: string | null;
+  /** The procedure it is done with (D-86); left out, the link is kept. */
+  procedureId?: number | null;
 };
 
 export type RuleFormVM = RuleInput & {
@@ -446,6 +460,8 @@ export type RulesSheetVM = {
   bike: { id: number; name: string };
   slots: RuleSlotOption[];
   rules: RuleFormVM[];
+  /** The procedures a rule of this bike can point to (D-86). */
+  procedures?: ProcedureOption[];
 };
 
 export type SaveRuleResult = { ok: true; message: string } | { ok: false; error: string };
@@ -638,6 +654,95 @@ export type WorkshopVM = {
   today: LocalDate;
   bikes: BikeRef[];
   items: InventoryItemVM[];
+  /** The "Fiches" tab (D-86), archived ones included. */
+  procedures?: ProcedureVM[];
+};
+
+// --- Maintenance procedures ("fiches", D-47, D-82, D-86) ---------------------------------------------
+
+/** A procedure named elsewhere: "Fiche : Purge des freins". */
+export type ProcedureRef = { id: number; title: string };
+
+/** A procedure offered by the rule and task sheets: for these bikes, or all. */
+export type ProcedureOption = ProcedureRef & { bikeIds: number[] | "all" };
+
+export type ProcedureStepVM = {
+  id: number;
+  instruction: string;
+  note: string | null;
+  /** Newton-metres. */
+  torqueNm: number | null;
+  /** Its photos, which deleting the step deletes (the editor says so first). */
+  photoCount: number;
+};
+
+/** A line of material: a workshop item, a part of a type for the bike, or a typed label. */
+export type ProcedureLineVM = { id: number; quantity: number | null } & (
+  | { target: "item"; itemId: number }
+  | { target: "type"; componentTypeCode: string; typeLabel: string }
+  | { target: "label"; label: string }
+);
+
+export type ProcedureResourceVM = {
+  id: number;
+  kind: ProcedureResourceKind;
+  /** Videos and links: opened in a new tab, never fetched or embedded (D-09). */
+  url: string | null;
+  title: string | null;
+  durationS: number | null;
+  body: string | null;
+};
+
+export type ProcedureVM = ProcedureRef & {
+  description: string | null;
+  componentTypeCode: string | null;
+  typeLabel: string | null;
+  modelHint: string | null;
+  bikes: BikeRef[] | "all";
+  estimatedDurationS: number | null;
+  difficulty: ProcedureDifficulty | null;
+  archived: boolean;
+  steps: ProcedureStepVM[];
+  lines: ProcedureLineVM[];
+  resources: ProcedureResourceVM[];
+  /** The rules and open tasks that point to it. */
+  links: {
+    kind: "rule" | "task";
+    id: number;
+    bike: BikeRef | null;
+    title: string;
+    status: RuleStatus | null;
+  }[];
+};
+
+/** A procedure in a list, its material read for one bike (D-86). */
+export type ProcedureRowVM = ProcedureRef & {
+  stepCount: number;
+  estimatedDurationS: number | null;
+  bikes: BikeRef[] | "all";
+  /** "2 manquants", "Stock bas", "Matériel prêt"; null without material. */
+  readiness: { missing: number; low: number; label: string } | null;
+  /** The bike it is read for, named when the procedure serves several. */
+  forBike: string | null;
+};
+
+/** What "Nouvelle fiche" and "Modifier la fiche" send (D-86); a step without id is new. */
+export type ProcedureInput = {
+  title: string;
+  description: string | null;
+  componentTypeCode: string | null;
+  modelHint: string | null;
+  bikes: "all" | number[];
+  /** Minutes, as typed. */
+  durationMin: number | null;
+  difficulty: ProcedureDifficulty | null;
+  steps: { id: number | null; instruction: string; note: string | null; torqueNm: number | null }[];
+  lines: ({ quantity: number | null } & (
+    | { target: "item"; itemId: number }
+    | { target: "type"; componentTypeCode: string }
+    | { target: "label"; label: string }
+  ))[];
+  resources: Omit<ProcedureResourceVM, "id">[];
 };
 
 /** "Remplacer une pièce" on one bike: its slots and what the workshop has for them. */

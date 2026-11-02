@@ -5,6 +5,8 @@ import { requireAccessContext } from "@/server/auth/context";
 import { today } from "@/server/time";
 import { bikeRef } from "@/server/views/refs";
 import { parseWorkshopView } from "@/lib/workshop-filter";
+import { listOpenTasks } from "@/server/db";
+import { procedureVMs } from "@/server/views/procedures";
 import { loadGarage } from "@/server/views/workshop";
 import { WorkshopView } from "./workshop-view";
 
@@ -15,11 +17,17 @@ export const metadata: Metadata = { title: "Atelier · Bike-Book" };
  * `?item=` keep the view, rewritten in place by the screen.
  */
 export default async function WorkshopPage({ searchParams }: PageProps<"/workshop">) {
-  const garage = loadGarage(await requireAccessContext());
+  const ctx = await requireAccessContext();
+  const garage = loadGarage(ctx);
   const params = await searchParams;
   return (
     <WorkshopView
-      vm={{ today: today(), bikes: garage.ridable.map(bikeRef), items: garage.items }}
+      vm={{
+        today: today(),
+        bikes: garage.ridable.map(bikeRef),
+        items: garage.items,
+        procedures: procedureVMs(garage.procedures, garage.bikes, garage.rules, listOpenTasks(ctx)),
+      }}
       componentTypes={COMPONENT_TYPE_CODES.map((code) => ({
         code,
         label: COMPONENT_TYPE_LABELS[code],

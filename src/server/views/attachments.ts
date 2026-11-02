@@ -35,6 +35,8 @@ const ALT_PREFIX: Record<PhotoOrigin, string> = {
   ride: "Photo de la sortie",
   task: "Photo de la tâche",
   inventory_item: "Photo de l'article",
+  procedure: "Photo de la fiche",
+  procedure_step: "Photo de l'étape",
 };
 
 /** The element's title and date, as an attachment's origin shows them. */
@@ -62,6 +64,10 @@ export function ownerOrigin(
       return origin(description.title);
     case "inventory_item":
       return origin(description.name);
+    case "procedure":
+      return origin(description.title);
+    case "procedure_step":
+      return origin(`Étape ${description.number} · ${description.procedureTitle}`);
   }
 }
 

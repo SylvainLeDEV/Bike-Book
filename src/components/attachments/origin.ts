@@ -19,6 +19,10 @@ export function originLabel(attachment: Pick<AttachmentVM, "origin">): string {
       return "Tâche";
     case "inventory_item":
       return "Atelier";
+    case "procedure":
+      return "Fiche d'entretien";
+    case "procedure_step":
+      return "Étape de fiche";
   }
 }
 
@@ -31,7 +35,7 @@ export function documentOrigin(attachment: Pick<AttachmentVM, "kind" | "origin">
   const { kind: owner, title } = attachment.origin;
   if (owner === "bike") return `${kind} — Vélo`;
   const where = originLabel(attachment);
-  return owner === "component" || owner === "task"
+  return owner === "component" || owner === "task" || owner === "procedure"
     ? `${kind} — ${where} : ${title}`
     : `${kind} — ${where}`;
 }

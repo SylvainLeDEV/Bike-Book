@@ -29,6 +29,8 @@ import {
   INVENTORY_UNITS,
   MOVEMENT_KINDS,
   PRODUCT_LEVELS,
+  PROCEDURE_DIFFICULTIES,
+  PROCEDURE_RESOURCE_KINDS,
   RESTOCK_STATUSES,
   EVIDENCE_LEVELS,
   MAINTENANCE_ACTIONS,
@@ -597,6 +599,10 @@ export const maintenanceRules = sqliteTable(
     notes: text("notes"),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
+    /** The procedure ("fiche") it is done with (D-86, added by ALTER TABLE, D-57). */
+    procedureId: integer("procedure_id").references((): AnySQLiteColumn => procedures.id, {
+      onDelete: "set null",
+    }),
   },
   (table) => [
     index("maintenance_rules_bike_id_idx").on(table.bikeId),
@@ -640,6 +646,10 @@ export const tasks = sqliteTable(
     notes: text("notes"),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
+    /** The procedure ("fiche") it is done with (D-86, added by ALTER TABLE, D-57). */
+    procedureId: integer("procedure_id").references((): AnySQLiteColumn => procedures.id, {
+      onDelete: "set null",
+    }),
   },
   (table) => [
     index("tasks_workspace_id_status_idx").on(table.workspaceId, table.status),
@@ -794,6 +804,14 @@ export const attachments = sqliteTable(
     inventoryItemId: integer("inventory_item_id").references(() => inventoryItems.id, {
       onDelete: "cascade",
     }),
+    /** A procedure's documents (its PDF manual), and a step's reference photos (D-86). */
+    procedureId: integer("procedure_id").references((): AnySQLiteColumn => procedures.id, {
+      onDelete: "cascade",
+    }),
+    procedureStepId: integer("procedure_step_id").references(
+      (): AnySQLiteColumn => procedureSteps.id,
+      { onDelete: "cascade" },
+    ),
     kind: text("kind", { enum: ATTACHMENT_KINDS }).notNull(),
     /** Relative to the data directory: `uploads/YYYY/MM/<random>.<ext>`. */
     storagePath: text("storage_path").notNull(),
@@ -821,11 +839,13 @@ export const attachments = sqliteTable(
     index("attachments_ride_id_idx").on(table.rideId),
     index("attachments_task_id_idx").on(table.taskId),
     index("attachments_inventory_item_id_idx").on(table.inventoryItemId),
+    index("attachments_procedure_id_idx").on(table.procedureId),
+    index("attachments_procedure_step_id_idx").on(table.procedureStepId),
     enumCheck("attachments_kind_check", table.kind, ATTACHMENT_KINDS),
     // Exactly one owner (D-45). CASE rather than adding booleans, so PostgreSQL accepts it too.
     check(
       "attachments_owner_check",
-      sql`(case when ${table.bikeId} is null then 0 else 1 end) + (case when ${table.componentId} is null then 0 else 1 end) + (case when ${table.maintenanceEventId} is null then 0 else 1 end) + (case when ${table.rideId} is null then 0 else 1 end) + (case when ${table.taskId} is null then 0 else 1 end) + (case when ${table.inventoryItemId} is null then 0 else 1 end) = 1`,
+      sql`(case when ${table.bikeId} is null then 0 else 1 end) + (case when ${table.componentId} is null then 0 else 1 end) + (case when ${table.maintenanceEventId} is null then 0 else 1 end) + (case when ${table.rideId} is null then 0 else 1 end) + (case when ${table.taskId} is null then 0 else 1 end) + (case when ${table.inventoryItemId} is null then 0 else 1 end) + (case when ${table.procedureId} is null then 0 else 1 end) + (case when ${table.procedureStepId} is null then 0 else 1 end) = 1`,
     ),
     check(
       "attachments_photo_check",
@@ -942,4 +962,141 @@ export const setupSuspensions = sqliteTable(
 );
 
 /** Tables handed to the Better Auth Drizzle adapter (keys follow its plural model names). */
+// --- Maintenance procedures ("fiches", D-47, D-82, D-86) -----------------------------------------
+
+/**
+ * A reusable how-to written by the owner: its steps, the material it needs (from the workshop),
+ * its links. Archived when kept out of the way, or deleted for good (D-86).
+ */
+export const procedures = sqliteTable(
+  "procedures",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    workspaceId: integer("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    description: text("description"),
+    /** The kind of part it is about. */
+    componentTypeCode: text("component_type_code").references(() => componentTypes.code),
+    /** Free text ("SRAM Maven"): shown and searched, not matched against components. */
+    modelHint: text("model_hint"),
+    /** Every bike, future ones included; `procedure_bikes` is then empty. */
+    allBikes: integer("all_bikes", { mode: "boolean" }).notNull().default(false),
+    estimatedDurationS: integer("estimated_duration_s"),
+    difficulty: text("difficulty", { enum: PROCEDURE_DIFFICULTIES }),
+    archivedAt: integer("archived_at", { mode: "timestamp_ms" }),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    index("procedures_workspace_id_idx").on(table.workspaceId),
+    enumCheck("procedures_difficulty_check", table.difficulty, PROCEDURE_DIFFICULTIES),
+    check(
+      "procedures_duration_check",
+      sql`${table.estimatedDurationS} is null or ${table.estimatedDurationS} > 0`,
+    ),
+  ],
+);
+
+/** The bikes a procedure is for, when it is not for them all. */
+export const procedureBikes = sqliteTable(
+  "procedure_bikes",
+  {
+    procedureId: integer("procedure_id")
+      .notNull()
+      .references(() => procedures.id, { onDelete: "cascade" }),
+    bikeId: integer("bike_id")
+      .notNull()
+      .references(() => bikes.id, { onDelete: "cascade" }),
+  },
+  (table) => [
+    primaryKey({ columns: [table.procedureId, table.bikeId] }),
+    index("procedure_bikes_bike_id_idx").on(table.bikeId),
+  ],
+);
+
+/** One step of a procedure, in order; its reference photos are attachments (D-86). */
+export const procedureSteps = sqliteTable(
+  "procedure_steps",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    procedureId: integer("procedure_id")
+      .notNull()
+      .references(() => procedures.id, { onDelete: "cascade" }),
+    /** Display order, rewritten when steps move. */
+    sortOrder: integer("sort_order").notNull(),
+    instruction: text("instruction").notNull(),
+    note: text("note"),
+    /** Tightening torque, in newton-metres (6.8 N·m). */
+    torqueNm: real("torque_nm"),
+  },
+  (table) => [
+    index("procedure_steps_procedure_id_idx").on(table.procedureId),
+    check("procedure_steps_torque_check", sql`${table.torqueNm} is null or ${table.torqueNm} > 0`),
+  ],
+);
+
+/**
+ * What a procedure needs: a given workshop item, or "a part of this type for the bike", or
+ * something not in the workshop yet (a label, with "Ajouter à l'atelier").
+ */
+export const procedureItems = sqliteTable(
+  "procedure_items",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    procedureId: integer("procedure_id")
+      .notNull()
+      .references(() => procedures.id, { onDelete: "cascade" }),
+    inventoryItemId: integer("inventory_item_id").references(() => inventoryItems.id, {
+      onDelete: "cascade",
+    }),
+    componentTypeCode: text("component_type_code").references(() => componentTypes.code),
+    label: text("label"),
+    /** Parts: units used per job. */
+    quantity: integer("quantity"),
+    sortOrder: integer("sort_order").notNull(),
+  },
+  (table) => [
+    index("procedure_items_procedure_id_idx").on(table.procedureId),
+    index("procedure_items_inventory_item_id_idx").on(table.inventoryItemId),
+    check(
+      "procedure_items_target_check",
+      sql`(case when ${table.inventoryItemId} is null then 0 else 1 end) + (case when ${table.componentTypeCode} is null then 0 else 1 end) + (case when ${table.label} is null then 0 else 1 end) = 1`,
+    ),
+    check(
+      "procedure_items_quantity_check",
+      sql`${table.quantity} is null or ${table.quantity} > 0`,
+    ),
+  ],
+);
+
+/** A procedure's links: a video (a link card, never an embedded player), a page, a note. */
+export const procedureResources = sqliteTable(
+  "procedure_resources",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    procedureId: integer("procedure_id")
+      .notNull()
+      .references(() => procedures.id, { onDelete: "cascade" }),
+    kind: text("kind", { enum: PROCEDURE_RESOURCE_KINDS }).notNull(),
+    /** Videos and links: shown and opened in a new tab, never fetched (D-09). */
+    url: text("url"),
+    title: text("title"),
+    /** Videos only, typed by hand. */
+    durationS: integer("duration_s"),
+    /** Notes only. */
+    body: text("body"),
+    sortOrder: integer("sort_order").notNull(),
+  },
+  (table) => [
+    index("procedure_resources_procedure_id_idx").on(table.procedureId),
+    enumCheck("procedure_resources_kind_check", table.kind, PROCEDURE_RESOURCE_KINDS),
+    check(
+      "procedure_resources_fields_check",
+      sql`(${table.kind} = 'note') = (${table.url} is null) and (${table.kind} = 'note') = (${table.body} is not null) and (${table.durationS} is null or (${table.kind} = 'video' and ${table.durationS} > 0))`,
+    ),
+  ],
+);
+
 export const authSchema = { users, sessions, accounts, verifications };

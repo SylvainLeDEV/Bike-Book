@@ -15,6 +15,11 @@ import {
   maintenanceEvents,
   maintenanceItems,
   maintenanceRules,
+  procedureBikes,
+  procedureItems,
+  procedureResources,
+  procedures,
+  procedureSteps,
   purchaseLinks,
   rides,
   ruleTemplates,
@@ -125,6 +130,10 @@ export function exportWorkspaceTables(ctx: AccessContext): ExportTable[] {
       .select({ id: setups.id })
       .from(setups)
       .where(inArray(setups.bikeId, bikeIds));
+    const procedureIds = tx
+      .select({ id: procedures.id })
+      .from(procedures)
+      .where(eq(procedures.workspaceId, workspaceId));
 
     // In the order of the data dictionary (03): each table after the ones it refers to.
     const sources: [SQLiteTable, SQL | undefined][] = [
@@ -139,6 +148,12 @@ export function exportWorkspaceTables(ctx: AccessContext): ExportTable[] {
       [inventoryItems, eq(inventoryItems.workspaceId, workspaceId)],
       [inventoryItemBikes, inArray(inventoryItemBikes.itemId, itemIds)],
       [purchaseLinks, inArray(purchaseLinks.itemId, itemIds)],
+      // Procedures (D-86) come before the rules and tasks that point to them.
+      [procedures, eq(procedures.workspaceId, workspaceId)],
+      [procedureBikes, inArray(procedureBikes.procedureId, procedureIds)],
+      [procedureSteps, inArray(procedureSteps.procedureId, procedureIds)],
+      [procedureItems, inArray(procedureItems.procedureId, procedureIds)],
+      [procedureResources, inArray(procedureResources.procedureId, procedureIds)],
       [components, inArray(components.bikeId, bikeIds)],
       [rides, inArray(rides.bikeId, bikeIds)],
       [maintenanceRules, inArray(maintenanceRules.bikeId, bikeIds)],

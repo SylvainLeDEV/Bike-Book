@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Field, FieldError, Input, NativeSelect, Textarea } from "@/components/ui/field";
 import { Sheet, SheetBody, SheetContent, SheetFooter, SheetForm } from "@/components/ui/sheet";
 import { formatDate } from "@/lib/format";
-import type { BikeRef, TaskInput, TaskRowVM } from "@/lib/view-models";
+import type { BikeRef, ProcedureOption, TaskInput, TaskRowVM } from "@/lib/view-models";
 
 /*
  * "Nouvelle tâche" (feature 7, D-34): a one-off to-do, for a bike or general, with an optional
@@ -30,12 +30,15 @@ export function useTaskSheet(): TaskSheetContextValue {
 
 export function TaskSheetProvider({
   bikes,
+  procedures = [],
   onSubmit,
   onUpdate,
   onReopen,
   children,
 }: {
   bikes: BikeRef[];
+  /** The procedures a task can point to (D-86). */
+  procedures?: ProcedureOption[];
   /** Resolves with an error message, or null once saved. */
   onSubmit: (input: TaskInput) => Promise<string | null>;
   onUpdate?: (taskId: number, input: TaskInput) => Promise<string | null>;
@@ -76,6 +79,7 @@ export function TaskSheetProvider({
           <TaskForm
             key={state.key}
             bikes={bikes}
+            procedures={procedures}
             initialBikeId={state.bikeId}
             task={task}
             onSubmit={async (input) => {
@@ -102,12 +106,14 @@ export function TaskSheetProvider({
 
 function TaskForm({
   bikes,
+  procedures,
   initialBikeId,
   task,
   onSubmit,
   onReopen,
 }: {
   bikes: BikeRef[];
+  procedures: ProcedureOption[];
   initialBikeId: number | null;
   /** Edit mode: the task as "À prévoir" shows it. */
   task: TaskRowVM | null;
@@ -118,6 +124,17 @@ function TaskForm({
   const [bikeId, setBikeId] = React.useState(initialBikeId == null ? "" : String(initialBikeId));
   const [dueOn, setDueOn] = React.useState(task?.dueOn ?? "");
   const [notes, setNotes] = React.useState(task?.notes ?? "");
+  const [procedureId, setProcedureId] = React.useState(
+    task?.procedure ? String(task.procedure.id) : "",
+  );
+  // The procedures for the bike chosen (all of them for a general task), and the one chosen.
+  const offered = procedures.filter(
+    (p) =>
+      !bikeId ||
+      p.bikeIds === "all" ||
+      p.bikeIds.includes(Number(bikeId)) ||
+      String(p.id) === procedureId,
+  );
   const [titleError, setTitleError] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [pending, setPending] = React.useState(false);
@@ -138,6 +155,7 @@ function TaskForm({
           title: title.trim(),
           dueOn: dueOn || null,
           notes: notes.trim() || null,
+          procedureId: procedureId ? Number(procedureId) : null,
         }),
       );
     } catch {
@@ -179,6 +197,21 @@ function TaskForm({
         <Field label="Notes">
           <Textarea maxLength={2000} value={notes} onChange={(e) => setNotes(e.target.value)} />
         </Field>
+        {procedures.length || task?.procedure ? (
+          <Field label="Fiche d'entretien" hint="Le mode opératoire à suivre, s'il y en a un.">
+            <NativeSelect value={procedureId} onChange={(e) => setProcedureId(e.target.value)}>
+              <option value="">Aucune</option>
+              {task?.procedure && !offered.some((p) => p.id === task.procedure?.id) ? (
+                <option value={task.procedure.id}>{task.procedure.title}</option>
+              ) : null}
+              {offered.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.title}
+                </option>
+              ))}
+            </NativeSelect>
+          </Field>
+        ) : null}
         {task ? <AttachmentsBlock owner={{ kind: "task", id: task.id }} /> : <AttachmentsLater />}
       </SheetBody>
       <SheetFooter className="grid gap-2">

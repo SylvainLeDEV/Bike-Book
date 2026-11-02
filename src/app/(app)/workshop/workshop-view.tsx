@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
+import { ProcedureSheet } from "@/components/procedures/procedure-sheet";
 import { useToast } from "@/components/ui/toast";
 import { AddItemSheet, type AddItemPrefill } from "@/components/workshop/add-item-sheet";
 import { AddLinkSheet, CorrectStockSheet } from "@/components/workshop/item-sheets";
@@ -10,6 +11,7 @@ import type {
   AddItemInput,
   ComponentTypeOption,
   InventoryItemVM,
+  ProcedureVM,
   WorkshopVM,
 } from "@/lib/view-models";
 import type { WorkshopView as WorkshopAddress } from "@/lib/workshop-filter";
@@ -25,6 +27,12 @@ import {
   undoWorkshopAction,
   type UndoToken,
 } from "@/server/actions/workshop";
+import {
+  addLineItemAction,
+  archiveProcedureAction,
+  deleteProcedureAction,
+  saveProcedureAction,
+} from "@/server/actions/procedures";
 
 /** The current values of an item, for "Modifier l'objet" (its kind never changes). */
 function valuesOf(item: InventoryItemVM): AddItemInput {
@@ -76,7 +84,18 @@ export function WorkshopView({
     open: boolean;
     prefill: AddItemPrefill | null;
     editing: { id: number; values: AddItemInput } | null;
+    /** "Ajouter à l'atelier" from a procedure's line: the new item then names it (D-86). */
+    forLine?: number | null;
   }>({ open: false, prefill: null, editing: null });
+  // "Nouvelle fiche" (opened on arrival by `?new=1`, from a bike page) and "Modifier la fiche".
+  const [procedureSheet, setProcedureSheet] = React.useState<{
+    open: boolean;
+    editing: ProcedureVM | null;
+  }>({ open: Boolean(initial.newProcedure), editing: null });
+  const [focusProcedure, setFocusProcedure] = React.useState<{
+    id: number | null;
+    n: number;
+  } | null>(null);
   const [counting, setCounting] = React.useState<InventoryItemVM | null>(null);
   const [linking, setLinking] = React.useState<InventoryItemVM | null>(null);
 
@@ -108,6 +127,23 @@ export function WorkshopView({
     onCorrectStock: setCounting,
     onAddLink: setLinking,
     onArchive: async (item) => withUndo(await archiveItemAction(item.id)),
+    onNewProcedure: () => setProcedureSheet({ open: true, editing: null }),
+    procedure: {
+      onEdit: (procedure) => setProcedureSheet({ open: true, editing: procedure }),
+      onArchive: async (procedure, archived) => {
+        const result = await archiveProcedureAction(procedure.id, archived);
+        if (!result.ok) return toast(result.error);
+        toast(result.message, {
+          undo: async () => {
+            const undone = await archiveProcedureAction(procedure.id, !archived);
+            toast(undone.ok ? "Modification annulée" : undone.error);
+          },
+        });
+      },
+      onOrder: async (item) => withUndo(await restockAction(item.id, "to_order", 1)),
+      onAddLineItem: (lineId, prefill) =>
+        setSheet({ open: true, prefill, editing: null, forLine: lineId }),
+    },
   };
 
   return (
@@ -118,6 +154,30 @@ export function WorkshopView({
         actions={actions}
         bikeHref={(bikeId) => `/bikes/${bikeId}`}
         initial={initial}
+        focusProcedure={focusProcedure}
+      />
+      <ProcedureSheet
+        open={procedureSheet.open}
+        onOpenChange={(open) => setProcedureSheet((state) => ({ ...state, open }))}
+        editing={procedureSheet.editing}
+        initialBikeId={initial.newProcedure ? initial.bikeId : null}
+        bikes={vm.bikes}
+        componentTypes={componentTypes}
+        items={vm.items}
+        onSubmit={async (input) => {
+          const result = await saveProcedureAction(procedureSheet.editing?.id ?? null, input);
+          if (!result.ok) return result.error;
+          toast(result.message);
+          setFocusProcedure((f) => ({ id: result.procedureId, n: (f?.n ?? 0) + 1 }));
+          return null;
+        }}
+        onDelete={async (procedure) => {
+          const result = await deleteProcedureAction(procedure.id);
+          if (!result.ok) return result.error;
+          toast(result.message);
+          setFocusProcedure((f) => ({ id: null, n: (f?.n ?? 0) + 1 }));
+          return null;
+        }}
       />
       <AddItemSheet
         open={sheet.open}
@@ -127,7 +187,9 @@ export function WorkshopView({
         prefill={sheet.prefill}
         editing={sheet.editing?.values ?? null}
         onSubmit={async (input) => {
-          const result = await saveItemAction(sheet.editing?.id ?? null, input);
+          const result = sheet.forLine
+            ? await addLineItemAction(sheet.forLine, input)
+            : await saveItemAction(sheet.editing?.id ?? null, input);
           if (!result.ok) return result;
           toast(result.message);
         }}

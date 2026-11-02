@@ -9,6 +9,26 @@ import { DEMO_ACCOUNT, seedDemoData } from "./seed";
 
 const NOW = Date.parse("2026-10-25T10:00:00Z");
 
+/** A procedure with one row in each of its tables (D-86): neither garage has one of its own. */
+function oneProcedure(workspaceId: number, bikeId: number, itemId: number, title: string) {
+  const db = getDb();
+  const procedure = db
+    .insert(schema.procedures)
+    .values({ workspaceId, title, estimatedDurationS: 1800, difficulty: "easy" })
+    .returning()
+    .get();
+  db.insert(schema.procedureBikes).values({ procedureId: procedure.id, bikeId }).run();
+  db.insert(schema.procedureSteps)
+    .values({ procedureId: procedure.id, sortOrder: 0, instruction: "Nettoyer", torqueNm: 5 })
+    .run();
+  db.insert(schema.procedureItems)
+    .values({ procedureId: procedure.id, inventoryItemId: itemId, sortOrder: 0 })
+    .run();
+  db.insert(schema.procedureResources)
+    .values({ procedureId: procedure.id, kind: "note", body: "Gants.", sortOrder: 0 })
+    .run();
+}
+
 /** One row in every workspace-owned table, written directly (the flows are tested elsewhere). */
 function otherGarage() {
   const ctx = createTestContext("Lou");
@@ -146,6 +166,7 @@ function otherGarage() {
   db.insert(schema.attachments)
     .values([file({ maintenanceEventId: event.id }, 7), file({ inventoryItemId: item.id }, 8)])
     .run();
+  oneProcedure(workspaceId, bike.id, item.id, "Fiche de Lou");
   return ctx;
 }
 
@@ -167,6 +188,14 @@ async function demoGarage() {
       evidenceLevel: "estimate",
     })
     .run();
+  const ws = ctx.workspace.id;
+  const bike = getDb().select().from(schema.bikes).where(eq(schema.bikes.workspaceId, ws)).get()!;
+  const item = getDb()
+    .select()
+    .from(schema.inventoryItems)
+    .where(eq(schema.inventoryItems.workspaceId, ws))
+    .get()!;
+  oneProcedure(ws, bike.id, item.id, "Fiche du garage");
   return ctx;
 }
 

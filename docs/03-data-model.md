@@ -414,7 +414,8 @@ one (D-63). Rules on that slot restart if `reset_on_replacement` is set.
 ### `maintenance_rules` — "what's coming", recurring
 
 Status: **Built** in phase 1 feature 6 (2026-10-26, migration `0006_maintenance_rules`, which also
-adds `maintenance_items.rule_id`), except `procedure_id` (phase 1.5). Status, usage, ratio and ETA
+adds `maintenance_items.rule_id`); `procedure_id` added with the procedures (D-86, migration
+`0013_procedures`). Status, usage, ratio and ETA
 are computed by `src/server/domain/rules.ts`, never stored (D-50, D-65).
 
 | Field | Type | Notes |
@@ -431,7 +432,7 @@ are computed by `src/server/domain/rules.ts`, never stored (D-50, D-65).
 | `counter_start_at` | timestamp, required | Counter start while the rule has never been done: the part's fitting for a rule from a template, the end of the "last done" day typed in the sheet, else the start of tracking |
 | `active` | boolean, required, default `true` | `false`: set aside, not shown in "À prévoir"; rules are never deleted |
 | `snooze_ends_on` | date, nullable | Snoozed until this date ("Reporter": 14 days): the rule shows its real status again from that day |
-| `procedure_id` | FK `procedures`, nullable | Phase 1.5 (D-47) |
+| `procedure_id` | FK `procedures`, nullable, `ON DELETE SET NULL` | The procedure it is done with (D-86), chosen in the "Règles" sheet; "À prévoir" shows "Fiche : …" |
 | `notes` | text | |
 | `created_at`, `updated_at` | timestamp | |
 
@@ -461,6 +462,7 @@ included); it opens "Modifier la tâche", which can reopen it. Cancelled tasks a
 | `priority` | enum, required, default `normal` | `low`, `normal`, `high`; not offered in phase 1 |
 | `done_at` | timestamp, nullable | When it was marked done. CHECK: set exactly when `status = 'done'` |
 | `notes` | text | |
+| `procedure_id` | FK `procedures`, nullable, `ON DELETE SET NULL` | The procedure it is done with (D-86), chosen in "Modifier la tâche"; "À prévoir" shows "Fiche : …" |
 | `created_at`, `updated_at` | timestamp | |
 
 ### `attachments` — photos, invoices, manuals, tracks
@@ -472,7 +474,7 @@ COLUMN`, D-57). Decisions D-45, D-72 to D-76.
 | Field | Type | Notes |
 |-------|------|-------|
 | `id` | integer PK | |
-| `bike_id`, `component_id`, `maintenance_event_id`, `ride_id`, `task_id`, `inventory_item_id` | FK, nullable, `ON DELETE CASCADE` | **Exactly one** is set (CHECK constraint, D-45): the element the file belongs to. Its workspace is that element's (D-25). Phase 1.5 adds `procedure_step_id` and `procedure_id` to the same CHECK |
+| `bike_id`, `component_id`, `maintenance_event_id`, `ride_id`, `task_id`, `inventory_item_id`, `procedure_id`, `procedure_step_id` | FK, nullable, `ON DELETE CASCADE` | **Exactly one** is set (CHECK constraint, D-45): the element the file belongs to. Its workspace is that element's (D-25). `procedure_id` (a procedure's documents) and `procedure_step_id` (a step's photos) joined with the procedures (D-86, migration `0013_procedures`, which rebuilt the table) |
 | `kind` | enum: `photo`, `invoice`, `manual`, `track`, `other` | See [values](#attachment-values). Proposed from the file (`photo` for an image, `invoice` for a PDF), changeable (D-74). CHECK: a `photo` is an image |
 | `storage_path` | text, unique | Relative to the data directory: `uploads/YYYY/MM/<random>.<ext>` (UTC month of the upload, 32 random hex characters). Never derived from the file name |
 | `original_name` | text | The file name sent by the browser, cleaned (no folder, no control character, 200 characters at most). Shown, and used for downloads |
@@ -743,8 +745,9 @@ given has no row.
 
 ## Phase 1.5 additions (labels, maintenance procedures)
 
-**Decided** on 2026-10-25 (D-45, D-47) and documented now so phase 1 closes no door; the tables
-are created in phase 1.5.
+**Decided** on 2026-10-25 (D-45, D-47) and documented then so phase 1 closes no door. The
+procedure tables were **built** on 2026-11-02 (D-86, migration `0013_procedures`); labels are still
+to come.
 
 ```mermaid
 erDiagram
@@ -752,7 +755,6 @@ erDiagram
     TAG ||--o{ ATTACHMENT_TAG : "labels"
     ATTACHMENT ||--o{ ATTACHMENT_TAG : "is labelled"
     WORKSPACE ||--o{ PROCEDURE : "owns"
-    PROCEDURE |o--o{ PROCEDURE : "is duplicated into"
     PROCEDURE ||--o{ PROCEDURE_BIKE : "applies to"
     BIKE ||--o{ PROCEDURE_BIKE : "has"
     COMPONENT_TYPE |o--o{ PROCEDURE : "targets"
@@ -761,9 +763,9 @@ erDiagram
     INVENTORY_ITEM |o--o{ PROCEDURE_ITEM : "is needed by"
     PROCEDURE ||--o{ PROCEDURE_RESOURCE : "links to"
     ATTACHMENT }o--o| PROCEDURE_STEP : "illustrates"
-    ATTACHMENT |o--o| PROCEDURE_RESOURCE : "is the PDF of"
+    ATTACHMENT }o--o| PROCEDURE : "documents"
     MAINTENANCE_RULE }o--o| PROCEDURE : "is done with"
-    MAINTENANCE_EVENT }o--o| PROCEDURE : "followed"
+    TASK }o--o| PROCEDURE : "is done with"
 ```
 
 ### Labels (photos only, D-45)
@@ -782,90 +784,105 @@ erDiagram
 its links; renaming keeps them. Labels apply to photos only; another link table can be added
 later without changing `tags`.
 
-### Maintenance procedures (D-47)
+### Maintenance procedures (D-47, D-86)
+
+Status: **Built** on 2026-11-02 (D-86, migration `0013_procedures`): the Atelier's "Fiches" tab,
+the editor, the bike page's section, the rule and task link. Runs ("suivi", D-82) come next.
 
 Reusable how-tos written by the owner, distinct from the maintenance events they produce. No
-procedure ships with the app: the examples are demo data.
+procedure ships with the app, and the demo has none (D-85, D-86). A procedure is archived (it
+leaves the lists, its links stay), or deleted for good after a confirmation: its steps, material,
+links and files go with it, and the rules and tasks that pointed to it lose the link
+(`ON DELETE SET NULL`).
 
 **`procedures`**
 
 | Field | Type | Notes |
 |-------|------|-------|
 | `id` | integer PK | |
-| `workspace_id` | FK `workspaces`, required | |
-| `title` | text, required | |
-| `description` | text | |
-| `component_type_code` | FK `component_types`, nullable | The kind of part it is about |
-| `model_hint` | text | Free text, "SRAM Maven": shown and searched, not matched against components |
-| `all_bikes` | boolean | `true`: every bike, future ones included; `procedure_bikes` is then empty |
-| `estimated_duration_s` | integer, nullable | Seconds, like every duration; the UI shows minutes |
-| `difficulty` | enum: `easy`, `medium`, `hard` | |
-| `duplicated_from_id` | FK `procedures`, nullable | "Dupliquée de …" |
-| `archived_at` | timestamp, nullable | Archived, not deleted: past events keep their link |
+| `workspace_id` | FK `workspaces`, required | Top of its hierarchy (D-25) |
+| `title` | text, required | 120 characters at most |
+| `description` | text, nullable | |
+| `component_type_code` | FK `component_types`, nullable | The kind of part it is about; the "Fiches" tab filters on it |
+| `model_hint` | text, nullable | Free text, "SRAM Maven": shown and searched, not matched against components |
+| `all_bikes` | boolean, required, default `false` | `true`: every bike, future ones included; `procedure_bikes` is then empty |
+| `estimated_duration_s` | integer, nullable | Seconds, like every duration (> 0); the editor types minutes |
+| `difficulty` | enum, nullable | `easy` (Facile), `medium` (Moyenne), `hard` (Difficile), as its author judges it |
+| `archived_at` | timestamp, nullable | Archived: out of the lists and the sheets' choices, shown again on request |
 | `created_at`, `updated_at` | timestamp | |
 
-**`procedure_bikes`**: `procedure_id`, `bike_id`, primary key on both.
+"Dupliquer" (`duplicated_from_id`) is left for later (D-86): a nullable column added then.
+
+**`procedure_bikes`**: the bikes a procedure is for, when `all_bikes` is false.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `procedure_id` | FK `procedures`, required | Primary key on (`procedure_id`, `bike_id`) |
+| `bike_id` | FK `bikes`, required | A bike of the same workspace (checked by the data-access layer) |
 
 **`procedure_steps`**
 
 | Field | Type | Notes |
 |-------|------|-------|
-| `id` | integer PK | |
-| `procedure_id` | FK, required | |
-| `sort_order` | integer | Rewritten on reorder |
-| `instruction` | text, required | |
-| `note` | text | |
-| `torque_nm` | real, nullable | Like `measurement_value`: torques have decimals (6.8 N·m) |
+| `id` | integer PK | Kept when the procedure is edited: the step's photos are its attachments |
+| `procedure_id` | FK `procedures`, required | |
+| `sort_order` | integer, required | Display order, from 0, rewritten when steps move (↑ ↓) |
+| `instruction` | text, required | What to do |
+| `note` | text, nullable | |
+| `torque_nm` | real, nullable | Tightening torque in newton-metres (> 0), from the part's manual: torques have decimals (6.8 N·m) |
 
-**`procedure_items`**
+A step removed in the editor takes its photos with it, files included; the editor asks first.
+
+**`procedure_items`**: the material a procedure needs.
 
 | Field | Type | Notes |
 |-------|------|-------|
 | `id` | integer PK | |
-| `procedure_id` | FK, required | |
+| `procedure_id` | FK `procedures`, required | |
 | `inventory_item_id` | FK `inventory_items`, nullable | A given tool, part or product of the workshop |
-| `component_type_code` | FK, nullable | Or "a part of this type for the chosen bike": resolved at run time among the workshop's parts of that slot type serving the bike |
-| `label` | text, nullable | Or something not in the workshop yet ("Huile de fourche 15 WT"), with "Ajouter à l'atelier" |
-| `quantity` | integer, nullable | Parts: units used per job |
-| `sort_order` | integer | Display order |
+| `component_type_code` | FK `component_types`, nullable | Or "a part of this type for the bike": resolved when shown, among the workshop's parts of that type serving the bike chosen ("Préparer pour"), one with enough stock first |
+| `label` | text, nullable | Or something not in the workshop yet ("Huile de fourche 15 WT"); "Ajouter à l'atelier" creates the item, then the line names it (`inventory_item_id`, label cleared) |
+| `quantity` | integer, nullable | Units used per job, for a part or a part type (> 0); null reads 1 |
+| `sort_order` | integer, required | Display order |
 
-CHECK: exactly one of `inventory_item_id`, `component_type_code`, `label`.
+CHECK: exactly one of `inventory_item_id`, `component_type_code`, `label`. The lines are rewritten
+when the procedure is saved.
 
-**`procedure_resources`**
+**`procedure_resources`**: its links. A PDF manual is not a resource but an attachment of the
+procedure (D-86).
 
 | Field | Type | Notes |
 |-------|------|-------|
 | `id` | integer PK | |
-| `procedure_id` | FK, required | |
-| `kind` | enum: `video`, `pdf`, `link`, `note` | |
-| `url` | text, nullable | Video and link. A link card opened in a new tab, never an embedded player, never fetched (D-09, D-47) |
-| `title` | text | Typed by hand |
-| `duration_s` | integer, nullable | Videos, typed by hand |
-| `attachment_id` | FK `attachments`, nullable | PDF |
-| `body` | text, nullable | Note |
-| `sort_order` | integer | Display order |
+| `procedure_id` | FK `procedures`, required | |
+| `kind` | enum, required | `video`: a video page, shown as a link card, never an embedded player, nothing loaded from it (D-09, D-47); `link`: a web page; `note`: a free note |
+| `url` | text, nullable | Videos and links (`http(s)` only), opened in a new tab, never fetched. CHECK: set exactly when the kind is not `note` |
+| `title` | text, nullable | Typed by hand (120 characters at most) |
+| `duration_s` | integer, nullable | Videos only, typed by hand in minutes (> 0) |
+| `body` | text, nullable | Notes only. CHECK: set exactly for a `note` |
+| `sort_order` | integer, required | Display order |
 
-**Columns added to existing tables in 1.5**
+**Columns added to existing tables (D-86, D-57: nullable, by `ALTER TABLE`, except the rebuild
+of `attachments`)**
 
-- `attachments`: `procedure_step_id` (reference photo of a step) and `procedure_id` (PDF manual),
-  inside the "exactly one" CHECK.
-- `maintenance_rules.procedure_id`: FK, nullable. The procedure "C'est fait" offers to run, on
-  due-soon and overdue rules only.
-- `maintenance_events.procedure_id`: FK, nullable, the procedure followed; and `labor_time_s`:
-  integer, nullable, the time spent (typed, or timed by workshop mode).
+- `attachments.procedure_id` (its documents, the PDF manual first) and
+  `attachments.procedure_step_id` (a step's reference photos), inside the "exactly one" CHECK:
+  the table was rebuilt by `0013_procedures`, a test upgrades a 0012 database and keeps its rows
+  and covers (D-69).
+- `maintenance_rules.procedure_id` and `tasks.procedure_id`: FK `procedures`, nullable,
+  `ON DELETE SET NULL`: the procedure the rule or task is done with, chosen in the "Règles" sheet
+  and in "Modifier la tâche" (D-86).
+- To come with runs (D-82): `maintenance_events.procedure_id` (the procedure followed) and
+  `labor_time_s` (the time spent, typed at the end).
 
-Readiness ("Possédé", "Stock bas", "Manquant"…) is computed from the workshop: nothing about
+Readiness ("Possédé", "2 paires en stock", "Stock bas · presque vide", "Manquant", "Pas dans
+l'atelier") is computed from the workshop for one bike (`src/lib/procedures.ts`): nothing about
 availability is stored.
 
-**Flow: save a workshop-mode run**, in one transaction: a `maintenance_events` row
-(`performed_by = self`, `procedure_id`, `total_cost_cents`, `labor_time_s`); one
-`maintenance_items` row per line of the procedure, with `rule_id` when the procedure points to a
-rule, which restarts it; `inventory_movements` for the parts used (`use`) and the product levels
-(`level_after`, one level down by default), linked to those items; the photos taken as
-attachments of the event. Undo removes all of it. Until it is saved, a run in progress lives in
-the browser's `localStorage`, not in the database. **Revised by D-82 (2026-11-01):** a run is
-stored in the database, with its status (to do, in progress, done) and a comment and photos per
-step, and a task can point to a procedure too; its tables are written here when it is built.
+**Runs ("suivi", D-82)**: one time the work is done on a bike, stored in the database with its
+status (to do, in progress, done) and a comment and photos per step; "Terminer" writes the
+maintenance event, the task done or the rule reset, the parts taken out of the stock, a product
+one level down by default. Its tables are written here when it is built.
 
 ## Phase 2 additions (Garmin)
 

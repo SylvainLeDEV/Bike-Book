@@ -108,6 +108,7 @@ export function AppFrame({
         >
           <TaskSheetProvider
             bikes={frame.quickRide.bikes}
+            procedures={frame.procedures}
             onSubmit={async (input) => {
               const result = await createTaskAction(input);
               if (!result.ok) return result.error;

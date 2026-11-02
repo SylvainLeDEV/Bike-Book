@@ -114,6 +114,20 @@ export {
   type OwnerDescription,
 } from "./attachments";
 export {
+  createProcedure,
+  deleteProcedure,
+  linkProcedureItem,
+  listProcedures,
+  setProcedureArchived,
+  updateProcedure,
+  type Procedure,
+  type ProcedureData,
+  type ProcedureItem,
+  type ProcedureItemTarget,
+  type ProcedureResource,
+  type ProcedureStep,
+} from "./procedures";
+export {
   createSetup,
   deleteSetup,
   getSetupBikeId,

@@ -122,6 +122,9 @@ export function BikeView({
             workshopItem: (id) => `/workshop?item=${id}`,
             workshopForBike: `/workshop?bike=${bikeId}`,
             rebuyForBike: `/workshop?tab=rebuy&bike=${bikeId}`,
+            procedure: (id) => `/workshop?tab=procedures&procedure=${id}&bike=${bikeId}`,
+            proceduresForBike: `/workshop?tab=procedures&bike=${bikeId}`,
+            newProcedureForBike: `/workshop?tab=procedures&bike=${bikeId}&new=1`,
           }}
           actions={{
             onEditBike: edit,
@@ -146,6 +149,8 @@ export function BikeView({
             onTaskDone: (task) => taskDone(task.id, task.title),
             onTaskEdit: (task) => taskSheet.edit(task),
             workshopItemHref: (id) => `/workshop?item=${id}`,
+            procedureHref: (id, bikeId) =>
+              `/workshop?tab=procedures&procedure=${id}${bikeId != null ? `&bike=${bikeId}` : ""}`,
             onAddTask: () => taskSheet.open(bikeId),
             onShowRules: () => setRulesOpen(true),
             onShowWearDetail: () => setWearOpen(true),
