@@ -107,6 +107,7 @@ describe("maintenanceEdit", () => {
       shop: null,
       totalCostCents: null,
       notes: "fait maison",
+      laborTimeS: null,
       createdAt: 0,
       items: [
         item({ id: 1, action: "replaced", componentId: 10, newComponentId: 11, costCents: 3500 }),
@@ -159,6 +160,7 @@ describe("timeline", () => {
     shop: null,
     totalCostCents: null,
     notes: null,
+    laborTimeS: null,
     createdAt: Date.parse("2026-10-24T18:00:00Z"), // recorded the next day: end of the 23rd
     items: [],
   };

@@ -10,6 +10,7 @@ import {
   Cog,
   Download,
   Image as ImageIcon,
+  ListChecks,
   ListOrdered,
   Mountain,
   Package,
@@ -59,6 +60,7 @@ const ORIGIN_ICONS: Record<PhotoOrigin, typeof Bike> = {
   inventory_item: Package,
   procedure: ListOrdered,
   procedure_step: ListOrdered,
+  procedure_run_step: ListChecks,
 };
 
 const SHOW_ORIGIN_LABELS: Partial<Record<PhotoOrigin, string>> = {

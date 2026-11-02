@@ -5,6 +5,7 @@ import {
   listDoneTasks,
   listMaintenanceEvents,
   listRides,
+  listRunsOfTasks,
   type AccessContext,
 } from "@/server/db";
 import { getEnv } from "@/server/env";
@@ -30,6 +31,16 @@ export function getActivityPage(ctx: AccessContext): { vm: ActivityVM; edits: Ti
       maintenanceCount: events.length,
       doneTaskCount: tasks.length,
     },
-    edits: timelineEdits(rides, events, tasks, bikes, timeZone),
+    edits: timelineEdits(
+      rides,
+      events,
+      tasks,
+      bikes,
+      timeZone,
+      listRunsOfTasks(
+        ctx,
+        tasks.map((task) => task.id),
+      ),
+    ),
   };
 }

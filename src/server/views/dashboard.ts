@@ -15,6 +15,7 @@ import { today } from "@/server/time";
 import { bikeCard } from "./bikes";
 import { taskRow } from "./refs";
 import { timeline } from "./timeline";
+import { runRows } from "./runs";
 import { loadGarage, rebuyRows } from "./workshop";
 
 /** "Accueil" (feature 9): overdue and due-soon rules, open tasks, "À racheter", the bikes. */
@@ -57,8 +58,9 @@ export function getDashboardVM(ctx: AccessContext): DashboardVM {
     },
     rules,
     tasks: listOpenTasks(ctx).map((task) =>
-      taskRow(task, garage.bikes, timeZone, garage.procedures),
+      taskRow(task, garage.bikes, timeZone, garage.procedures, garage.runs),
     ),
+    runs: runRows(garage.runs, garage.bikes, timeZone),
     bikes: cards,
     rebuy,
     activity: timeline(

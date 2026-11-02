@@ -6,7 +6,13 @@ import { eventInstant } from "@/server/domain/time";
 import type { AccessContext } from "./access-context";
 import { bikeAttachmentPaths, withFileCleanup } from "./attachments";
 import { getDb, type Tx } from "./client";
-import { bikes, components, maintenanceEvents, maintenanceItems } from "./schema";
+import {
+  bikes,
+  components,
+  inventoryMovements,
+  maintenanceEvents,
+  maintenanceItems,
+} from "./schema";
 import { moveEventReplacements, undoEventReplacements } from "./components";
 import { ruleOfBike } from "./rules";
 import { resolveShopId } from "./shops";
@@ -39,7 +45,7 @@ export type MaintenanceEventData = {
 };
 
 /** Every part of the lines must belong to the bike, and every rule too. */
-function checkLines(
+export function checkLines(
   tx: Tx,
   bikeId: number,
   lines: MaintenanceLineData[],
@@ -153,16 +159,45 @@ export function updateMaintenanceEvent(
       })
       .where(eq(maintenanceEvents.id, eventId))
       .run();
+    // Stock used by its lines (a run's parts and products, D-87) stays the event's: those
+    // movements follow its first new line.
+    const used = lineMovements(tx, eventId);
     tx.delete(maintenanceItems)
       .where(and(eq(maintenanceItems.eventId, eventId), ne(maintenanceItems.action, "replaced")))
       .run();
-    for (const line of data.lines) {
-      tx.insert(maintenanceItems)
-        .values({ ...line, eventId })
+    const inserted = data.lines.map(
+      (line) =>
+        tx
+          .insert(maintenanceItems)
+          .values({ ...line, eventId })
+          .returning({ id: maintenanceItems.id })
+          .get().id,
+    );
+    if (used.length && inserted.length) {
+      tx.update(inventoryMovements)
+        .set({ maintenanceItemId: inserted[0] })
+        .where(inArray(inventoryMovements.id, used))
         .run();
     }
     return { ok: true };
   });
+}
+
+/** The stock movements of an event's lines other than its replacements (a run's, D-87). */
+function lineMovements(tx: Tx, eventId: number): number[] {
+  return tx
+    .select({ id: inventoryMovements.id })
+    .from(inventoryMovements)
+    .innerJoin(maintenanceItems, eq(maintenanceItems.id, inventoryMovements.maintenanceItemId))
+    .where(and(eq(maintenanceItems.eventId, eventId), ne(maintenanceItems.action, "replaced")))
+    .all()
+    .map((row) => row.id);
+}
+
+/** Gives back what an event's lines took from the workshop: their movements go (D-70, D-87). */
+export function giveBackLineStock(tx: Tx, eventId: number): void {
+  const used = lineMovements(tx, eventId);
+  if (used.length) tx.delete(inventoryMovements).where(inArray(inventoryMovements.id, used)).run();
 }
 
 function hasReplacement(tx: Tx, eventId: number): boolean {
@@ -199,9 +234,13 @@ export function deleteMaintenanceEvent(
       if (!event) return { ok: false, reason: "not_found" };
       if (options.keepReplacements) {
         if (hasReplacement(tx, eventId)) return { ok: false, reason: "too_late" };
-      } else if (!undoEventReplacements(tx, eventId)) {
-        return { ok: false, reason: "too_late" };
+        giveBackLineStock(tx, eventId);
+      } else {
+        // Before its lines go: the parts and product levels a run took are given back (D-87).
+        giveBackLineStock(tx, eventId);
+        if (!undoEventReplacements(tx, eventId)) return { ok: false, reason: "too_late" };
       }
+      // Its run, if any, goes with it (cascade), photos included (D-87).
       tx.delete(maintenanceEvents).where(eq(maintenanceEvents.id, eventId)).run();
       return { ok: true };
     }),

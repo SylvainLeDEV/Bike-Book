@@ -27,6 +27,7 @@ import {
   undoWorkshopAction,
   type UndoToken,
 } from "@/server/actions/workshop";
+import { startRunAction } from "@/server/actions/runs";
 import {
   addLineItemAction,
   archiveProcedureAction,
@@ -143,6 +144,15 @@ export function WorkshopView({
       onOrder: async (item) => withUndo(await restockAction(item.id, "to_order", 1)),
       onAddLineItem: (lineId, prefill) =>
         setSheet({ open: true, prefill, editing: null, forLine: lineId }),
+      onStart: async (procedure, bikeId) => {
+        const result = await startRunAction({
+          from: "procedure",
+          procedureId: procedure.id,
+          bikeId,
+        });
+        if (!result.ok) return toast(result.error);
+        router.push(`/runs/${result.runId}`);
+      },
     },
   };
 

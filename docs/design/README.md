@@ -45,7 +45,7 @@ rebuilt when their phase starts. It is then deleted (git history keeps it).
 | Workshop products (four levels, containers) and tools (owned or not), the Pièces · Produits · Outils · À racheter filters | Built in the app (D-85, D-54) | Not needed (D-85) |
 | Photo labels, photos across all bikes (Activité › Photos) | Mockup only | Phase 1.5 |
 | Maintenance procedures (list, detail, editor, rule link) | Built in the app (D-86, D-54) | Not needed (D-86) |
-| Workshop mode (run, summary) | Mockup only | Built in the app with runs (D-82) |
+| Workshop mode (run, summary) | Built in the app (D-87, D-54) | Not needed (D-87) |
 | Phase 3 preview: certainty levels, suggestions, questions on the data | Mockup only | Phase 3 |
 
 **Why HTML rather than draw.io:** the mockup shows real behaviour (responsive layout, dark mode,
@@ -247,7 +247,7 @@ Recorded in [02](../02-decisions-and-questions.md#decision-log).
 | P3 | Procedures shipped with the app? | No, the owner's only; the examples are demo data (D-47) |
 | P4 | Workshop mode in the MVP? | No, phase 1.5, after the procedures (D-47) |
 | P5 | Video player? | Link card, never an embedded player (D-47) |
-| P6 | Run in progress kept where? | In the browser's `localStorage` (D-47). The mockup only keeps it while the page stays open |
+| P6 | Run in progress kept where? | In the database (D-82, revising D-47's `localStorage`), built by D-87. The mockup only keeps it while the page stays open |
 | P7 | Cost per 100 or 1,000 km, phase 1 or 1.5? | Per 100 km, with and without the purchase, sale price deducted, phase 1 (D-44) |
 | P8 | Product level after a procedure? | One level down by default, adjustable in the summary (D-47) |
 | P9 | HEIC? | iPhone photos sent from Safari must upload: Safari converts to JPEG, and a HEIC that still arrives is accepted (D-46). The mockup refused HEIC. Revised by D-73: HEIC refused, as the mockup did |

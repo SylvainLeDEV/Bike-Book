@@ -337,6 +337,7 @@ function BikeScreenContent({
               <PlanList
                 rules={vm.rules}
                 tasks={vm.tasks}
+                runs={vm.runs}
                 today={vm.today}
                 withBike={false}
                 actions={actions}

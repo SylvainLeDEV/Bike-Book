@@ -37,6 +37,7 @@ const ALT_PREFIX: Record<PhotoOrigin, string> = {
   inventory_item: "Photo de l'article",
   procedure: "Photo de la fiche",
   procedure_step: "Photo de l'étape",
+  procedure_run_step: "Photo du suivi",
 };
 
 /** The element's title and date, as an attachment's origin shows them. */
@@ -68,6 +69,11 @@ export function ownerOrigin(
       return origin(description.title);
     case "procedure_step":
       return origin(`Étape ${description.number} · ${description.procedureTitle}`);
+    case "procedure_run_step":
+      return origin(
+        `Étape ${description.number} · ${description.runTitle}`,
+        description.event?.performedOn ?? null,
+      );
   }
 }
 
@@ -144,7 +150,10 @@ export function bikeAttachments(
 ): BikeAttachments {
   const { timeZone } = getEnv();
   const list = listBikeAttachments(ctx, bike.id) ?? [];
-  const origins = new Map<string, { origin: AttachmentVM["origin"]; bikeName: string | null }>();
+  const origins = new Map<
+    string,
+    { origin: AttachmentVM["origin"]; bikeName: string | null; eventId: number | null }
+  >();
   const byOwner = new Map<string, AttachmentVM[]>();
   const all: AttachmentVM[] = [];
   for (const attachment of list) {
@@ -156,6 +165,8 @@ export function bikeAttachments(
       named = {
         origin: ownerOrigin(attachment.owner, description, timeZone),
         bikeName: description.bikeName,
+        // A run's photos also show on the event it wrote (D-87).
+        eventId: description.kind === "procedure_run_step" ? (description.event?.id ?? null) : null,
       };
       origins.set(key, named);
     }
@@ -168,6 +179,10 @@ export function bikeAttachments(
     );
     all.push(vm);
     byOwner.set(key, [...(byOwner.get(key) ?? []), vm]);
+    if (named.eventId != null) {
+      const eventKey = ownerKey("maintenance_event", named.eventId);
+      byOwner.set(eventKey, [...(byOwner.get(eventKey) ?? []), vm]);
+    }
   }
   all.sort(newestFirst);
   for (const entries of byOwner.values()) entries.sort(newestFirst);

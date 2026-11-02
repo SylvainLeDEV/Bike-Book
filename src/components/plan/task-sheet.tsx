@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { Check, RotateCcw } from "lucide-react";
+import Link from "next/link";
+import { Check, ClipboardCheck, Play, RotateCcw } from "lucide-react";
 import { AttachmentsBlock, AttachmentsLater } from "@/components/attachments/attachments-block";
 import { Button } from "@/components/ui/button";
 import { Field, FieldError, Input, NativeSelect, Textarea } from "@/components/ui/field";
@@ -31,6 +32,7 @@ export function useTaskSheet(): TaskSheetContextValue {
 export function TaskSheetProvider({
   bikes,
   procedures = [],
+  onStartRun,
   onSubmit,
   onUpdate,
   onReopen,
@@ -39,6 +41,8 @@ export function TaskSheetProvider({
   bikes: BikeRef[];
   /** The procedures a task can point to (D-86). */
   procedures?: ProcedureOption[];
+  /** "Commencer le suivi" (D-87): resolves with an error message, or null once started. */
+  onStartRun?: (task: TaskRowVM) => Promise<string | null>;
   /** Resolves with an error message, or null once saved. */
   onSubmit: (input: TaskInput) => Promise<string | null>;
   onUpdate?: (taskId: number, input: TaskInput) => Promise<string | null>;
@@ -88,6 +92,15 @@ export function TaskSheetProvider({
               if (!error) setState((s) => ({ ...s, open: false }));
               return error;
             }}
+            onStartRun={
+              task && !task.doneOn && !task.run && onStartRun
+                ? async () => {
+                    const error = await onStartRun(task);
+                    if (!error) setState((s) => ({ ...s, open: false }));
+                    return error;
+                  }
+                : undefined
+            }
             onReopen={
               task?.doneOn && onReopen
                 ? async () => {
@@ -110,6 +123,7 @@ function TaskForm({
   initialBikeId,
   task,
   onSubmit,
+  onStartRun,
   onReopen,
 }: {
   bikes: BikeRef[];
@@ -118,6 +132,7 @@ function TaskForm({
   /** Edit mode: the task as "À prévoir" shows it. */
   task: TaskRowVM | null;
   onSubmit: (input: TaskInput) => Promise<string | null>;
+  onStartRun?: () => Promise<string | null>;
   onReopen?: () => Promise<string | null>;
 }) {
   const [title, setTitle] = React.useState(task?.title ?? "");
@@ -219,6 +234,36 @@ function TaskForm({
           <Check />
           {task ? "Enregistrer la tâche" : "Ajouter la tâche"}
         </Button>
+        {task?.run ? (
+          // Its run: in progress, or the one it was done with (D-87).
+          <Button variant="ghost" className="w-full" asChild>
+            <Link href={`/runs/${task.run.id}`}>
+              <ClipboardCheck />
+              {task.run.status === "done" ? "Voir le suivi" : "Reprendre le suivi"}
+            </Link>
+          </Button>
+        ) : onStartRun ? (
+          <Button
+            type="button"
+            variant="ghost"
+            className="w-full"
+            disabled={pending}
+            onClick={async () => {
+              setError(null);
+              setPending(true);
+              try {
+                setError(await onStartRun());
+              } catch {
+                setError("Impossible de commencer. Vérifie la connexion et réessaie.");
+              } finally {
+                setPending(false);
+              }
+            }}
+          >
+            <Play />
+            Commencer le suivi
+          </Button>
+        ) : null}
         {onReopen ? (
           <Button
             type="button"

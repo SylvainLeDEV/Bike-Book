@@ -206,7 +206,14 @@ export function DashboardScreen({
       <div className="grid grid-cols-1 gap-[26px] [grid-template-areas:'plan''bikes''parts''activity'] lg:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)] lg:items-start lg:gap-x-7 lg:[grid-template-areas:'plan_bikes''activity_parts']">
         <section aria-labelledby="a-prevoir" className="[grid-area:plan]">
           <SectionHead title="À prévoir" id="a-prevoir" />
-          <PlanList rules={vm.rules} tasks={vm.tasks} today={vm.today} withBike actions={actions} />
+          <PlanList
+            rules={vm.rules}
+            tasks={vm.tasks}
+            runs={vm.runs}
+            today={vm.today}
+            withBike
+            actions={actions}
+          />
         </section>
 
         <section aria-labelledby="mes-velos" className="[grid-area:bikes]">

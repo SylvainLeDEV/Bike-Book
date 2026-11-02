@@ -618,9 +618,13 @@ function MaintenanceForm({
         {confirmDelete && onDelete ? (
           <DeleteConfirm
             question={
-              replacements.length
-                ? "Supprimer cet entretien ? Les pièces qu'il a remplacées reviennent sur le vélo, celles prises dans l'atelier y retournent, et les règles reprennent leur compte précédent."
-                : "Supprimer cet entretien et ses interventions ? Les règles qu'il remettait à zéro reprennent leur compte précédent."
+              edit?.fromRun
+                ? replacements.length
+                  ? "Supprimer cet entretien ? Le suivi et ses photos sont supprimés, les pièces qu'il a remplacées reviennent sur le vélo, ce qui a été pris dans l'atelier y retourne, et les règles reprennent leur compte précédent."
+                  : "Supprimer cet entretien ? Le suivi et ses photos sont supprimés, ce qu'il a pris dans l'atelier y retourne, et les règles reprennent leur compte précédent."
+                : replacements.length
+                  ? "Supprimer cet entretien ? Les pièces qu'il a remplacées reviennent sur le vélo, celles prises dans l'atelier y retournent, et les règles reprennent leur compte précédent."
+                  : "Supprimer cet entretien et ses interventions ? Les règles qu'il remettait à zéro reprennent leur compte précédent."
             }
             confirmLabel="Supprimer l'entretien"
             pending={pending}

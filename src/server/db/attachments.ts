@@ -18,6 +18,8 @@ import {
   components,
   inventoryItems,
   maintenanceEvents,
+  procedureRuns,
+  procedureRunSteps,
   procedures,
   procedureSteps,
   rides,
@@ -66,6 +68,7 @@ const OWNER_COLUMNS = {
   inventory_item: attachments.inventoryItemId,
   procedure: attachments.procedureId,
   procedure_step: attachments.procedureStepId,
+  procedure_run_step: attachments.procedureRunStepId,
 } as const;
 
 const OWNER_KEYS = {
@@ -77,6 +80,7 @@ const OWNER_KEYS = {
   inventory_item: "inventoryItemId",
   procedure: "procedureId",
   procedure_step: "procedureStepId",
+  procedure_run_step: "procedureRunStepId",
 } as const;
 
 type AttachmentRow = typeof attachments.$inferSelect;
@@ -176,6 +180,15 @@ function findOwner(
         .get();
       return row ? { bikeId: null, coverId: null } : null;
     }
+    case "procedure_run_step": {
+      const row = tx
+        .select({ bikeId: procedureRuns.bikeId })
+        .from(procedureRunSteps)
+        .innerJoin(procedureRuns, eq(procedureRuns.id, procedureRunSteps.runId))
+        .where(and(eq(procedureRunSteps.id, owner.id), eq(procedureRuns.workspaceId, ws)))
+        .get();
+      return row ? { bikeId: row.bikeId, coverId: null } : null;
+    }
   }
 }
 
@@ -202,6 +215,13 @@ export type OwnerDescription = { bikeName: string | null } & (
   | { kind: "procedure"; title: string }
   /** `number`: the step's place, from 1. */
   | { kind: "procedure_step"; procedureTitle: string; number: number }
+  /** A run's step: the event it wrote once done (D-87), else the run in progress. */
+  | {
+      kind: "procedure_run_step";
+      runTitle: string;
+      number: number;
+      event: { id: number; performedOn: LocalDate } | null;
+    }
 );
 
 /** Names an element of the workspace, or null. */
@@ -311,6 +331,38 @@ export function describeOwner(ctx: AccessContext, owner: AttachmentOwner): Owner
         bikeName: null,
       };
     }
+    case "procedure_run_step": {
+      const row = db
+        .select({
+          runId: procedureRuns.id,
+          title: procedureRuns.title,
+          bikeId: procedureRuns.bikeId,
+          eventId: maintenanceEvents.id,
+          performedOn: maintenanceEvents.performedOn,
+        })
+        .from(procedureRunSteps)
+        .innerJoin(procedureRuns, eq(procedureRuns.id, procedureRunSteps.runId))
+        .leftJoin(maintenanceEvents, eq(maintenanceEvents.id, procedureRuns.maintenanceEventId))
+        .where(and(eq(procedureRunSteps.id, owner.id), eq(procedureRuns.workspaceId, ws)))
+        .get();
+      if (!row) return null;
+      const order = db
+        .select({ id: procedureRunSteps.id })
+        .from(procedureRunSteps)
+        .where(eq(procedureRunSteps.runId, row.runId))
+        .orderBy(asc(procedureRunSteps.sortOrder), asc(procedureRunSteps.id))
+        .all();
+      return {
+        kind: "procedure_run_step",
+        runTitle: row.title,
+        number: order.findIndex((step) => step.id === owner.id) + 1,
+        event:
+          row.eventId != null && row.performedOn != null
+            ? { id: row.eventId, performedOn: row.performedOn }
+            : null,
+        bikeName: bikeName(row.bikeId),
+      };
+    }
   }
 }
 
@@ -397,7 +449,10 @@ export function listAttachments(ctx: AccessContext, owner: AttachmentOwner): Att
   });
 }
 
-/** What lies below a bike: its own attachments and those of its components, events, rides, tasks. */
+/**
+ * What lies below a bike: its own attachments and those of its components, events, rides, tasks,
+ * and the photos taken during its runs (D-87).
+ */
 function bikeScope(tx: Tx, bikeId: number): SQL {
   const of = <T extends typeof components | typeof maintenanceEvents | typeof rides>(table: T) =>
     tx.select({ id: table.id }).from(table).where(eq(table.bikeId, bikeId));
@@ -410,7 +465,37 @@ function bikeScope(tx: Tx, bikeId: number): SQL {
       attachments.taskId,
       tx.select({ id: tasks.id }).from(tasks).where(eq(tasks.bikeId, bikeId)),
     ),
+    runScope(
+      tx,
+      tx
+        .select({ id: procedureRuns.id })
+        .from(procedureRuns)
+        .where(eq(procedureRuns.bikeId, bikeId)),
+    ),
   )!;
+}
+
+/** The photos of runs' steps (D-87). */
+function runScope(tx: Tx, runIds: SQLWrapper | number[]): SQL {
+  return inArray(
+    attachments.procedureRunStepId,
+    tx
+      .select({ id: procedureRunSteps.id })
+      .from(procedureRunSteps)
+      .where(inArray(procedureRunSteps.runId, runIds)),
+  );
+}
+
+/** Files of a run's steps, read before it is abandoned or its event deleted. */
+export function runAttachmentPaths(runId: number): string[] {
+  return attachmentPaths((tx) => runScope(tx, [runId]));
+}
+
+/** Files of some run steps, read before they are removed. */
+export function runStepAttachmentPaths(stepIds: number[]): string[] {
+  return stepIds.length
+    ? attachmentPaths(() => inArray(attachments.procedureRunStepId, stepIds))
+    : [];
 }
 
 /**
@@ -571,6 +656,13 @@ export function workspaceScope(tx: Tx, workspaceIds: number[]): SQL {
         .select({ id: inventoryItems.id })
         .from(inventoryItems)
         .where(inArray(inventoryItems.workspaceId, workspaceIds)),
+    ),
+    runScope(
+      tx,
+      tx
+        .select({ id: procedureRuns.id })
+        .from(procedureRuns)
+        .where(inArray(procedureRuns.workspaceId, workspaceIds)),
     ),
     procedureScope(
       tx,

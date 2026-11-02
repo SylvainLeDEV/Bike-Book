@@ -19,6 +19,7 @@ import {
   listInventory,
   listProcedures,
   listRides,
+  listRunsInProgress,
   listRuleResets,
   listRules,
   type AccessContext,
@@ -26,6 +27,7 @@ import {
   type InventoryItem,
   type Procedure,
   type Ride,
+  type RunInProgress,
 } from "@/server/db";
 import { canBeRidden } from "@/server/domain/bikes";
 import {
@@ -56,6 +58,8 @@ export type Garage = {
   items: InventoryItemVM[];
   /** Archived ones included (D-86). */
   procedures: Procedure[];
+  /** Runs in progress (D-87): "En cours" in "À prévoir". */
+  runs: RunInProgress[];
 };
 
 export function loadGarage(ctx: AccessContext): Garage {
@@ -95,15 +99,23 @@ export function loadGarage(ctx: AccessContext): Garage {
     .filter((item) => item.archivedAt == null)
     .map((item) => itemVM(item, bikes, ridable, rules, timeZone));
   const procedures = listProcedures(ctx);
+  const runs = listRunsInProgress(ctx);
   // A rule row shows the workshop part that serves its slot (the sealant's "vide · à commander")
   // and the procedure it is done with (D-86).
   for (const [bikeId, evaluated] of rules) {
     for (const entry of evaluated) {
       entry.row.stock = stockLine(entry.rule.componentTypeCode, bikeId, items);
       entry.row.procedure = procedureRefOf(entry.rule.procedureId, procedures);
+      entry.row.run = runOf(runs, entry.rule.id);
     }
   }
-  return { bikes, ridable, rides, rules, items, procedures };
+  return { bikes, ridable, rides, rules, items, procedures, runs };
+}
+
+/** "En cours" on a rule: its run in progress (D-87). */
+export function runOf(runs: RunInProgress[], ruleId: number): RuleRowVM["run"] {
+  const run = runs.find((r) => r.ruleId === ruleId);
+  return run ? { id: run.id, status: run.status } : null;
 }
 
 /** What an item holds, with the words to say it: its unit, its container (D-85). */

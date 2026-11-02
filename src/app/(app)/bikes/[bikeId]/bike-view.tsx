@@ -35,6 +35,7 @@ import {
   saveSuspensionSpecsAction,
   updateSetupAction,
 } from "@/server/actions/setups";
+import { startRunAction } from "@/server/actions/runs";
 import type { BikePage } from "@/server/views/bikes";
 import { useSnooze } from "../../use-snooze";
 import { useTaskDone } from "../../use-task-done";
@@ -149,6 +150,17 @@ export function BikeView({
             onTaskDone: (task) => taskDone(task.id, task.title),
             onTaskEdit: (task) => taskSheet.edit(task),
             workshopItemHref: (id) => `/workshop?item=${id}`,
+            onStartRule: async (rule) => {
+              const result = await startRunAction({ from: "rule", ruleId: rule.id });
+              if (!result.ok) return toast(result.error);
+              router.push(`/runs/${result.runId}`);
+            },
+            onStartTask: async (task) => {
+              const result = await startRunAction({ from: "task", taskId: task.id });
+              if (!result.ok) return toast(result.error);
+              router.push(`/runs/${result.runId}`);
+            },
+            runHref: (runId) => `/runs/${runId}`,
             procedureHref: (id, bikeId) =>
               `/workshop?tab=procedures&procedure=${id}${bikeId != null ? `&bike=${bikeId}` : ""}`,
             onAddTask: () => taskSheet.open(bikeId),

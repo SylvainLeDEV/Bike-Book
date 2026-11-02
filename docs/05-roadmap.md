@@ -80,7 +80,7 @@ weeks of real use.
 - [ ] Photo labels and the photo search across bikes, in Activité › Photos (D-45)
 - [x] Workshop: products (four levels plus containers, D-36) and tools (D-33), before the procedures so their material links to the stock (D-82); built directly in the app from the mockup, no `/design` screen and no demo data (done 2026-11-01, D-85: Pièces · Produits · Outils · À racheter, levels and possession recorded as movements, the view kept in the address; no migration)
 - [x] Maintenance procedures ("fiches"): list (the Atelier's "Fiches" filter), detail with the material read for a bike, editor, photos per step, PDF manuals, task or rule → procedure link, the bike page's section, archive or delete (done 2026-11-02, D-86, migration `0013_procedures`)
-- [ ] Runs ("suivi"), **next**: to do, in progress, done, stored in the database, steps checked with comments and photos, summary that writes the maintenance event (D-82, revising D-47's workshop mode; ≈ 3–4 evenings, **Estimate**)
+- [x] Runs ("suivi"): stored in the database, one step at a time with comments and photos, started from a rule, a task or a procedure, "En cours" in "À prévoir", summary that writes the maintenance event, the parts and products used and the rule reset, "Annuler" (done 2026-11-02, D-87, migration `0014_runs`)
 - [ ] "Dupliquer" a procedure (left for later by D-86)
 - [ ] Statistics: km and hours per bike per month, cost per bike per year, cost per 100 km over time (D-23, D-44)
 - [ ] Search and filters beyond the workshop (the bike history's year, month and kind filters exist, D-78; next: the same in Activité with a bike filter, text search, place, ride type, conditions, totals per period)

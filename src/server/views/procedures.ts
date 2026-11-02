@@ -2,7 +2,7 @@ import "server-only";
 import type { ComponentTypeCode } from "@/lib/enums";
 import { COMPONENT_TYPE_LABELS } from "@/lib/labels";
 import type { BikeRef, ProcedureOption, ProcedureRef, ProcedureVM } from "@/lib/view-models";
-import type { Bike, Procedure, Task } from "@/server/db";
+import type { Bike, Procedure, Run, Task } from "@/server/db";
 import { bikeRef } from "./refs";
 import type { EvaluatedRule } from "./rules";
 
@@ -39,6 +39,7 @@ export function procedureVMs(
   bikes: Bike[],
   rules: Map<number, EvaluatedRule[]>,
   openTasks: Task[],
+  runs: Run[] = [],
 ): ProcedureVM[] {
   const refs = new Map(bikes.map((bike) => [bike.id, bikeRef(bike)]));
   const evaluated = [...rules.values()].flat();
@@ -70,6 +71,9 @@ export function procedureVMs(
           : { id: item.id, quantity: item.quantity, target: "label", label: item.label ?? "" },
     ),
     resources: p.resources,
+    runs: runs
+      .filter((run) => run.procedureId === p.id && run.taskId == null && run.ruleId == null)
+      .map((run) => ({ id: run.id, bikeId: run.bikeId })),
     links: [
       ...evaluated
         .filter((entry) => entry.rule.procedureId === p.id)

@@ -92,6 +92,8 @@ function TimelineEntry({
         Usure comptée : {formatDuration(item.wearS)} de descente
       </Tag>,
     );
+  if (item.kind === "maintenance" && item.laborTimeS != null)
+    tags.push(<Tag key="t">Temps passé : {formatDuration(item.laborTimeS)}</Tag>);
   for (const document of item.documents)
     tags.push(
       <Tag key={`d${document.id}`}>

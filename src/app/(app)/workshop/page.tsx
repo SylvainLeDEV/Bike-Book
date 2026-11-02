@@ -26,7 +26,13 @@ export default async function WorkshopPage({ searchParams }: PageProps<"/worksho
         today: today(),
         bikes: garage.ridable.map(bikeRef),
         items: garage.items,
-        procedures: procedureVMs(garage.procedures, garage.bikes, garage.rules, listOpenTasks(ctx)),
+        procedures: procedureVMs(
+          garage.procedures,
+          garage.bikes,
+          garage.rules,
+          listOpenTasks(ctx),
+          garage.runs,
+        ),
       }}
       componentTypes={COMPONENT_TYPE_CODES.map((code) => ({
         code,

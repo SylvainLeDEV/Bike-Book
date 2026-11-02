@@ -26,6 +26,7 @@ import {
   undoCreateRideAction,
   updateRideAction,
 } from "@/server/actions/rides";
+import { startRunAction } from "@/server/actions/runs";
 import { createTaskAction, setTaskDoneAction, updateTaskAction } from "@/server/actions/tasks";
 import { signOutAction } from "@/server/actions/session";
 import type { AppFrameVM } from "@/server/views/shell";
@@ -109,6 +110,12 @@ export function AppFrame({
           <TaskSheetProvider
             bikes={frame.quickRide.bikes}
             procedures={frame.procedures}
+            onStartRun={async (task) => {
+              const result = await startRunAction({ from: "task", taskId: task.id });
+              if (!result.ok) return result.error;
+              router.push(`/runs/${result.runId}`);
+              return null;
+            }}
             onSubmit={async (input) => {
               const result = await createTaskAction(input);
               if (!result.ok) return result.error;

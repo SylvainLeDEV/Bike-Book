@@ -5,8 +5,10 @@ import { useBikeSheet } from "@/components/bike/bike-sheet";
 import { useTaskSheet } from "@/components/plan/task-sheet";
 import { DashboardScreen } from "@/components/dashboard/dashboard-screen";
 import { PageBody, Topbar } from "@/components/shell/topbar";
+import { useToast } from "@/components/ui/toast";
 import type { DashboardVM } from "@/lib/view-models";
 import { snoozeRuleAction, undoSnoozeAction } from "@/server/actions/rules";
+import { startRunAction } from "@/server/actions/runs";
 import { useSnooze } from "./use-snooze";
 import { useTaskDone } from "./use-task-done";
 
@@ -16,6 +18,7 @@ export function HomeView({ vm }: { vm: DashboardVM }) {
   const snooze = useSnooze(snoozeRuleAction, undoSnoozeAction);
   const taskSheet = useTaskSheet();
   const taskDone = useTaskDone();
+  const toast = useToast();
   return (
     <>
       <Topbar />
@@ -30,6 +33,17 @@ export function HomeView({ vm }: { vm: DashboardVM }) {
             onTaskEdit: (task) => taskSheet.edit(task),
             onAddTask: () => taskSheet.open(),
             workshopItemHref: (id) => `/workshop?item=${id}`,
+            onStartRule: async (rule) => {
+              const result = await startRunAction({ from: "rule", ruleId: rule.id });
+              if (!result.ok) return toast(result.error);
+              router.push(`/runs/${result.runId}`);
+            },
+            onStartTask: async (task) => {
+              const result = await startRunAction({ from: "task", taskId: task.id });
+              if (!result.ok) return toast(result.error);
+              router.push(`/runs/${result.runId}`);
+            },
+            runHref: (runId) => `/runs/${runId}`,
             procedureHref: (id, bikeId) =>
               `/workshop?tab=procedures&procedure=${id}${bikeId != null ? `&bike=${bikeId}` : ""}`,
           }}

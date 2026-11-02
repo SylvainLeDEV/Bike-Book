@@ -202,4 +202,116 @@ describe("openDatabase migrations", () => {
     expect(sqlite.prepare("SELECT procedure_id FROM tasks").get()).toEqual({ procedure_id: null });
     sqlite.close();
   });
+
+  it("keeps the attachments, covers and procedures' files through the rebuild of 0014 (D-87)", () => {
+    upTo("0013_procedures");
+    const before = openDatabase(file, migrationsFolder).sqlite;
+    const row = (owner: string, id: number, n: number) =>
+      `INSERT INTO attachments (id, ${owner}, kind, storage_path, original_name, mime_type, size_bytes, sha256, created_at, updated_at)
+        VALUES (${n}, ${id}, 'photo', 'uploads/2026/11/${n}.jpg', '${n}.jpg', 'image/jpeg', 10, '${n}', 0, 0);`;
+    before.exec(`
+      INSERT INTO workspaces (id, name, created_at) VALUES (1, 'Garage', 0);
+      INSERT INTO bikes (id, workspace_id, name, discipline, created_at, updated_at)
+        VALUES (1, 1, 'Spectral', 'enduro', 0, 0);
+      INSERT INTO maintenance_events (id, bike_id, performed_on, title, performed_by, created_at, updated_at)
+        VALUES (1, 1, '2026-11-01', 'Purge', 'self', 0, 0);
+      INSERT INTO procedures (id, workspace_id, title, created_at, updated_at)
+        VALUES (1, 1, 'Purge', 0, 0);
+      INSERT INTO procedure_steps (id, procedure_id, sort_order, instruction) VALUES (1, 1, 0, 'Vider');
+      ${row("bike_id", 1, 1)}
+      ${row("procedure_id", 1, 2)}
+      ${row("procedure_step_id", 1, 3)}
+      UPDATE bikes SET cover_attachment_id = 1;
+    `);
+    before.close();
+
+    upTo("0014_runs");
+    const { sqlite } = openDatabase(file, migrationsFolder);
+    expect(
+      sqlite
+        .prepare("SELECT id, bike_id, procedure_id, procedure_step_id FROM attachments ORDER BY id")
+        .all(),
+    ).toEqual([
+      { id: 1, bike_id: 1, procedure_id: null, procedure_step_id: null },
+      { id: 2, bike_id: null, procedure_id: 1, procedure_step_id: null },
+      { id: 3, bike_id: null, procedure_id: null, procedure_step_id: 1 },
+    ]);
+    expect(sqlite.prepare("SELECT cover_attachment_id FROM bikes").get()).toEqual({
+      cover_attachment_id: 1,
+    });
+    expect(sqlite.prepare("SELECT labor_time_s FROM maintenance_events").get()).toEqual({
+      labor_time_s: null,
+    });
+
+    // A run done writes its event; deleting the event deletes the run and its photos.
+    sqlite.exec(`
+      INSERT INTO procedure_runs (id, workspace_id, bike_id, procedure_id, title, status, started_at, finished_at, maintenance_event_id, created_at, updated_at)
+        VALUES (1, 1, 1, 1, 'Purge', 'done', 0, 1, 1, 0, 0);
+      INSERT INTO procedure_run_steps (id, run_id, procedure_step_id, sort_order, instruction) VALUES (1, 1, 1, 0, 'Vider');
+      ${row("procedure_run_step_id", 1, 4)}
+    `);
+    expect(() =>
+      sqlite.exec(
+        "INSERT INTO procedure_runs (workspace_id, title, status, started_at, created_at, updated_at) VALUES (1, 'Sans vélo ni tâche', 'in_progress', 0, 0, 0)",
+      ),
+    ).toThrow(/CHECK/);
+    sqlite.exec("DELETE FROM maintenance_events WHERE id = 1");
+    expect(sqlite.prepare("SELECT count(*) AS n FROM procedure_runs").get()).toEqual({ n: 0 });
+    expect(sqlite.prepare("SELECT count(*) AS n FROM attachments").get()).toEqual({ n: 3 });
+    sqlite.close();
+  });
+
+  it("keeps the maintenance lines and their links through the rebuild of 0015 (D-88)", () => {
+    upTo("0014_runs");
+    const before = openDatabase(file, migrationsFolder).sqlite;
+    before.exec(`
+      INSERT INTO workspaces (id, name, created_at) VALUES (1, 'Garage', 0);
+      INSERT INTO bikes (id, workspace_id, name, discipline, created_at, updated_at)
+        VALUES (1, 1, 'Spectral', 'enduro', 0, 0);
+      INSERT INTO components (id, bike_id, type_code, position, origin, installed_at, created_at, updated_at)
+        VALUES (1, 1, 'chain', 'none', 'stock', 0, 0, 0), (2, 1, 'chain', 'none', 'replacement', 0, 0, 0);
+      INSERT INTO maintenance_rules (id, bike_id, title, interval_days, counter_start_at, created_at, updated_at)
+        VALUES (1, 1, 'Contrôle', 30, 0, 0, 0);
+      INSERT INTO maintenance_events (id, bike_id, performed_on, title, performed_by, created_at, updated_at)
+        VALUES (1, 1, '2026-11-01', 'Chaîne', 'self', 0, 0);
+      INSERT INTO maintenance_items (id, event_id, action, component_id, new_component_id, rule_id, created_at)
+        VALUES (1, 1, 'replaced', 1, 2, null, 0), (2, 1, 'inspected', 2, null, 1, 0);
+      INSERT INTO inventory_items (id, workspace_id, kind, name, category, unit, created_at, updated_at)
+        VALUES (1, 1, 'part', 'Chaîne', 'drivetrain', 'piece', 0, 0);
+      INSERT INTO inventory_movements (id, item_id, occurred_at, kind, quantity_delta, maintenance_item_id, created_at)
+        VALUES (1, 1, 0, 'use', -1, 1, 0);
+    `);
+    before.close();
+
+    upTo("0015_repaired_action");
+    const { sqlite } = openDatabase(file, migrationsFolder);
+    expect(
+      sqlite
+        .prepare(
+          "SELECT id, action, component_id, new_component_id, rule_id FROM maintenance_items",
+        )
+        .all(),
+    ).toEqual([
+      { id: 1, action: "replaced", component_id: 1, new_component_id: 2, rule_id: null },
+      { id: 2, action: "inspected", component_id: 2, new_component_id: null, rule_id: 1 },
+    ]);
+    expect(sqlite.prepare("SELECT maintenance_item_id FROM inventory_movements").get()).toEqual({
+      maintenance_item_id: 1,
+    });
+
+    // "Réparé" is accepted, an unknown action still refused; the rule link keeps its SET NULL.
+    sqlite.exec(
+      "INSERT INTO maintenance_items (event_id, action, component_id, created_at) VALUES (1, 'repaired', 2, 0)",
+    );
+    expect(() =>
+      sqlite.exec(
+        "INSERT INTO maintenance_items (event_id, action, created_at) VALUES (1, 'patched', 0)",
+      ),
+    ).toThrow(/CHECK/);
+    sqlite.exec("DELETE FROM maintenance_rules WHERE id = 1");
+    expect(sqlite.prepare("SELECT rule_id FROM maintenance_items WHERE id = 2").get()).toEqual({
+      rule_id: null,
+    });
+    sqlite.close();
+  });
 });

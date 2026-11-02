@@ -123,6 +123,7 @@ export type ComponentOrigin = (typeof COMPONENT_ORIGINS)[number];
 export const MAINTENANCE_ACTIONS = [
   "replaced",
   "serviced",
+  "repaired",
   "inspected",
   "adjusted",
   "cleaned",
@@ -136,6 +137,7 @@ export type MaintenanceAction = (typeof MAINTENANCE_ACTIONS)[number];
 /** The actions of the maintenance sheet: replacements go through "Remplacer une pièce" (D-63). */
 export const MAINTENANCE_LINE_ACTIONS = [
   "serviced",
+  "repaired",
   "inspected",
   "adjusted",
   "cleaned",
@@ -234,6 +236,7 @@ export const ATTACHMENT_OWNERS = [
   "inventory_item",
   "procedure",
   "procedure_step",
+  "procedure_run_step",
 ] as const;
 export type AttachmentOwnerKind = (typeof ATTACHMENT_OWNERS)[number];
 
@@ -246,3 +249,10 @@ export type ProcedureDifficulty = (typeof PROCEDURE_DIFFICULTIES)[number];
 /** What a procedure links to: a video (a link card, never a player), a web page, a note. */
 export const PROCEDURE_RESOURCE_KINDS = ["video", "link", "note"] as const;
 export type ProcedureResourceKind = (typeof PROCEDURE_RESOURCE_KINDS)[number];
+
+/**
+ * A run ("suivi", D-82, D-87): in progress, then done. "To do" is a task or rule without a run;
+ * an abandoned run is deleted.
+ */
+export const RUN_STATUSES = ["in_progress", "done"] as const;
+export type RunStatus = (typeof RUN_STATUSES)[number];

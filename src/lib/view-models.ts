@@ -32,6 +32,7 @@ import type {
   RideConditions,
   RideType,
   RuleStatus,
+  RunStatus,
   ShopKind,
   SpringType,
   SuspensionTypeCode,
@@ -108,6 +109,8 @@ export type RuleRowVM = {
   stock: ({ itemId: number; name: string; state: RebuyState | null } & ItemStockVM) | null;
   /** The procedure ("fiche") it is done with (D-86). */
   procedure?: ProcedureRef | null;
+  /** Its run in progress: "En cours", "Reprendre" (D-87). */
+  run?: RunRef | null;
 };
 
 /** "Nouvelle tâche" (feature 7). */
@@ -132,6 +135,8 @@ export type TaskRowVM = {
   doneOn: LocalDate | null;
   /** The procedure ("fiche") it is done with (D-86). */
   procedure?: ProcedureRef | null;
+  /** Open: its run in progress ("En cours"); done: the run it was done with (D-87). */
+  run?: RunRef | null;
 };
 
 // --- Timeline (rides and maintenance) ------------------------------------------------------------
@@ -201,6 +206,8 @@ export type MaintenanceItemVM = {
   title: string;
   totalCostCents: number | null;
   note: string | null;
+  /** The time spent, typed at the end of a run (D-87). */
+  laborTimeS?: number | null;
   documents: AttachmentVM[];
   photos: PhotoVM[];
 };
@@ -256,6 +263,8 @@ export type DashboardVM = {
   counts: { overdue: number; dueSoon: number; toRebuy: number };
   rules: RuleRowVM[];
   tasks: TaskRowVM[];
+  /** Runs in progress started from a procedure alone (D-87): their own rows. */
+  runs?: RunRowVM[];
   bikes: BikeCardVM[];
   rebuy: RebuyRowVM[];
   activity: TimelineItemVM[];
@@ -388,6 +397,8 @@ export type BikePageVM = {
   };
   rules: RuleRowVM[];
   tasks: TaskRowVM[];
+  /** Runs in progress of this bike started from a procedure alone (D-87). */
+  runs?: RunRowVM[];
   components: { purchasedOn: LocalDate | null; groups: ComponentGroupVM[] };
   stock: { rows: InventoryRowVM[]; total: number; toRebuy: number };
   history: TimelineItemVM[];
@@ -514,6 +525,8 @@ export type MaintenanceEditVM = {
   replacements: { label: string; costCents: number | null }[];
   /** Parts named by the lines but no longer fitted, offered next to the fitted ones. */
   formerParts: { id: number; label: string }[];
+  /** Written by a run (D-87): deleting the event deletes the run and its photos too. */
+  fromRun?: boolean;
 };
 
 /** The answer of an edit or a delete (D-70). */
@@ -705,6 +718,8 @@ export type ProcedureVM = ProcedureRef & {
   steps: ProcedureStepVM[];
   lines: ProcedureLineVM[];
   resources: ProcedureResourceVM[];
+  /** Its runs in progress started from it alone, per bike: "Reprendre" (D-87). */
+  runs?: { id: number; bikeId: number | null }[];
   /** The rules and open tasks that point to it. */
   links: {
     kind: "rule" | "task";
@@ -837,7 +852,8 @@ export type AddItemInput = {
 
 /** Answer of the replace action: the undo token is the `replaced` line (D-60). */
 export type ReplacePartResult =
-  { ok: true; message: string; undoItemId: number } | { ok: false; error: string };
+  | { ok: true; message: string; undoItemId: number; eventId?: number }
+  | { ok: false; error: string };
 
 /** Component types a part can fit, for the workshop's "Type de pièce" (docs/03). */
 export type ComponentTypeOption = { code: string; label: string };
@@ -982,3 +998,109 @@ export type SetupFieldErrors = Record<string, string>;
 
 export type SaveSetupResult =
   { ok: true; message: string } | { ok: false; error?: string; fieldErrors?: SetupFieldErrors };
+
+// --- Runs ("suivi", D-82, D-87) ---------------------------------------------------------------------
+
+export type RunRef = { id: number; status: RunStatus };
+
+/** A run in progress in "À prévoir", when no task or rule carries it. */
+export type RunRowVM = {
+  id: number;
+  title: string;
+  bike: BikeRef | null;
+  stepCount: number;
+  doneCount: number;
+  startedOn: LocalDate;
+};
+
+export type RunStepVM = {
+  id: number;
+  instruction: string;
+  note: string | null;
+  /** Newton-metres. */
+  torqueNm: number | null;
+  done: boolean;
+  comment: string | null;
+  photoCount: number;
+  /** The procedure step's reference photos, while it exists. */
+  reference: { thumbUrl: string; url: string; alt: string }[];
+  /** Added during the run, not copied from the procedure: it can be removed. */
+  added: boolean;
+};
+
+/** A part the job takes from the workshop: its stock and price, the quantity proposed. */
+export type RunPartVM = {
+  itemId: number;
+  name: string;
+  unit: InventoryUnit;
+  inStock: number;
+  defaultQuantity: number;
+  /** Last purchase price (D-38): the cost proposed. */
+  lastUnitCostCents: number | null;
+};
+
+/** A product the job uses: its open container now, and after (one level down, D-47). */
+export type RunProductVM = {
+  itemId: number;
+  name: string;
+  container: ContainerWords;
+  containers: number;
+  level: ProductLevel;
+  defaultLevel: ProductLevel;
+};
+
+/** What the summary proposes before "Enregistrer" (D-82, D-87). */
+export type RunSummaryVM = {
+  today: LocalDate;
+  /** False for a general task's run: no event, the task is done. */
+  writesEvent: boolean;
+  /** The bike's fitted parts, for the event's line. */
+  components: { id: number; label: string }[];
+  defaultComponentId: number | null;
+  /** The bike's active rules: the one to reset, that of the run or pointing to its procedure first. */
+  rules: { id: number; title: string }[];
+  defaultRuleId: number | null;
+  parts: RunPartVM[];
+  products: RunProductVM[];
+  /** The procedure's duration (D-87), else empty. */
+  laborMinutes: number | null;
+  /** "Remplacer une pièce" from the summary (D-63, D-87). */
+  replace: ReplacePartVM | null;
+};
+
+export type RunVM = {
+  id: number;
+  title: string;
+  status: RunStatus;
+  bike: BikeRef | null;
+  /** "Tâche : Purger l'avant", "Règle : Purge des freins". */
+  context: string | null;
+  startedOn: LocalDate;
+  procedure: ProcedureRef | null;
+  resources: ProcedureResourceVM[];
+  /** The procedure's material, read for the bike (the "Ressources et matériel" panel). */
+  lines: ProcedureLineVM[];
+  items: InventoryItemVM[];
+  steps: RunStepVM[];
+  summary: RunSummaryVM | null;
+  /** Once done: the event it wrote (none for a general task). */
+  event: { id: number; bikeId: number; performedOn: LocalDate } | null;
+  finishedOn: LocalDate | null;
+};
+
+/** What "Enregistrer l'entretien" sends (D-87). */
+export type FinishRunInput = {
+  performedOn: LocalDate;
+  title: string;
+  notes: string | null;
+  laborMinutes: number | null;
+  action: Exclude<MaintenanceAction, "replaced">;
+  componentId: number | null;
+  ruleId: number | null;
+  costCents: number | null;
+  /** The event of a replacement made from the summary: the run's line joins it. */
+  joinEventId: number | null;
+  parts: { itemId: number; quantity: number }[];
+  products: { itemId: number; levelAfter: ProductLevel }[];
+  saveAsProcedure: boolean;
+};

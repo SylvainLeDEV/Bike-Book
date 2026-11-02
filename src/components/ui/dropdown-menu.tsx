@@ -11,12 +11,14 @@ const DropdownMenuTrigger = Menu.Trigger;
 function DropdownMenuContent({
   className,
   sideOffset = 6,
+  collisionPadding = 12,
   ...props
 }: React.ComponentProps<typeof Menu.Content>) {
   return (
     <Menu.Portal>
       <Menu.Content
         sideOffset={sideOffset}
+        collisionPadding={collisionPadding}
         className={cn(
           "z-50 min-w-56 rounded-control border border-border bg-popover p-1 text-popover-foreground shadow-(--shadow-md)",
           "data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0",

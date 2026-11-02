@@ -32,6 +32,7 @@ import {
   PROCEDURE_DIFFICULTIES,
   PROCEDURE_RESOURCE_KINDS,
   RESTOCK_STATUSES,
+  RUN_STATUSES,
   EVIDENCE_LEVELS,
   MAINTENANCE_ACTIONS,
   MAINTENANCE_PERFORMERS,
@@ -726,6 +727,8 @@ export const maintenanceEvents = sqliteTable(
     notes: text("notes"),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
+    /** Time spent, typed at the end of a run (D-87); > 0, checked by the app (added by ALTER). */
+    laborTimeS: integer("labor_time_s"),
   },
   (table) => [
     index("maintenance_events_bike_id_idx").on(table.bikeId),
@@ -812,6 +815,11 @@ export const attachments = sqliteTable(
       (): AnySQLiteColumn => procedureSteps.id,
       { onDelete: "cascade" },
     ),
+    /** A photo taken during a run, at one of its steps (D-87). */
+    procedureRunStepId: integer("procedure_run_step_id").references(
+      (): AnySQLiteColumn => procedureRunSteps.id,
+      { onDelete: "cascade" },
+    ),
     kind: text("kind", { enum: ATTACHMENT_KINDS }).notNull(),
     /** Relative to the data directory: `uploads/YYYY/MM/<random>.<ext>`. */
     storagePath: text("storage_path").notNull(),
@@ -841,11 +849,12 @@ export const attachments = sqliteTable(
     index("attachments_inventory_item_id_idx").on(table.inventoryItemId),
     index("attachments_procedure_id_idx").on(table.procedureId),
     index("attachments_procedure_step_id_idx").on(table.procedureStepId),
+    index("attachments_procedure_run_step_id_idx").on(table.procedureRunStepId),
     enumCheck("attachments_kind_check", table.kind, ATTACHMENT_KINDS),
     // Exactly one owner (D-45). CASE rather than adding booleans, so PostgreSQL accepts it too.
     check(
       "attachments_owner_check",
-      sql`(case when ${table.bikeId} is null then 0 else 1 end) + (case when ${table.componentId} is null then 0 else 1 end) + (case when ${table.maintenanceEventId} is null then 0 else 1 end) + (case when ${table.rideId} is null then 0 else 1 end) + (case when ${table.taskId} is null then 0 else 1 end) + (case when ${table.inventoryItemId} is null then 0 else 1 end) + (case when ${table.procedureId} is null then 0 else 1 end) + (case when ${table.procedureStepId} is null then 0 else 1 end) = 1`,
+      sql`(case when ${table.bikeId} is null then 0 else 1 end) + (case when ${table.componentId} is null then 0 else 1 end) + (case when ${table.maintenanceEventId} is null then 0 else 1 end) + (case when ${table.rideId} is null then 0 else 1 end) + (case when ${table.taskId} is null then 0 else 1 end) + (case when ${table.inventoryItemId} is null then 0 else 1 end) + (case when ${table.procedureId} is null then 0 else 1 end) + (case when ${table.procedureStepId} is null then 0 else 1 end) + (case when ${table.procedureRunStepId} is null then 0 else 1 end) = 1`,
     ),
     check(
       "attachments_photo_check",
@@ -1095,6 +1104,87 @@ export const procedureResources = sqliteTable(
     check(
       "procedure_resources_fields_check",
       sql`(${table.kind} = 'note') = (${table.url} is null) and (${table.kind} = 'note') = (${table.body} is not null) and (${table.durationS} is null or (${table.kind} = 'video' and ${table.durationS} > 0))`,
+    ),
+  ],
+);
+
+// --- Runs ("suivi", D-82, D-87) ---------------------------------------------------------------------
+
+/**
+ * One time the work is done: from a task, a rule or a procedure, on a bike (or, for a general
+ * task, none). Its steps are copied from the procedure when it starts. "Terminer" writes the
+ * maintenance event (none for a general task); deleting that event deletes the run.
+ */
+export const procedureRuns = sqliteTable(
+  "procedure_runs",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    /** A general task's run has no bike, so the run carries the workspace itself (D-25). */
+    workspaceId: integer("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    bikeId: integer("bike_id").references(() => bikes.id, { onDelete: "cascade" }),
+    /** The procedure followed; null without one, or once it is deleted (the steps are copies). */
+    procedureId: integer("procedure_id").references(() => procedures.id, {
+      onDelete: "set null",
+    }),
+    taskId: integer("task_id").references(() => tasks.id, { onDelete: "set null" }),
+    ruleId: integer("rule_id").references(() => maintenanceRules.id, { onDelete: "set null" }),
+    /** The procedure's or the task's title when it started; the event's title by default. */
+    title: text("title").notNull(),
+    status: text("status", { enum: RUN_STATUSES }).notNull(),
+    startedAt: integer("started_at", { mode: "timestamp_ms" }).notNull(),
+    finishedAt: integer("finished_at", { mode: "timestamp_ms" }),
+    /** The event "Terminer" wrote; deleting it deletes the run. */
+    maintenanceEventId: integer("maintenance_event_id").references(() => maintenanceEvents.id, {
+      onDelete: "cascade",
+    }),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    index("procedure_runs_workspace_id_status_idx").on(table.workspaceId, table.status),
+    index("procedure_runs_bike_id_idx").on(table.bikeId),
+    index("procedure_runs_task_id_idx").on(table.taskId),
+    index("procedure_runs_rule_id_idx").on(table.ruleId),
+    index("procedure_runs_maintenance_event_id_idx").on(table.maintenanceEventId),
+    enumCheck("procedure_runs_status_check", table.status, RUN_STATUSES),
+    check(
+      "procedure_runs_finished_check",
+      sql`(${table.status} = 'done') = (${table.finishedAt} is not null) and (${table.status} = 'done' or ${table.maintenanceEventId} is null)`,
+    ),
+    check(
+      "procedure_runs_context_check",
+      sql`(${table.bikeId} is not null or ${table.taskId} is not null) and (${table.taskId} is null or ${table.ruleId} is null)`,
+    ),
+  ],
+);
+
+/** A step of a run: a copy of the procedure's, or one added along the way. */
+export const procedureRunSteps = sqliteTable(
+  "procedure_run_steps",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    runId: integer("run_id")
+      .notNull()
+      .references(() => procedureRuns.id, { onDelete: "cascade" }),
+    /** The procedure's step it was copied from: its reference photos stay readable there. */
+    procedureStepId: integer("procedure_step_id").references(() => procedureSteps.id, {
+      onDelete: "set null",
+    }),
+    sortOrder: integer("sort_order").notNull(),
+    instruction: text("instruction").notNull(),
+    note: text("note"),
+    torqueNm: real("torque_nm"),
+    /** When it was checked ("Étape faite"); null: not done. */
+    doneAt: integer("done_at", { mode: "timestamp_ms" }),
+    comment: text("comment"),
+  },
+  (table) => [
+    index("procedure_run_steps_run_id_idx").on(table.runId),
+    check(
+      "procedure_run_steps_torque_check",
+      sql`${table.torqueNm} is null or ${table.torqueNm} > 0`,
     ),
   ],
 );

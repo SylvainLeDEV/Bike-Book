@@ -13,7 +13,15 @@ import type {
   TimelineEdits,
   TimelineItemVM,
 } from "@/lib/view-models";
-import type { Bike, Component, MaintenanceEvent, MaintenanceItem, Ride, Task } from "@/server/db";
+import type {
+  Bike,
+  Component,
+  MaintenanceEvent,
+  MaintenanceItem,
+  Ride,
+  Run,
+  Task,
+} from "@/server/db";
 import { eventCostCents } from "@/server/domain/cost";
 import { rideDurationS, shownWearS } from "@/server/domain/rides";
 import { eventInstant } from "@/server/domain/time";
@@ -35,6 +43,7 @@ export function maintenanceEntry(event: MaintenanceEvent, bikeName: string): Mai
     title: event.title,
     totalCostCents: eventCostCents(event),
     note: event.notes,
+    laborTimeS: event.laborTimeS,
     documents: [],
     photos: [],
   };
@@ -148,11 +157,15 @@ export function timelineEdits(
   tasks: DoneTask[],
   bikes: Pick<Bike, "id" | "name" | "coverAttachmentId">[],
   timeZone: string,
+  /** The runs the done tasks were done with: "Voir le suivi" (D-87). */
+  runs: Pick<Run, "id" | "taskId" | "status">[] = [],
 ): TimelineEdits {
   return {
     rides: Object.fromEntries(rides.map((ride) => [ride.id, rideForm(ride, timeZone)])),
     eventBikeIds: Object.fromEntries(events.map((event) => [event.id, event.bikeId])),
-    tasks: Object.fromEntries(tasks.map((task) => [task.id, taskRow(task, bikes, timeZone)])),
+    tasks: Object.fromEntries(
+      tasks.map((task) => [task.id, taskRow(task, bikes, timeZone, [], runs)]),
+    ),
   };
 }
 
@@ -162,6 +175,7 @@ type LineItem = MaintenanceItem & { action: Exclude<MaintenanceAction, "replaced
 export function maintenanceEdit(
   event: MaintenanceEvent,
   components: Component[],
+  fromRun = false,
 ): MaintenanceEditVM {
   const parts = new Map(components.map((part) => [part.id, part]));
   const name = (id: number | null) => {
@@ -210,5 +224,6 @@ export function maintenanceEdit(
       id,
       label: `${slot(id)} · ${name(id)} (déposée)`,
     })),
+    fromRun,
   };
 }

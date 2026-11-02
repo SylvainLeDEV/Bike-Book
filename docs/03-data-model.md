@@ -361,7 +361,8 @@ Status: **Built** in phase 1 feature 3 (2026-10-26, migration `0004`): a replace
 the event and its lines, unless a replacement joined it since (D-60). "Modifier l'entretien" rewrites the
 event and its lines except replacements, which follow a new date (`removed_at` of the old part,
 `installed_at` of the new one, the stock movement); "Supprimer l'entretien" also undoes its
-replacements (D-70).
+replacements (D-70). `labor_time_s` was added with runs (D-87, migration `0014_runs`): a run's
+"Terminer" writes the event; deleting that event deletes its run too.
 
 One visit to the shop or one session in the garage.
 
@@ -376,12 +377,14 @@ One visit to the shop or one session in the garage.
 | `created_by` | FK `users`, nullable | Who logged it (D-25); null if that account was deleted |
 | `total_cost_cents` | integer, nullable | The total typed (an invoice). `null`: the event costs the sum of its lines' `cost_cents` (D-63). ≥ 0 |
 | `notes` | text | |
+| `labor_time_s` | integer, nullable | Time spent in seconds, typed in minutes in a run's summary (prefilled with the procedure's duration, D-87); a run that joins an event adds its time. Checked by the app (> 0, 24 h at most), no CHECK, so the column came by `ALTER TABLE` (D-57). Shown in the history ("Temps passé") |
 | `created_at`, `updated_at` | timestamp | `created_at` also dates a same-day event for the counters (D-61) |
 
 ### `maintenance_items`
 
 Status: **Built** in phase 1 feature 3 (2026-10-26); `rule_id` added with the rule engine (feature 6,
-migration `0006`, D-57).
+migration `0006`, D-57); the action `repaired` added by D-88 (migration `0015_repaired_action`,
+which rebuilt the table for its CHECK).
 
 What was done during an event. A shop service often covers several interventions (chain +
 cassette + pads + bleed): each one can reset its own rule and point to its own part.
@@ -390,7 +393,7 @@ cassette + pads + bleed): each one can reset its own rule and point to its own p
 |-------|------|-------|
 | `id` | integer PK | |
 | `event_id` | FK `maintenance_events`, required | |
-| `action` | enum, required | `replaced`, `serviced`, `inspected`, `adjusted`, `cleaned`, `lubricated`, `bled` (brakes), `trued` (wheel), `other` |
+| `action` | enum, required | `replaced`, `serviced`, `repaired` (fixed without replacing the whole part: a tubeless plug, a straightened hanger, D-88), `inspected`, `adjusted`, `cleaned`, `lubricated`, `bled` (brakes), `trued` (wheel), `other` |
 | `component_id` | FK `components`, nullable | The part concerned (for `replaced`: the part removed) |
 | `new_component_id` | FK `components`, nullable | For `replaced` only: the part fitted. CHECK: both parts set for `replaced`, no new part otherwise |
 | `rule_id` | FK `maintenance_rules`, nullable | This item fulfils the rule, so its counter restarts. Added in feature 6 (migration `0006`); must be a rule of the event's bike |
@@ -474,7 +477,7 @@ COLUMN`, D-57). Decisions D-45, D-72 to D-76.
 | Field | Type | Notes |
 |-------|------|-------|
 | `id` | integer PK | |
-| `bike_id`, `component_id`, `maintenance_event_id`, `ride_id`, `task_id`, `inventory_item_id`, `procedure_id`, `procedure_step_id` | FK, nullable, `ON DELETE CASCADE` | **Exactly one** is set (CHECK constraint, D-45): the element the file belongs to. Its workspace is that element's (D-25). `procedure_id` (a procedure's documents) and `procedure_step_id` (a step's photos) joined with the procedures (D-86, migration `0013_procedures`, which rebuilt the table) |
+| `bike_id`, `component_id`, `maintenance_event_id`, `ride_id`, `task_id`, `inventory_item_id`, `procedure_id`, `procedure_step_id`, `procedure_run_step_id` | FK, nullable, `ON DELETE CASCADE` | **Exactly one** is set (CHECK constraint, D-45): the element the file belongs to. Its workspace is that element's (D-25). `procedure_id` (a procedure's documents) and `procedure_step_id` (a step's photos) joined with the procedures (D-86, migration `0013_procedures`, which rebuilt the table); `procedure_run_step_id` (a run step's photos, shown on the event the run wrote and in the bike's gallery) with runs (D-87, migration `0014_runs`, which rebuilt it again) |
 | `kind` | enum: `photo`, `invoice`, `manual`, `track`, `other` | See [values](#attachment-values). Proposed from the file (`photo` for an image, `invoice` for a PDF), changeable (D-74). CHECK: a `photo` is an image |
 | `storage_path` | text, unique | Relative to the data directory: `uploads/YYYY/MM/<random>.<ext>` (UTC month of the upload, 32 random hex characters). Never derived from the file name |
 | `original_name` | text | The file name sent by the browser, cleaned (no folder, no control character, 200 characters at most). Shown, and used for downloads |
@@ -746,8 +749,8 @@ given has no row.
 ## Phase 1.5 additions (labels, maintenance procedures)
 
 **Decided** on 2026-10-25 (D-45, D-47) and documented then so phase 1 closes no door. The
-procedure tables were **built** on 2026-11-02 (D-86, migration `0013_procedures`); labels are still
-to come.
+procedure tables were **built** on 2026-11-02 (D-86, migration `0013_procedures`), the run tables
+the same day (D-87, migration `0014_runs`); labels are still to come.
 
 ```mermaid
 erDiagram
@@ -766,6 +769,14 @@ erDiagram
     ATTACHMENT }o--o| PROCEDURE : "documents"
     MAINTENANCE_RULE }o--o| PROCEDURE : "is done with"
     TASK }o--o| PROCEDURE : "is done with"
+    PROCEDURE |o--o{ PROCEDURE_RUN : "is followed in"
+    BIKE |o--o{ PROCEDURE_RUN : "is worked on in"
+    TASK |o--o{ PROCEDURE_RUN : "is done in"
+    MAINTENANCE_RULE |o--o{ PROCEDURE_RUN : "is done in"
+    PROCEDURE_RUN ||--|{ PROCEDURE_RUN_STEP : "has"
+    PROCEDURE_STEP |o--o{ PROCEDURE_RUN_STEP : "is copied to"
+    PROCEDURE_RUN |o--o| MAINTENANCE_EVENT : "writes"
+    ATTACHMENT }o--o| PROCEDURE_RUN_STEP : "shows"
 ```
 
 ### Labels (photos only, D-45)
@@ -787,7 +798,7 @@ later without changing `tags`.
 ### Maintenance procedures (D-47, D-86)
 
 Status: **Built** on 2026-11-02 (D-86, migration `0013_procedures`): the Atelier's "Fiches" tab,
-the editor, the bike page's section, the rule and task link. Runs ("suivi", D-82) come next.
+the editor, the bike page's section, the rule and task link. Runs ("suivi") follow below (D-87).
 
 Reusable how-tos written by the owner, distinct from the maintenance events they produce. No
 procedure ships with the app, and the demo has none (D-85, D-86). A procedure is archived (it
@@ -872,17 +883,83 @@ of `attachments`)**
 - `maintenance_rules.procedure_id` and `tasks.procedure_id`: FK `procedures`, nullable,
   `ON DELETE SET NULL`: the procedure the rule or task is done with, chosen in the "Règles" sheet
   and in "Modifier la tâche" (D-86).
-- To come with runs (D-82): `maintenance_events.procedure_id` (the procedure followed) and
-  `labor_time_s` (the time spent, typed at the end).
+- With runs (D-87, migration `0014_runs`): `maintenance_events.labor_time_s` and
+  `attachments.procedure_run_step_id`, below. `maintenance_events.procedure_id`, sketched in D-47,
+  is not stored: the procedure followed is the run's (`procedure_runs.maintenance_event_id`), and
+  the event's line says "Fiche suivie : …".
 
 Readiness ("Possédé", "2 paires en stock", "Stock bas · presque vide", "Manquant", "Pas dans
 l'atelier") is computed from the workshop for one bike (`src/lib/procedures.ts`): nothing about
 availability is stored.
 
-**Runs ("suivi", D-82)**: one time the work is done on a bike, stored in the database with its
-status (to do, in progress, done) and a comment and photos per step; "Terminer" writes the
-maintenance event, the task done or the rule reset, the parts taken out of the stock, a product
-one level down by default. Its tables are written here when it is built.
+### Runs ("suivi", D-82, D-87)
+
+Status: **Built** on 2026-11-02 (D-87, migration `0014_runs`): the run's page `/runs/[runId]`,
+started from a rule, a task or a procedure, "En cours" in "À prévoir", the summary and "Terminer".
+
+One time the work is done, step by step. A run is stored in the database (D-82), so it can be
+resumed on another device and its steps can have photos. A run is **in progress** or **done**:
+"to do" is not stored (the task or the rule says it), and an abandoned run is deleted, its photos
+with it, after a confirmation. One run in progress per task, per rule, and per procedure and bike:
+"Commencer" on one that has a run in progress resumes it.
+
+**Where it starts**: "C'est fait" on a rule that has a procedure ("Commencer la fiche" or
+"Enregistrer directement"); "Commencer" on a task's row when it has a procedure; "Commencer le
+suivi" in "Modifier la tâche" for a task without one (its steps are added along the way); "Commencer"
+on a procedure for the bike chosen. A task without a bike can be followed too: "Terminer" then marks
+it done and writes no event; its steps and photos stay readable from the task ("Voir le suivi").
+
+**`procedure_runs`**
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `id` | integer PK | |
+| `workspace_id` | FK `workspaces`, required | A general task's run has no bike, so the run carries the workspace (D-25) |
+| `bike_id` | FK `bikes`, nullable, `ON DELETE CASCADE` | The bike worked on; null only for a general task's run |
+| `procedure_id` | FK `procedures`, nullable, `ON DELETE SET NULL` | The procedure followed. Null for a task without one, or once the procedure is deleted (the steps are copies, so the run stays readable) |
+| `task_id` | FK `tasks`, nullable, `ON DELETE SET NULL` | The task it was started from |
+| `rule_id` | FK `maintenance_rules`, nullable, `ON DELETE SET NULL` | The rule it was started from. CHECK: not both a task and a rule; a bike or a task is set |
+| `title` | text, required | The procedure's or the task's title when it started; the event's title by default |
+| `status` | enum, required | `in_progress`: being done, shown "En cours" in "À prévoir"; `done`: "Terminer" was pressed |
+| `started_at` | timestamp, required | "Commencer" |
+| `finished_at` | timestamp, nullable | "Terminer". CHECK: set exactly when `status = 'done'` |
+| `maintenance_event_id` | FK `maintenance_events`, nullable, `ON DELETE CASCADE` | The event "Terminer" wrote or joined. CHECK: null while in progress; null for a general task's run. Deleting the event deletes the run and its photos |
+| `created_at`, `updated_at` | timestamp | |
+
+**`procedure_run_steps`**: the run's own copy of the procedure's steps, so editing or deleting the
+procedure later changes nothing in it, and the steps added along the way.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `id` | integer PK | Its photos are its attachments (`procedure_run_step_id`) |
+| `run_id` | FK `procedure_runs`, required, `ON DELETE CASCADE` | |
+| `procedure_step_id` | FK `procedure_steps`, nullable, `ON DELETE SET NULL` | The step it was copied from: its reference photos are shown from there while it exists. Null for a step added along the way |
+| `sort_order` | integer, required | Display order, from 0; an added step goes last |
+| `instruction` | text, required | Copied, or typed for an added step |
+| `note` | text, nullable | Copied from the procedure's step |
+| `torque_nm` | real, nullable | Copied (> 0, CHECK) |
+| `done_at` | timestamp, nullable | When "Étape faite" was checked; null: not done. Unchecked steps are pointed out in the summary, never blocking |
+| `comment` | text, nullable | Typed during the run |
+
+**"Terminer"** opens a summary, then writes in one transaction (`src/server/db/runs.ts`):
+
+- one maintenance event of the bike (`performed_by = 'self'`) with one line: the action chosen
+  (`serviced`, "Entretenu", by default; never `replaced`), the bike's part of the procedure's type when it has
+  only one, the rule reset (the run's rule, or the bike's rule pointing to the procedure, ticked by
+  default), the cost (the parts at their last purchase price, editable), "Fiche suivie : …" as its
+  description, the time spent and the notes on the event. A part replaced from the summary
+  through "Remplacer une pièce" made an event that day: the run joins it (D-63), its notes and
+  time added to the event's, and that part's quantity is set to 0;
+- the parts taken from the stock (a `use` movement per part, its quantity per job, linked to the
+  line) and each product's open container one level down by default (D-47, a `use` or an
+  `adjustment` with `level_after`, as in D-85). All checked before anything is written;
+- the task done at that instant (D-77);
+- for a run without procedure, "Enregistrer ces étapes comme une fiche" (unticked) creates a
+  procedure for the bike from its steps and links the run to it.
+
+"Annuler" right after (D-60) puts the run back in progress and removes what it wrote (refused once
+another line joined an event it created). Deleting the event later deletes the run and its photos
+and gives back the stock its lines took (`giveBackLineStock`).
 
 ## Phase 2 additions (Garmin)
 

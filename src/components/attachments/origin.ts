@@ -23,6 +23,8 @@ export function originLabel(attachment: Pick<AttachmentVM, "origin">): string {
       return "Fiche d'entretien";
     case "procedure_step":
       return "Étape de fiche";
+    case "procedure_run_step":
+      return day ? `Suivi du ${day}` : "Suivi en cours";
   }
 }
 

@@ -1,12 +1,14 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { cn } from "cn";
 import {
   Archive,
   ArchiveRestore,
   CircleCheck,
   CirclePlay,
+  ClipboardCheck,
   ClipboardList,
   Clock,
   ExternalLink,
@@ -16,6 +18,7 @@ import {
   PackageMinus,
   PackageX,
   Pencil,
+  Play,
   Plus,
   ShoppingCart,
   StickyNote,
@@ -57,6 +60,8 @@ export type ProcedureActions = {
   onAddLineItem?: (lineId: number, prefill: NonNullable<ProcedureNeed["prefill"]>) => void;
   /** Opens a workshop item (its own tab). */
   onOpenItem?: (itemId: number) => void;
+  /** "Commencer" for the bike chosen (D-87): a run of this procedure, or the one in progress. */
+  onStart?: (procedure: ProcedureVM, bikeId: number) => void | Promise<void>;
 };
 
 const DIFFICULTY_BARS: Record<ProcedureDifficulty, number> = { easy: 1, medium: 2, hard: 3 };
@@ -202,7 +207,7 @@ function NeedRow({ need, actions }: { need: ProcedureNeed; actions: ProcedureAct
   );
 }
 
-function ResourceRow({ resource }: { resource: ProcedureResourceVM }) {
+export function ResourceRow({ resource }: { resource: ProcedureResourceVM }) {
   if (resource.kind === "note") {
     return (
       <li className="flex items-start gap-3 px-4 py-3">
@@ -278,6 +283,7 @@ export function ProcedureDetail({
     served.some((bike) => bike.id === initialBikeId) ? initialBikeId : (served[0]?.id ?? null),
   );
   const bike = served.find((b) => b.id === bikeId) ?? null;
+  const running = procedure.runs?.find((run) => run.bikeId === bikeId) ?? null;
   const needs = procedureNeeds(procedure.lines, items, bikeId);
   const readiness = readinessOf(needs);
   const missing = needs.filter((need) => need.availability === "missing");
@@ -341,6 +347,19 @@ export function ProcedureDetail({
       </header>
 
       <div className="flex flex-wrap gap-2">
+        {running ? (
+          <Button size="sm" asChild>
+            <Link href={`/runs/${running.id}`}>
+              <ClipboardCheck />
+              Reprendre{bike && served.length > 1 ? ` · ${bike.name}` : ""}
+            </Link>
+          </Button>
+        ) : bikeId != null && actions.onStart && !procedure.archived ? (
+          <Button size="sm" onClick={() => void actions.onStart?.(procedure, bikeId)}>
+            <Play />
+            Commencer{bike && served.length > 1 ? ` · ${bike.name}` : ""}
+          </Button>
+        ) : null}
         <Button variant="secondary" size="sm" onClick={() => actions.onEdit?.(procedure)}>
           <Pencil />
           Modifier

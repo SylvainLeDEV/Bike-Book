@@ -3,6 +3,9 @@ import { cn } from "cn";
 import {
   CalendarClock,
   Check,
+  ChevronDown,
+  ClipboardCheck,
+  Play,
   ListChecks,
   ListOrdered,
   PackageCheck,
@@ -16,10 +19,16 @@ import { RuleStatusBadge, WearBar } from "@/components/status";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { formatItemStock, formatQuantity, ruleNote } from "@/lib/display";
 import { formatDate, type LocalDate } from "@/lib/format";
 import { REBUY_STATE_LABELS } from "@/lib/labels";
-import type { ProcedureRef, RuleRowVM, TaskRowVM } from "@/lib/view-models";
+import type { ProcedureRef, RuleRowVM, RunRowVM, TaskRowVM } from "@/lib/view-models";
 import { ActionButton } from "./action-button";
 
 export type PlanActions = {
@@ -33,7 +42,41 @@ export type PlanActions = {
   workshopItemHref?: (itemId: number) => string;
   /** Where "Fiche : …" leads (D-86): the procedure, prepared for that bike. */
   procedureHref?: (procedureId: number, bikeId: number | null) => string;
+  /** "Commencer la fiche" on a rule, "Commencer" on a task with a procedure (D-87). */
+  onStartRule?: (rule: RuleRowVM) => void | Promise<void>;
+  onStartTask?: (task: TaskRowVM) => void | Promise<void>;
+  /** Where "Reprendre" leads: the run's page. */
+  runHref?: (runId: number) => string;
 };
+
+/** "En cours": a run started and not finished (D-87). Neutral, wear colours stay reserved. */
+function RunningBadge() {
+  return (
+    <Badge variant="outline">
+      <ClipboardCheck aria-hidden />
+      En cours
+    </Badge>
+  );
+}
+
+function ResumeButton({
+  runId,
+  label,
+  actions,
+}: {
+  runId: number;
+  label: string;
+  actions: PlanActions;
+}) {
+  return actions.runHref ? (
+    <Button variant="secondary" size="sm" asChild>
+      <Link href={actions.runHref(runId)} aria-label={`Reprendre : ${label}`}>
+        <Play />
+        Reprendre
+      </Link>
+    </Button>
+  ) : null;
+}
 
 /** "Fiche : Purge des freins" under a rule or a task that points to a procedure (D-86). */
 function ProcedureLine({
@@ -108,7 +151,10 @@ function RuleRow({
       <div className="min-w-0">
         <div className="flex items-center justify-between gap-2">
           <span className="min-w-0 truncate text-[13px] text-fg-muted">{context}</span>
-          <RuleStatusBadge status={rule.status} />
+          <span className="flex shrink-0 items-center gap-1.5">
+            {rule.run ? <RunningBadge /> : null}
+            <RuleStatusBadge status={rule.status} />
+          </span>
         </div>
         <h3 className="mt-[3px] mb-2.5 text-[15px] leading-[1.35] font-semibold">{rule.title}</h3>
         <WearBar
@@ -144,18 +190,49 @@ function RuleRow({
           <ProcedureLine procedure={rule.procedure} bikeId={rule.bike.id} actions={actions} />
         ) : null}
       </div>
-      {rule.status !== "ok" ? (
+      {rule.run ? (
         <div className={actionsClasses}>
-          <ActionButton
-            variant="secondary"
-            size="sm"
-            action={actions.onRuleDone}
-            payload={rule}
-            aria-label={`C'est fait : ${rule.title}, ${rule.bike.name}`}
-          >
-            <Check />
-            C&apos;est fait
-          </ActionButton>
+          <ResumeButton runId={rule.run.id} label={rule.title} actions={actions} />
+        </div>
+      ) : rule.status !== "ok" ? (
+        <div className={actionsClasses}>
+          {rule.procedure && actions.onStartRule ? (
+            // A rule with a procedure (D-47, D-87): follow it, or record it at once.
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  aria-label={`C'est fait : ${rule.title}, ${rule.bike.name}`}
+                >
+                  <Check />
+                  C&apos;est fait
+                  <ChevronDown />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onSelect={() => void actions.onStartRule?.(rule)}>
+                  <Play />
+                  Commencer la fiche
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => void actions.onRuleDone?.(rule)}>
+                  <Check />
+                  Enregistrer directement
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : (
+            <ActionButton
+              variant="secondary"
+              size="sm"
+              action={actions.onRuleDone}
+              payload={rule}
+              aria-label={`C'est fait : ${rule.title}, ${rule.bike.name}`}
+            >
+              <Check />
+              C&apos;est fait
+            </ActionButton>
+          )}
           <ActionButton
             variant="ghost"
             size="sm"
@@ -197,10 +274,14 @@ function TaskRow({
           <span className="min-w-0 truncate text-[13px] text-fg-muted">
             {withBike ? `${task.bike?.name ?? "Général"} · ` : ""}Tâche ponctuelle
           </span>
-          <Badge>
-            <ListChecks aria-hidden />
-            Tâche
-          </Badge>
+          {task.run ? (
+            <RunningBadge />
+          ) : (
+            <Badge>
+              <ListChecks aria-hidden />
+              Tâche
+            </Badge>
+          )}
         </div>
         <h3 className="mt-[3px] mb-1 text-[15px] leading-[1.35] font-semibold">{task.title}</h3>
         <p className="text-[13px] text-fg-muted">
@@ -228,16 +309,74 @@ function TaskRow({
             Modifier
           </Button>
         ) : null}
-        <ActionButton
-          variant="secondary"
-          size="sm"
-          action={actions.onTaskDone}
-          payload={task}
-          aria-label={`Marquer « ${task.title} » comme faite`}
-        >
-          <Check />
-          Fait
-        </ActionButton>
+        {task.run ? (
+          <ResumeButton runId={task.run.id} label={task.title} actions={actions} />
+        ) : (
+          <>
+            {task.procedure && actions.onStartTask ? (
+              <ActionButton
+                variant="secondary"
+                size="sm"
+                action={actions.onStartTask}
+                payload={task}
+                aria-label={`Commencer « ${task.title} »`}
+              >
+                <Play />
+                Commencer
+              </ActionButton>
+            ) : null}
+            <ActionButton
+              variant={task.procedure && actions.onStartTask ? "ghost" : "secondary"}
+              size="sm"
+              action={actions.onTaskDone}
+              payload={task}
+              aria-label={`Marquer « ${task.title} » comme faite`}
+            >
+              <Check />
+              Fait
+            </ActionButton>
+          </>
+        )}
+      </div>
+    </li>
+  );
+}
+
+/** A run started from a procedure alone (D-87): its own row while in progress. */
+function RunRow({
+  run,
+  withBike,
+  actions,
+}: {
+  run: RunRowVM;
+  withBike: boolean;
+  actions: PlanActions;
+}) {
+  return (
+    <li className={rowClasses}>
+      {withBike && run.bike ? (
+        <BikeCover cover={run.bike.cover} bare className="size-11 rounded-[11px]" />
+      ) : (
+        <span className="grid size-11 place-items-center rounded-[11px] bg-surface-2 text-fg-muted">
+          <ClipboardCheck className="size-[18px]" aria-hidden />
+        </span>
+      )}
+      <div className="min-w-0">
+        <div className="flex items-center justify-between gap-2">
+          <span className="min-w-0 truncate text-[13px] text-fg-muted">
+            {withBike && run.bike ? `${run.bike.name} · ` : ""}Suivi d&apos;une fiche
+          </span>
+          <RunningBadge />
+        </div>
+        <h3 className="mt-[3px] mb-1 text-[15px] leading-[1.35] font-semibold">{run.title}</h3>
+        <p className="text-[13px] text-fg-muted">
+          {run.stepCount
+            ? `${run.doneCount} étape${run.doneCount > 1 ? "s" : ""} faite${run.doneCount > 1 ? "s" : ""} sur ${run.stepCount}`
+            : "Pas encore d'étape"}
+        </p>
+      </div>
+      <div className={actionsClasses}>
+        <ResumeButton runId={run.id} label={run.title} actions={actions} />
       </div>
     </li>
   );
@@ -247,6 +386,7 @@ function TaskRow({
 export function PlanList({
   rules,
   tasks,
+  runs = [],
   today,
   withBike,
   actions,
@@ -254,6 +394,8 @@ export function PlanList({
 }: {
   rules: RuleRowVM[];
   tasks: TaskRowVM[];
+  /** Runs in progress started from a procedure alone (D-87). */
+  runs?: RunRowVM[];
   today: LocalDate;
   /** Dashboard: each row names its bike and shows its cover. */
   withBike: boolean;
@@ -281,7 +423,10 @@ export function PlanList({
             actions={actions}
           />
         ))}
-        {rules.length + tasks.length === 0 ? (
+        {runs.map((run) => (
+          <RunRow key={`s${run.id}`} run={run} withBike={withBike} actions={actions} />
+        ))}
+        {rules.length + tasks.length + runs.length === 0 ? (
           <li className="px-4 py-3 text-[13px] text-fg-muted">
             Rien à prévoir pour l&apos;instant.
           </li>

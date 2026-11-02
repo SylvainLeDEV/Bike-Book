@@ -139,6 +139,7 @@ export async function replacePartAction(input: unknown): Promise<ReplacePartResu
     ok: true,
     message: replacedTitle(old.typeCode, old.position),
     undoItemId: outcome.itemId,
+    eventId: outcome.eventId,
   };
 }
 

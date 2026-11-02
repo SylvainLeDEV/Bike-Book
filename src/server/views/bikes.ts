@@ -30,6 +30,8 @@ import {
   listDoneTasks,
   listMaintenanceEvents,
   listOpenTasks,
+  listRunsOfEvents,
+  listRunsOfTasks,
   listRides,
   listRuleResets,
   listRules,
@@ -59,7 +61,8 @@ import { bikeRef, taskRow } from "./refs";
 import { setupTab, toSpecsInput } from "./setups";
 import { maintenanceEdit, rideForm, timeline } from "./timeline";
 import { procedureOptions, procedureRefOf, procedureVMs } from "./procedures";
-import { bikeStock, isPartItem, loadGarage, stockLine } from "./workshop";
+import { runRows } from "./runs";
+import { bikeStock, isPartItem, loadGarage, runOf, stockLine } from "./workshop";
 
 /** Disciplines whose new forks are suspension forks by default (D-79): the mountain bikes. */
 const SUSPENSION_DISCIPLINES: Discipline[] = ["xc", "trail", "enduro", "dh", "dirt"];
@@ -184,6 +187,17 @@ export function getBikePage(ctx: AccessContext, bikeId: number): BikePage | null
   const usage = usageBetween(rides, null, null);
   const events = listMaintenanceEvents(ctx, bike.id);
   const doneTasks = listDoneTasks(ctx, { bikeId: bike.id });
+  const doneTaskRuns = listRunsOfTasks(
+    ctx,
+    doneTasks.map((task) => task.id),
+  );
+  // Events a run wrote: their delete also deletes the run (D-87).
+  const runEvents = new Set(
+    listRunsOfEvents(
+      ctx,
+      events.map((event) => event.id),
+    ).map((run) => run.maintenanceEventId),
+  );
   const shops = listShops(ctx);
   const suspensionSpecs = listSuspensionSpecs(ctx, bike.id);
   const specsById = new Map(suspensionSpecs.map((specs) => [specs.componentId, specs]));
@@ -220,6 +234,7 @@ export function getBikePage(ctx: AccessContext, bikeId: number): BikePage | null
   for (const entry of evaluated) {
     entry.row.stock = stockLine(entry.rule.componentTypeCode, bike.id, workshop);
     entry.row.procedure = procedureRefOf(entry.rule.procedureId, garage.procedures);
+    entry.row.run = runOf(garage.runs, entry.rule.id);
   }
   // The bike's procedures (D-86), their material read for this bike.
   const allBikes = garage.bikes.map(bikeRef);
@@ -262,7 +277,12 @@ export function getBikePage(ctx: AccessContext, bikeId: number): BikePage | null
     },
     rules: evaluated.map((entry) => entry.row),
     tasks: listOpenTasks(ctx, bike.id).map((task) =>
-      taskRow(task, [bike], timeZone, garage.procedures),
+      taskRow(task, [bike], timeZone, garage.procedures, garage.runs),
+    ),
+    runs: runRows(
+      garage.runs.filter((run) => run.bikeId === bike.id),
+      garage.bikes,
+      timeZone,
     ),
     components: { purchasedOn: bike.purchasedOn, groups: parts.groups },
     stock: bikeStock(workshop, bike.id),
@@ -341,10 +361,13 @@ export function getBikePage(ctx: AccessContext, bikeId: number): BikePage | null
     edits: {
       rides: Object.fromEntries(rides.map((ride) => [ride.id, rideForm(ride, timeZone)])),
       tasks: Object.fromEntries(
-        doneTasks.map((task) => [task.id, taskRow(task, [bike], timeZone)]),
+        doneTasks.map((task) => [task.id, taskRow(task, [bike], timeZone, [], doneTaskRuns)]),
       ),
       maintenance: Object.fromEntries(
-        events.map((event) => [event.id, maintenanceEdit(event, components)]),
+        events.map((event) => [
+          event.id,
+          maintenanceEdit(event, components, runEvents.has(event.id)),
+        ]),
       ),
     },
     done: donePrefill(evaluated, components),

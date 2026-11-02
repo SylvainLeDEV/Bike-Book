@@ -9,7 +9,10 @@ import { DEMO_ACCOUNT, seedDemoData } from "./seed";
 
 const NOW = Date.parse("2026-10-25T10:00:00Z");
 
-/** A procedure with one row in each of its tables (D-86): neither garage has one of its own. */
+/**
+ * A procedure with one row in each of its tables (D-86) and a run of it in progress with one step
+ * (D-87): neither garage has one of its own.
+ */
 function oneProcedure(workspaceId: number, bikeId: number, itemId: number, title: string) {
   const db = getDb();
   const procedure = db
@@ -26,6 +29,21 @@ function oneProcedure(workspaceId: number, bikeId: number, itemId: number, title
     .run();
   db.insert(schema.procedureResources)
     .values({ procedureId: procedure.id, kind: "note", body: "Gants.", sortOrder: 0 })
+    .run();
+  const run = db
+    .insert(schema.procedureRuns)
+    .values({
+      workspaceId,
+      bikeId,
+      procedureId: procedure.id,
+      title,
+      status: "in_progress",
+      startedAt: new Date(NOW),
+    })
+    .returning()
+    .get();
+  db.insert(schema.procedureRunSteps)
+    .values({ runId: run.id, sortOrder: 0, instruction: "Nettoyer", doneAt: new Date(NOW) })
     .run();
 }
 

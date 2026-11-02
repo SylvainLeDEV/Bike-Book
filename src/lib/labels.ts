@@ -219,6 +219,7 @@ export const COMPONENT_ORIGIN_LABELS: Record<ComponentOrigin, string> = {
 export const MAINTENANCE_ACTION_LABELS: Record<MaintenanceAction, string> = {
   replaced: "Remplacé",
   serviced: "Entretenu",
+  repaired: "Réparé",
   inspected: "Contrôlé",
   adjusted: "Réglé",
   cleaned: "Nettoyé",

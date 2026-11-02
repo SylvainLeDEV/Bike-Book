@@ -602,6 +602,8 @@ export type MaintenanceEvent = {
   shop: { id: number; name: string; kind: ShopKind } | null;
   totalCostCents: number | null;
   notes: string | null;
+  /** The time spent, typed at the end of a run (D-87). */
+  laborTimeS: number | null;
   createdAt: number;
   items: MaintenanceItem[];
 };
@@ -621,6 +623,7 @@ export function listMaintenanceEvents(
       performedBy: maintenanceEvents.performedBy,
       totalCostCents: maintenanceEvents.totalCostCents,
       notes: maintenanceEvents.notes,
+      laborTimeS: maintenanceEvents.laborTimeS,
       createdAt: maintenanceEvents.createdAt,
       shopId: shops.id,
       shopName: shops.name,
