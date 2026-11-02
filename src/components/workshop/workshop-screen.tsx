@@ -20,16 +20,50 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Chip, ChipCount, ChipRow } from "@/components/ui/chip";
 import { Input, NativeSelect } from "@/components/ui/field";
+import { replaceQuery } from "@/lib/address";
 import { formatMoney } from "@/lib/format";
 import { INVENTORY_CATEGORY_LABELS } from "@/lib/labels";
-import type { InventoryCategory, InventoryItemVM, RebuyState, WorkshopVM } from "@/lib/view-models";
+import type {
+  InventoryCategory,
+  InventoryItemVM,
+  InventoryKind,
+  RebuyState,
+  WorkshopVM,
+} from "@/lib/view-models";
+import { kindTab, writeWorkshopView, type WorkshopTab } from "@/lib/workshop-filter";
+import type { AddItemPrefill } from "./add-item-sheet";
 import { InventoryRowContent, inventoryRowClasses } from "./inventory-row";
 import { ItemDetail, type ItemActions } from "./item-detail";
 
-export type WorkshopTab = "parts" | "rebuy";
+export type { WorkshopTab };
 
 export type WorkshopActions = ItemActions & {
-  onAddItem?: (suggestion?: string) => void;
+  onAddItem?: (prefill?: AddItemPrefill) => void;
+};
+
+const TAB_KINDS: Partial<Record<WorkshopTab, InventoryKind>> = {
+  parts: "part",
+  products: "product",
+  tools: "tool",
+};
+
+/** An empty tab, without filters: what goes there, and a button to add one. */
+const EMPTY_TABS: Record<
+  "products" | "tools",
+  { title: string; text: string; add: string; kind: InventoryKind }
+> = {
+  products: {
+    title: "Aucun produit",
+    text: "Huile, graisse, liquide préventif : note le niveau du contenant entamé d'un coup d'œil.",
+    add: "Ajouter un produit",
+    kind: "product",
+  },
+  tools: {
+    title: "Aucun outil",
+    text: "Clé dynamométrique, kit de purge, dérive-chaîne : note ceux que tu as et ceux à acheter.",
+    add: "Ajouter un outil",
+    kind: "tool",
+  },
 };
 
 const CATEGORY_ORDER: InventoryCategory[] = [
@@ -50,7 +84,14 @@ const REBUY_GROUPS: { state: RebuyState; label: string; icon: typeof Truck }[] =
   { state: "low_stock", label: "Stock bas · pas encore prévu", icon: PackageMinus },
 ];
 
-const SUGGESTIONS = ["Plaquettes de frein", "Chaîne", "Chambre à air"];
+/** The guided empty workshop's suggestions (the mockup's), each opening the sheet prefilled. */
+const SUGGESTIONS: (AddItemPrefill & { name: string })[] = [
+  { kind: "part", name: "Plaquettes de frein", category: "brakes", unit: "pair" },
+  { kind: "part", name: "Chaîne", category: "drivetrain", unit: "piece" },
+  { kind: "product", name: "Liquide préventif tubeless", category: "wheels" },
+  { kind: "product", name: "Huile de frein", category: "brakes" },
+  { kind: "tool", name: "Clé dynamométrique", category: "other" },
+];
 
 /** Accents and case ignored: "derailleur" finds "Dérailleur". */
 const normalize = (text: string) => text.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
@@ -85,9 +126,10 @@ const SHELF_ART = (
 );
 
 /**
- * The workshop, parts only in phase 1 (D-33): a summary line that leads to "À racheter",
- * filters, search and a bike filter, rows grouped by category (by state in "À racheter").
- * Under 1024 px an item replaces the list; from 1024 px they sit side by side.
+ * The workshop (D-33, D-85): a summary line that leads to "À racheter", the Pièces · Produits ·
+ * Outils · À racheter filters, search and a bike filter, rows grouped by category (by state in
+ * "À racheter"). Under 1024 px an item replaces the list; from 1024 px they sit side by side.
+ * The tab, bike, search and open item are kept in the address.
  */
 export function WorkshopScreen({
   vm,
@@ -99,21 +141,24 @@ export function WorkshopScreen({
   actions: WorkshopActions;
   bikeHref: (bikeId: number) => string;
   initial?: {
-    tab?: WorkshopTab;
+    /** Null: the tab of the item open, else "Pièces". */
+    tab?: WorkshopTab | null;
     bikeId?: number | null;
+    query?: string;
     itemId?: number | null;
     receive?: boolean;
   };
 }) {
   const { user } = useShell();
-  const [tab, setTab] = React.useState<WorkshopTab>(initial?.tab ?? "parts");
-  const [query, setQuery] = React.useState("");
-  const [bikeId, setBikeId] = React.useState<number | null>(initial?.bikeId ?? null);
-  const [selectedId, setSelectedId] = React.useState<number | null>(
-    initial?.itemId ?? vm.items[0]?.id ?? null,
+  const initialItem = vm.items.find((item) => item.id === initial?.itemId) ?? null;
+  const [tab, setTabState] = React.useState<WorkshopTab>(
+    initial?.tab ?? (initialItem ? kindTab(initialItem.kind) : "parts"),
   );
+  const [query, setQuery] = React.useState(initial?.query ?? "");
+  const [bikeId, setBikeId] = React.useState<number | null>(initial?.bikeId ?? null);
+  const [selectedId, setSelectedId] = React.useState<number | null>(initialItem?.id ?? null);
   // Phone and tablet: the list, or one item in its place.
-  const [view, setView] = React.useState<"list" | "item">(initial?.itemId ? "item" : "list");
+  const [view, setView] = React.useState<"list" | "item">(initialItem ? "item" : "list");
   const [focusReceive, setFocusReceive] = React.useState(Boolean(initial?.receive));
   const listRef = React.useRef<HTMLDivElement>(null);
 
@@ -134,10 +179,48 @@ export function WorkshopScreen({
     return normalize(haystack).includes(q);
   };
   const inTab = (item: InventoryItemVM, t: WorkshopTab) =>
-    t === "rebuy" ? item.state !== null : true;
+    t === "rebuy" ? item.state !== null : item.kind === TAB_KINDS[t];
   const visible = (t: WorkshopTab) => vm.items.filter((item) => inTab(item, t) && passes(item));
   const list = visible(tab);
-  const selected = vm.items.find((item) => item.id === selectedId) ?? null;
+  // Rows grouped by state in "À racheter", by category elsewhere.
+  const groups =
+    tab === "rebuy"
+      ? REBUY_GROUPS.map((g) => ({
+          key: g.state,
+          label: g.label,
+          Icon: g.icon,
+          items: list.filter((i) => i.state === g.state),
+        }))
+      : CATEGORY_ORDER.map((c) => ({
+          key: c,
+          label: INVENTORY_CATEGORY_LABELS[c],
+          Icon: CATEGORY_ICONS[c],
+          items: list.filter((i) => i.category === c),
+        }));
+  // An item opened stays shown; otherwise the list's selection, else its first row shown.
+  const selected =
+    (view === "item"
+      ? vm.items.find((item) => item.id === selectedId)
+      : (list.find((item) => item.id === selectedId) ??
+        groups.find((g) => g.items.length)?.items[0])) ?? null;
+
+  // The view lives in the address, rewritten in place (D-85): a reload shows the same.
+  React.useEffect(() => {
+    replaceQuery((params) =>
+      writeWorkshopView(params, {
+        tab,
+        bikeId,
+        query,
+        itemId: view === "item" ? selectedId : null,
+      }),
+    );
+  }, [tab, bikeId, query, view, selectedId]);
+
+  /** A filter changed: back to the list, whose first item shows beside it from 1024 px. */
+  function setTab(next: WorkshopTab) {
+    setTabState(next);
+    setView("list");
+  }
 
   const count = (state: RebuyState) => vm.items.filter((item) => item.state === state).length;
   const summary = [
@@ -162,7 +245,7 @@ export function WorkshopScreen({
   function back() {
     setView("list");
     requestAnimationFrame(() => {
-      const row = listRef.current?.querySelector<HTMLElement>(`[data-item-id="${selectedId}"]`);
+      const row = listRef.current?.querySelector<HTMLElement>(`[data-item-id="${selected?.id}"]`);
       row?.focus({ preventScroll: true });
       row?.scrollIntoView({ block: "nearest" });
     });
@@ -171,6 +254,7 @@ export function WorkshopScreen({
   function clearFilters() {
     setQuery("");
     setBikeId(null);
+    setView("list");
   }
 
   const empty = vm.items.length === 0;
@@ -189,7 +273,7 @@ export function WorkshopScreen({
         <button
           type="button"
           data-item-id={item.id}
-          aria-current={item.id === selectedId ? "true" : undefined}
+          aria-current={item.id === selected?.id ? "true" : undefined}
           onClick={() => open(item.id)}
           className={cn(
             inventoryRowClasses,
@@ -219,6 +303,19 @@ export function WorkshopScreen({
   };
 
   function rowAction(item: InventoryItemVM) {
+    // A tool comes one at a time: "Reçu" at once; parts and products confirm the quantity.
+    if (item.state === "ordered" && item.kind === "tool")
+      return (
+        <Button
+          variant="secondary"
+          size="sm"
+          aria-label={`Marquer ${item.name} comme reçu`}
+          onClick={() => actions.onRestock?.(item, "received", 1)}
+        >
+          <PackageCheck />
+          Reçu
+        </Button>
+      );
     if (item.state === "ordered")
       return (
         <Button
@@ -262,14 +359,14 @@ export function WorkshopScreen({
             </Button>
             <p className="hint">Ou commence par ce qui s&apos;use vite :</p>
             <div className="flex flex-wrap justify-center gap-2">
-              {SUGGESTIONS.map((name) => (
+              {SUGGESTIONS.map((suggestion) => (
                 <Button
-                  key={name}
+                  key={suggestion.name}
                   variant="secondary"
                   size="sm"
-                  onClick={() => actions.onAddItem?.(name)}
+                  onClick={() => actions.onAddItem?.(suggestion)}
                 >
-                  {name}
+                  {suggestion.name}
                 </Button>
               ))}
             </div>
@@ -281,10 +378,28 @@ export function WorkshopScreen({
       </EmptyState>
     );
   } else if (!list.length) {
+    const emptyTab = tab === "products" || tab === "tools" ? EMPTY_TABS[tab] : null;
     body =
       tab === "rebuy" && !filtered ? (
         <EmptyState compact title="Rien à racheter">
           Les objets sous leur seuil d&apos;alerte arriveront ici tout seuls.
+        </EmptyState>
+      ) : emptyTab && !filtered ? (
+        <EmptyState
+          compact
+          title={emptyTab.title}
+          action={
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => actions.onAddItem?.({ kind: emptyTab.kind })}
+            >
+              <Plus />
+              {emptyTab.add}
+            </Button>
+          }
+        >
+          {emptyTab.text}
         </EmptyState>
       ) : (
         <EmptyState
@@ -303,20 +418,6 @@ export function WorkshopScreen({
         </EmptyState>
       );
   } else {
-    const groups =
-      tab === "rebuy"
-        ? REBUY_GROUPS.map((g) => ({
-            key: g.state,
-            label: g.label,
-            Icon: g.icon,
-            items: list.filter((i) => i.state === g.state),
-          }))
-        : CATEGORY_ORDER.map((c) => ({
-            key: c,
-            label: INVENTORY_CATEGORY_LABELS[c],
-            Icon: CATEGORY_ICONS[c],
-            items: list.filter((i) => i.category === c),
-          }));
     body = (
       <Card className="overflow-hidden">
         {groups
@@ -408,14 +509,23 @@ export function WorkshopScreen({
                 <fieldset className="m-0 min-w-0 border-0 p-0">
                   <legend className="sr-only">Afficher</legend>
                   <ChipRow scroll className="-mx-4 px-4 md:mx-0 md:flex-wrap md:px-0">
-                    <Chip
-                      name="workshop-tab"
-                      value="parts"
-                      checked={tab === "parts"}
-                      onChange={() => setTab("parts")}
-                    >
-                      Pièces <ChipCount>{visible("parts").length}</ChipCount>
-                    </Chip>
+                    {(
+                      [
+                        ["parts", "Pièces"],
+                        ["products", "Produits"],
+                        ["tools", "Outils"],
+                      ] as const
+                    ).map(([value, label]) => (
+                      <Chip
+                        key={value}
+                        name="workshop-tab"
+                        value={value}
+                        checked={tab === value}
+                        onChange={() => setTab(value)}
+                      >
+                        {label} <ChipCount>{visible(value).length}</ChipCount>
+                      </Chip>
+                    ))}
                     <Chip
                       name="workshop-tab"
                       value="rebuy"
@@ -435,12 +545,18 @@ export function WorkshopScreen({
                     autoComplete="off"
                     icon={<Search />}
                     value={query}
-                    onChange={(e) => setQuery(e.target.value)}
+                    onChange={(e) => {
+                      setQuery(e.target.value);
+                      setView("list");
+                    }}
                   />
                   <NativeSelect
                     aria-label="Filtrer par vélo"
                     value={bikeId ?? ""}
-                    onChange={(e) => setBikeId(e.target.value ? Number(e.target.value) : null)}
+                    onChange={(e) => {
+                      setBikeId(e.target.value ? Number(e.target.value) : null);
+                      setView("list");
+                    }}
                   >
                     <option value="">Tous les vélos</option>
                     {vm.bikes.map((bike) => (

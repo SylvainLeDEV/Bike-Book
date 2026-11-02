@@ -5,14 +5,24 @@ import { Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Field, FieldError, Input } from "@/components/ui/field";
 import { Sheet, SheetBody, SheetContent, SheetFooter, SheetForm } from "@/components/ui/sheet";
-import { formatStock } from "@/lib/display";
+import { formatItemStock } from "@/lib/display";
 import { parseMoneyInput } from "@/lib/parse";
 import type { InventoryItemVM } from "@/lib/view-models";
 
 /*
- * The workshop item's small sheets (feature 8): "Corriger le stock" after a count (the difference
- * becomes an adjustment movement, D-39) and "Ajouter un lien d'achat" (shown, never fetched, D-09).
+ * The workshop item's small sheets (feature 8): "Corriger le stock" after a count of a part's
+ * units or a product's containers (the difference becomes an adjustment movement, D-39, D-85)
+ * and "Ajouter un lien d'achat" (shown, never fetched, D-09).
  */
+
+/** What a count is about: a part's units, a product's containers; tools are not counted. */
+function countedNow(item: InventoryItemVM): { value: number; label: string } | null {
+  if (item.kind === "part") return { value: item.quantity, label: "Quantité comptée" };
+  if (item.kind === "product") {
+    return { value: item.containers, label: `Nombre de ${item.container[1]}` };
+  }
+  return null;
+}
 
 type Submit<T> = (input: T) => Promise<string | null>;
 
@@ -47,9 +57,7 @@ export function CorrectStockSheet({
     <Sheet open={item != null} onOpenChange={onOpenChange}>
       <SheetContent
         title="Corriger le stock"
-        description={
-          item ? `${item.name} · aujourd'hui ${formatStock(item.quantity, item.unit)}` : undefined
-        }
+        description={item ? `${item.name} · aujourd'hui ${formatItemStock(item)}` : undefined}
       >
         {item ? <CorrectStockForm key={item.id} item={item} onSubmit={onSubmit} /> : null}
       </SheetContent>
@@ -58,7 +66,8 @@ export function CorrectStockSheet({
 }
 
 function CorrectStockForm({ item, onSubmit }: { item: InventoryItemVM; onSubmit: Submit<number> }) {
-  const [counted, setCounted] = React.useState(String(item.quantity));
+  const now = countedNow(item);
+  const [counted, setCounted] = React.useState(String(now?.value ?? 0));
   const { error, setError, pending, run } = useSubmit(onSubmit);
   return (
     <SheetForm
@@ -74,7 +83,7 @@ function CorrectStockForm({ item, onSubmit }: { item: InventoryItemVM; onSubmit:
     >
       <SheetBody>
         <Field
-          label="Quantité comptée"
+          label={now?.label ?? "Quantité comptée"}
           hint="La différence est notée comme une correction ; l'historique reste."
           error={error}
         >

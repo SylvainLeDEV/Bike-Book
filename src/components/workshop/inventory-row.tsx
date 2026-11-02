@@ -1,12 +1,81 @@
 import { cn } from "cn";
-import { MapPin } from "lucide-react";
+import { Check, MapPin } from "lucide-react";
 import { BikePip } from "@/components/bike-cover";
 import { CATEGORY_ICONS } from "@/components/icons";
 import { RebuyBadge } from "@/components/status";
 import { bikesText } from "@/lib/display";
 import { formatInteger, plural } from "@/lib/format";
-import { UNIT_LABELS } from "@/lib/labels";
-import type { BikeRef, InventoryRowVM } from "@/lib/view-models";
+import { PRODUCT_LEVEL_LABELS, UNIT_LABELS } from "@/lib/labels";
+import type { BikeRef, InventoryRowVM, ItemStockVM, ProductLevel } from "@/lib/view-models";
+
+const LEVEL_BARS: Record<ProductLevel, number> = { full: 3, started: 2, low: 1, empty: 0 };
+
+/**
+ * A product's level as three bars (the mockup's gauge): decoration only, the word is always
+ * written next to it.
+ */
+export function LevelGauge({ level, className }: { level: ProductLevel; className?: string }) {
+  return (
+    <span aria-hidden className={cn("inline-flex h-[19px] items-center gap-[3px]", className)}>
+      {[1, 2, 3].map((bar) => (
+        <span
+          key={bar}
+          className={cn(
+            "h-3.5 w-[9px] rounded-[3px]",
+            bar <= LEVEL_BARS[level]
+              ? "bg-brand"
+              : "shadow-[inset_0_0_0_1.5px_color-mix(in_oklch,var(--fg-muted),transparent_45%)]",
+          )}
+        />
+      ))}
+    </span>
+  );
+}
+
+/** The right-hand side of a row: units, the open container's level, or possession. */
+function StockSide({ stock }: { stock: ItemStockVM }) {
+  switch (stock.kind) {
+    case "part": {
+      const [one, many] = UNIT_LABELS[stock.unit];
+      return (
+        <>
+          <span className="num text-[19px] leading-none font-semibold">
+            {formatInteger(stock.quantity)}
+          </span>
+          <span className="text-[12.5px] whitespace-nowrap text-fg-muted">
+            {plural(stock.quantity, one, many)}
+          </span>
+        </>
+      );
+    }
+    case "product": {
+      const level = stock.containers > 0 ? stock.level : "empty";
+      const spare = stock.containers - 1;
+      return (
+        <>
+          <LevelGauge level={level} />
+          <span className="text-[12.5px] whitespace-nowrap text-fg-muted">
+            {PRODUCT_LEVEL_LABELS[level]}
+          </span>
+          {spare > 0 ? (
+            <span className="text-[12.5px] whitespace-nowrap text-fg-muted">
+              +{formatInteger(spare)} en réserve
+            </span>
+          ) : null}
+        </>
+      );
+    }
+    case "tool":
+      return stock.owned ? (
+        <span className="inline-flex items-center gap-1 text-[12.5px] whitespace-nowrap text-fg-muted [&_svg]:size-3.5">
+          <Check aria-hidden />
+          Possédé
+        </span>
+      ) : (
+        <span className="text-[12.5px] whitespace-nowrap text-fg-muted">Non possédé</span>
+      );
+  }
+}
 
 export function CategoryIcon({
   category,
@@ -51,8 +120,9 @@ export function BikesMeta({ bikes, all }: { bikes: BikeRef[] | "all"; all: BikeR
 }
 
 /**
- * One dense workshop row: photo or category icon, name, bikes (or storage place), quantity and at most
- * one badge. Rendered inside a link or a button by the caller (`as`).
+ * One dense workshop row: photo or category icon, name, bikes (or storage place), its stock
+ * (quantity, level or possession) and at most one badge. Rendered inside a link or a button by
+ * the caller.
  */
 export function InventoryRowContent({
   row,
@@ -69,7 +139,6 @@ export function InventoryRowContent({
   /** Extra line under the meta (cheapest purchase link in "À racheter"). */
   extra?: React.ReactNode;
 }) {
-  const [one, many] = UNIT_LABELS[row.unit];
   return (
     <>
       {row.photoUrl ? (
@@ -83,12 +152,7 @@ export function InventoryRowContent({
         {row.name}
       </span>
       <span className="col-start-3 row-span-2 row-start-1 grid justify-items-end gap-1 text-right">
-        <span className="num text-[19px] leading-none font-semibold">
-          {formatInteger(row.quantity)}
-        </span>
-        <span className="text-[12.5px] whitespace-nowrap text-fg-muted">
-          {plural(row.quantity, one, many)}
-        </span>
+        <StockSide stock={row} />
       </span>
       <span className="col-start-2 flex min-w-0 items-center gap-1.5 text-[13px] text-fg-muted [&_svg]:size-3.5 [&_svg]:shrink-0">
         {showLocation ? (

@@ -4,19 +4,19 @@ import { COMPONENT_TYPE_LABELS } from "@/lib/labels";
 import { requireAccessContext } from "@/server/auth/context";
 import { today } from "@/server/time";
 import { bikeRef } from "@/server/views/refs";
+import { parseWorkshopView } from "@/lib/workshop-filter";
 import { loadGarage } from "@/server/views/workshop";
 import { WorkshopView } from "./workshop-view";
 
 export const metadata: Metadata = { title: "Atelier · Bike-Book" };
 
-/** Atelier (feature 8): parts and restocking; `?tab=rebuy`, `?bike=`, `?item=` keep the view. */
+/**
+ * Atelier (feature 8, D-85): parts, products, tools and restocking. `?tab=`, `?bike=`, `?q=` and
+ * `?item=` keep the view, rewritten in place by the screen.
+ */
 export default async function WorkshopPage({ searchParams }: PageProps<"/workshop">) {
   const garage = loadGarage(await requireAccessContext());
   const params = await searchParams;
-  const number = (value: unknown) => {
-    const n = Number(value);
-    return Number.isSafeInteger(n) && n > 0 ? n : null;
-  };
   return (
     <WorkshopView
       vm={{ today: today(), bikes: garage.ridable.map(bikeRef), items: garage.items }}
@@ -24,11 +24,7 @@ export default async function WorkshopPage({ searchParams }: PageProps<"/worksho
         code,
         label: COMPONENT_TYPE_LABELS[code],
       }))}
-      initial={{
-        tab: params.tab === "rebuy" ? "rebuy" : "parts",
-        bikeId: number(params.bike),
-        itemId: number(params.item),
-      }}
+      initial={parseWorkshopView(params)}
     />
   );
 }

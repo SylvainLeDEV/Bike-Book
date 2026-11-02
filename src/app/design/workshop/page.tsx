@@ -7,7 +7,7 @@ import { AddItemSheet, type AddItemPrefill } from "@/components/workshop/add-ite
 import { ReplacePartSheet } from "@/components/workshop/replace-part-sheet";
 import { WorkshopScreen, type WorkshopActions } from "@/components/workshop/workshop-screen";
 import { formatStock } from "@/lib/display";
-import type { InventoryItemVM, MovementVM, RebuyState } from "@/lib/view-models";
+import type { InventoryItemVM, MovementVM, PartItemVM, RebuyState } from "@/lib/view-models";
 import {
   BIKES,
   COMPONENT_TYPES,
@@ -15,10 +15,11 @@ import {
   SPECTRAL,
   TODAY,
   WORKSHOP,
+  WORKSHOP_ITEMS,
 } from "../fixtures";
 
 /** Restocking first, else low stock: what the list shows (D-35, computed, D-39). */
-function stateOf(item: InventoryItemVM): RebuyState | null {
+function stateOf(item: PartItemVM): RebuyState | null {
   if (item.restock.status !== "none") return item.restock.status;
   return item.lowStockThreshold != null && item.quantity <= item.lowStockThreshold
     ? "low_stock"
@@ -27,6 +28,9 @@ function stateOf(item: InventoryItemVM): RebuyState | null {
 
 let nextId = 1000;
 
+/** /design shows parts only: products and tools are built in the app (D-85). */
+const asPart = (item: InventoryItemVM) => item as PartItemVM;
+
 /**
  * /design workshop: stock moves and restocking change local state, each with an undo toast.
  * `?empty` shows the guided empty workshop.
@@ -34,15 +38,13 @@ let nextId = 1000;
 export default function DesignWorkshopPage() {
   const params = useSearchParams();
   const toast = useToast();
-  const [items, setItems] = React.useState<InventoryItemVM[]>(
-    params.has("empty") ? [] : WORKSHOP.items,
-  );
+  const [items, setItems] = React.useState<PartItemVM[]>(params.has("empty") ? [] : WORKSHOP_ITEMS);
   const [addOpen, setAddOpen] = React.useState(false);
   const [prefill, setPrefill] = React.useState<AddItemPrefill | null>(null);
   const [mountItem, setMountItem] = React.useState<number | null>(null);
 
   /** Applies a change and offers to undo it by restoring the previous list. */
-  function change(update: (list: InventoryItemVM[]) => InventoryItemVM[], message: string) {
+  function change(update: (list: PartItemVM[]) => PartItemVM[], message: string) {
     const before = items;
     setItems(update(items).map((it) => ({ ...it, state: stateOf(it) })));
     toast(message, {
@@ -53,9 +55,8 @@ export default function DesignWorkshopPage() {
     });
   }
 
-  const updateItem =
-    (id: number, fn: (item: InventoryItemVM) => InventoryItemVM) => (list: InventoryItemVM[]) =>
-      list.map((it) => (it.id === id ? fn(it) : it));
+  const updateItem = (id: number, fn: (item: PartItemVM) => PartItemVM) => (list: PartItemVM[]) =>
+    list.map((it) => (it.id === id ? fn(it) : it));
 
   const movement = (fields: Omit<MovementVM, "id" | "occurredOn">): MovementVM => ({
     id: nextId++,
@@ -67,7 +68,7 @@ export default function DesignWorkshopPage() {
 
   const actions: WorkshopActions = {
     onMove: (item, delta) => {
-      const quantity = item.quantity + delta;
+      const quantity = asPart(item).quantity + delta;
       change(
         updateItem(item.id, (it) => ({
           ...it,
@@ -93,7 +94,7 @@ export default function DesignWorkshopPage() {
             ...it.movements,
           ],
         })),
-        `${delta < 0 ? "Utilisation notée" : "Achat noté"} · ${item.name} : ${formatStock(quantity, item.unit)}`,
+        `${delta < 0 ? "Utilisation notée" : "Achat noté"} · ${item.name} : ${formatStock(quantity, asPart(item).unit)}`,
       );
     },
     onRestock: (item, to, quantity) => {
@@ -128,7 +129,7 @@ export default function DesignWorkshopPage() {
         );
       }
       if (to === "received") {
-        const total = item.quantity + quantity;
+        const total = asPart(item).quantity + quantity;
         return change(
           updateItem(item.id, (it) => ({
             ...it,
@@ -151,7 +152,7 @@ export default function DesignWorkshopPage() {
               ...it.movements,
             ],
           })),
-          `Réception notée · ${item.name} : ${formatStock(total, item.unit)}`,
+          `Réception notée · ${item.name} : ${formatStock(total, asPart(item).unit)}`,
         );
       }
       return change(
@@ -174,7 +175,7 @@ export default function DesignWorkshopPage() {
       setMountItem(item.id);
     },
     onAddItem: (suggestion) => {
-      setPrefill(suggestion ? { name: suggestion } : null);
+      setPrefill(suggestion ?? null);
       setAddOpen(true);
     },
     onEdit: later("Modifier l'objet"),
@@ -205,12 +206,14 @@ export default function DesignWorkshopPage() {
         componentTypes={COMPONENT_TYPES}
         prefill={prefill}
         onSubmit={(input) => {
+          if (input.kind !== "part")
+            return toast("Sur /design, l'atelier ne montre que des pièces");
           const id = nextId++;
           const bikes =
             input.bikes === "all"
               ? "all"
               : BIKES.filter((b) => (input.bikes as number[]).includes(b.id));
-          const created: InventoryItemVM = {
+          const created: PartItemVM = {
             id,
             kind: "part",
             photoUrl: null,

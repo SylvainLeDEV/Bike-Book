@@ -57,7 +57,7 @@ import {
 import { bikeRef, taskRow } from "./refs";
 import { setupTab, toSpecsInput } from "./setups";
 import { maintenanceEdit, rideForm, timeline } from "./timeline";
-import { bikeStock, loadGarage, stockLine } from "./workshop";
+import { bikeStock, isPartItem, loadGarage, stockLine } from "./workshop";
 
 /** Disciplines whose new forks are suspension forks by default (D-79): the mountain bikes. */
 const SUSPENSION_DISCIPLINES: Discipline[] = ["xc", "trail", "enduro", "dh", "dirt"];
@@ -303,7 +303,7 @@ export function getBikePage(ctx: AccessContext, bikeId: number): BikePage | null
       today: day,
       bike: ref,
       slots: parts.replaceSlots,
-      stock: workshop,
+      stock: workshop.filter(isPartItem),
       events: events
         .slice(0, 20)
         .map((event) => ({ id: event.id, on: event.performedOn, title: event.title })),

@@ -14,10 +14,3 @@ export function writeBikeTab(params: URLSearchParams, tab: BikeTabId): void {
   if (tab === "plan") params.delete("tab");
   else params.set("tab", tab);
 }
-
-/** Rewrites the address's query in place: no navigation, no history entry (Next.js router synced). */
-export function replaceQuery(update: (params: URLSearchParams) => void): void {
-  const url = new URL(window.location.href);
-  update(url.searchParams);
-  if (url.href !== window.location.href) window.history.replaceState(null, "", url);
-}

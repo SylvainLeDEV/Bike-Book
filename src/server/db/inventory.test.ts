@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { stockQuantity } from "@/server/domain/inventory";
+import { itemStock, stockQuantity } from "@/server/domain/inventory";
 import { createTestContext } from "@/test/context";
 import {
   addMovement,
@@ -13,6 +13,7 @@ import {
   replaceComponent,
   setItemArchived,
   setRestock,
+  setToolOwned,
   undoMovement,
   undoReceive,
   undoReplacement,
@@ -56,6 +57,7 @@ function setup(name: string) {
 
 function pads(ctx: AccessContext, bikeId: number, initialQuantity = 2) {
   const created = createItem(ctx, {
+    kind: "part",
     name: "Plaquettes Maven organiques",
     brand: "SRAM",
     reference: "00.5318.031.000",
@@ -65,6 +67,7 @@ function pads(ctx: AccessContext, bikeId: number, initialQuantity = 2) {
     bikeIds: [bikeId],
     unit: "pair",
     lowStockThreshold: 1,
+    containerLabel: null,
     location: "Établi, tiroir 2",
     notes: null,
     initialQuantity,
@@ -173,6 +176,7 @@ describe("workshop", () => {
       bikeIds: [bikeId],
       unit: "pair",
       lowStockThreshold: 2,
+      containerLabel: null,
       location: null,
       notes: null,
     });
@@ -296,6 +300,7 @@ describe("workshop", () => {
     // Another workspace cannot attach its item to my bike, nor take my stock for its bike.
     expect(
       createItem(intruder, {
+        kind: "part",
         name: "X",
         brand: null,
         reference: null,
@@ -305,6 +310,7 @@ describe("workshop", () => {
         bikeIds: [bikeId],
         unit: "piece",
         lowStockThreshold: null,
+        containerLabel: null,
         location: null,
         notes: null,
         initialQuantity: 0,
@@ -347,5 +353,152 @@ describe("workshop", () => {
       }),
     ).toEqual({ ok: false, reason: "item_not_found" });
     expect(stockQuantity(item(owner, id).movements)).toBe(1);
+  });
+
+  describe("products and tools (D-85)", () => {
+    const base = {
+      brand: null,
+      reference: null,
+      componentTypeCode: null,
+      allBikes: true,
+      bikeIds: [],
+      unit: "pair" as const,
+      lowStockThreshold: 3,
+      containerLabel: "bidon",
+      location: null,
+      notes: null,
+      link: null,
+      at: NOW,
+      today: "2026-10-25",
+    };
+
+    it("creates a product with its containers and the open one's level", () => {
+      const { ctx } = setup("Huile");
+      const created = createItem(ctx, {
+        ...base,
+        kind: "product",
+        name: "Huile minérale",
+        category: "brakes",
+        initialQuantity: 2,
+        initialLevel: "started",
+      });
+      if (!created.ok) throw new Error(created.reason);
+      const product = item(ctx, created.itemId);
+      // The fields of another kind are left empty.
+      expect(product).toMatchObject({
+        kind: "product",
+        unit: null,
+        lowStockThreshold: null,
+        containerLabel: "bidon",
+        movements: [{ kind: "initial", quantityDelta: 2, levelAfter: "started" }],
+      });
+      expect(itemStock("product", product.movements)).toEqual({
+        kind: "product",
+        containers: 2,
+        level: "started",
+      });
+      addMovement(ctx, created.itemId, {
+        kind: "use",
+        quantityDelta: -1,
+        levelAfter: "full",
+        unitCostCents: null,
+        note: null,
+        at: NOW + 1,
+      });
+      expect(itemStock("product", item(ctx, created.itemId).movements)).toEqual({
+        kind: "product",
+        containers: 1,
+        level: "full",
+      });
+    });
+
+    it("creates a tool to buy on « À commander », and « Je l'ai » ends it, with undo", () => {
+      const { ctx } = setup("Clé");
+      const created = createItem(ctx, {
+        ...base,
+        kind: "tool",
+        name: "Clé dynamométrique",
+        category: "other",
+        initialQuantity: 0,
+        toOrder: true,
+      });
+      if (!created.ok) throw new Error(created.reason);
+      expect(item(ctx, created.itemId)).toMatchObject({
+        kind: "tool",
+        unit: null,
+        containerLabel: null,
+        restockStatus: "to_order",
+        restockQuantity: 1,
+        restockChangedOn: "2026-10-25",
+        movements: [],
+      });
+      const owned = setToolOwned(ctx, created.itemId, { quantityDelta: 1, at: NOW });
+      if (!owned.ok) throw new Error(owned.reason);
+      expect(item(ctx, created.itemId)).toMatchObject({
+        restockStatus: "none",
+        movements: [{ kind: "adjustment", quantityDelta: 1 }],
+      });
+      expect(undoReceive(ctx, created.itemId, owned.movementId, owned.previous)).toEqual({
+        ok: true,
+      });
+      expect(item(ctx, created.itemId)).toMatchObject({
+        restockStatus: "to_order",
+        restockQuantity: 1,
+        movements: [],
+      });
+    });
+
+    it("keeps the kind and its fields when an item is edited", () => {
+      const { ctx } = setup("Kit");
+      const created = createItem(ctx, {
+        ...base,
+        kind: "tool",
+        name: "Kit de purge",
+        category: "brakes",
+        initialQuantity: 1,
+      });
+      if (!created.ok) throw new Error(created.reason);
+      updateItem(ctx, created.itemId, {
+        ...base,
+        name: "Kit de purge Shimano",
+        category: "brakes",
+      });
+      expect(item(ctx, created.itemId)).toMatchObject({
+        kind: "tool",
+        name: "Kit de purge Shimano",
+        unit: null,
+        lowStockThreshold: null,
+        containerLabel: null,
+      });
+      expect(setToolOwned(ctx, created.itemId, { quantityDelta: -1, at: NOW })).toMatchObject({
+        ok: true,
+      });
+      expect(itemStock("tool", item(ctx, created.itemId).movements)).toEqual({
+        kind: "tool",
+        owned: false,
+      });
+    });
+
+    it("refuses a tool's possession on another kind or workspace", () => {
+      const { ctx, bikeId } = setup("Owner2");
+      const { ctx: intruder } = setup("Intruder2");
+      const padsId = pads(ctx, bikeId);
+      expect(setToolOwned(ctx, padsId, { quantityDelta: 1, at: NOW })).toEqual({
+        ok: false,
+        reason: "not_found",
+      });
+      const tool = createItem(ctx, {
+        ...base,
+        kind: "tool",
+        name: "Dérive-chaîne",
+        category: "drivetrain",
+        initialQuantity: 1,
+      });
+      if (!tool.ok) throw new Error(tool.reason);
+      expect(setToolOwned(intruder, tool.itemId, { quantityDelta: -1, at: NOW })).toEqual({
+        ok: false,
+        reason: "not_found",
+      });
+    });
   });
 });

@@ -13,6 +13,7 @@ import {
   MapPin,
   Minus,
   PackageCheck,
+  PackageX,
   Pencil,
   Plus,
   Replace,
@@ -28,8 +29,10 @@ import { BikeCover, BikePip } from "@/components/bike-cover";
 import { RebuyBadge, RuleStatusBadge } from "@/components/status";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { formatQuantity, formatStock } from "@/lib/display";
+import { formatQuantity, formatStock, movementTitle } from "@/lib/display";
+import { PRODUCT_LEVELS } from "@/lib/enums";
 import {
+  formatCount,
   formatDate,
   formatInteger,
   formatMoney,
@@ -37,14 +40,36 @@ import {
   plural,
   type LocalDate,
 } from "@/lib/format";
-import { INVENTORY_CATEGORY_LABELS, MOVEMENT_LABELS, UNIT_LABELS } from "@/lib/labels";
-import type { BikeRef, InventoryItemVM, PurchaseLinkVM } from "@/lib/view-models";
+import {
+  INVENTORY_CATEGORY_LABELS,
+  INVENTORY_KIND_LABELS,
+  PRODUCT_LEVEL_LABELS,
+  UNIT_LABELS,
+} from "@/lib/labels";
+import type {
+  BikeRef,
+  InventoryItemVM,
+  InventoryKind,
+  ProductLevel,
+  PurchaseLinkVM,
+} from "@/lib/view-models";
+import { LevelGauge } from "./inventory-row";
 
 export type RestockStep = "to_order" | "ordered" | "received" | "none";
 
+type ProductItem = Extract<InventoryItemVM, { kind: "product" }>;
+type ToolItem = Extract<InventoryItemVM, { kind: "tool" }>;
+
 export type ItemActions = {
-  /** −1: a use noted from the item page; +1: a purchase. Stock is never typed (D-39). */
+  /**
+   * −1: a use noted from the item page; +1: a purchase (a part's units, a product's
+   * containers). Stock is never typed (D-39).
+   */
   onMove?: (item: InventoryItemVM, delta: 1 | -1) => void | Promise<void>;
+  /** A product's open container: its level picked by eye, or "Vide" (D-85). */
+  onSetLevel?: (item: InventoryItemVM, level: ProductLevel) => void | Promise<void>;
+  /** A tool: "Je l'ai" / "Je ne l'ai pas" (D-85). */
+  onSetOwned?: (item: InventoryItemVM, owned: boolean) => void | Promise<void>;
   /** Restocking: to order → ordered → received (quantity confirmed, D-42), or cancelled. */
   onRestock?: (item: InventoryItemVM, to: RestockStep, quantity: number) => void | Promise<void>;
   /** "Monter sur …": the replace sheet, this item chosen. */
@@ -188,6 +213,173 @@ function RestockSteps({ item, today }: { item: InventoryItemVM; today: LocalDate
   );
 }
 
+const capitalized = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
+
+/**
+ * Choices that each record something at once (a level, possession): buttons with
+ * `aria-pressed`, not radios, so moving through them with the arrow keys records nothing.
+ */
+function PressedChoices<T extends string | boolean>({
+  label,
+  choices,
+  current,
+  onPick,
+}: {
+  label: string;
+  choices: { value: T; label: React.ReactNode }[];
+  current: T;
+  onPick?: (value: T) => void;
+}) {
+  const id = React.useId();
+  return (
+    <div role="group" aria-labelledby={id} className="grid gap-2">
+      <span id={id} className="text-[13.5px] leading-tight font-semibold">
+        {label}
+      </span>
+      <div className="flex flex-wrap gap-2">
+        {choices.map((choice) => (
+          <button
+            key={String(choice.value)}
+            type="button"
+            aria-pressed={choice.value === current}
+            disabled={!onPick}
+            onClick={() => choice.value !== current && onPick?.(choice.value)}
+            className={cn(
+              "inline-flex h-10 shrink-0 cursor-pointer items-center gap-2 rounded-full border border-border bg-surface px-3.5 text-sm font-medium whitespace-nowrap text-fg pointer-coarse:h-11",
+              "transition-[background-color,border-color,color] hover:border-[color-mix(in_oklch,var(--border),var(--fg)_25%)]",
+              "aria-pressed:border-brand aria-pressed:bg-brand-soft aria-pressed:font-semibold aria-pressed:text-brand-ink",
+              "disabled:cursor-not-allowed disabled:opacity-55 [&_svg]:size-4 [&_svg]:shrink-0",
+            )}
+          >
+            {choice.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function PartStock({
+  item,
+  actions,
+}: {
+  item: Extract<InventoryItemVM, { kind: "part" }>;
+  actions: ItemActions;
+}) {
+  const [one, many] = UNIT_LABELS[item.unit];
+  return (
+    <>
+      <Stepper
+        value={item.quantity}
+        unitText={plural(item.quantity, one, many)}
+        minusLabel={`Retirer 1 ${one} (utilisation)`}
+        plusLabel={`Ajouter 1 ${one} (achat)`}
+        minusDisabled={item.quantity === 0}
+        onMinus={actions.onMove && (() => actions.onMove?.(item, -1))}
+        onPlus={actions.onMove && (() => actions.onMove?.(item, 1))}
+      />
+      <p className="hint">
+        {item.lowStockThreshold != null
+          ? `Alerte à partir de ${formatStock(item.lowStockThreshold, item.unit)}. `
+          : "Pas d'alerte de stock. "}
+        « − » note une utilisation, « + » un achat : le stock n&apos;est jamais saisi directement.
+      </p>
+      <div className="mt-1.5 -ml-3 flex flex-wrap gap-2">
+        <Button variant="ghost" size="sm" onClick={() => actions.onEditThreshold?.(item)}>
+          <SlidersHorizontal />
+          Modifier le seuil
+        </Button>
+        <Button variant="ghost" size="sm" onClick={() => actions.onCorrectStock?.(item)}>
+          <ClipboardList />
+          Corriger le stock
+        </Button>
+      </div>
+    </>
+  );
+}
+
+/** A product (D-36): the open container's level, then the containers in stock (D-85). */
+function ProductStock({ item, actions }: { item: ProductItem; actions: ItemActions }) {
+  const [one, many] = item.container;
+  return (
+    <div className="mt-2.5 grid gap-3">
+      {item.containers > 0 ? (
+        <PressedChoices<ProductLevel>
+          label={`${capitalized(one)} en cours`}
+          choices={PRODUCT_LEVELS.map((level) => ({
+            value: level,
+            label: PRODUCT_LEVEL_LABELS[level],
+          }))}
+          current={item.level}
+          onPick={actions.onSetLevel && ((level) => actions.onSetLevel?.(item, level))}
+        />
+      ) : (
+        <p className="flex items-center gap-2 text-sm font-medium [&_svg]:size-[18px] [&_svg]:text-fg-muted">
+          <PackageX aria-hidden />
+          Vide : il n&apos;en reste plus.
+        </p>
+      )}
+      <div className="flex flex-wrap items-center justify-between gap-x-3">
+        <span className="text-[13.5px] font-semibold">{capitalized(many)} en stock</span>
+        <Stepper
+          label={`${capitalized(many)} en stock`}
+          value={item.containers}
+          unitText={plural(item.containers, one, many)}
+          minusLabel={`Retirer 1 ${one} (jeté ou donné)`}
+          plusLabel={`Ajouter 1 ${one} (achat)`}
+          minusDisabled={item.containers === 0}
+          onMinus={actions.onMove && (() => actions.onMove?.(item, -1))}
+          onPlus={actions.onMove && (() => actions.onMove?.(item, 1))}
+        />
+      </div>
+      <p className="-mt-1 hint">
+        Choisis « Vide » quand le contenant en cours est fini : il sort du stock et le suivant prend
+        le relais. « − » en retire un de la réserve.
+      </p>
+      <div className="-mt-1.5 -ml-3">
+        <Button variant="ghost" size="sm" onClick={() => actions.onCorrectStock?.(item)}>
+          <ClipboardList />
+          Corriger le stock
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/** A tool: owned or not, never recorded per job (D-40, D-85). */
+function ToolStock({ item, actions }: { item: ToolItem; actions: ItemActions }) {
+  return (
+    <div className="mt-2.5 grid gap-2">
+      <PressedChoices<boolean>
+        label="Est-ce que tu as cet outil ?"
+        choices={[
+          {
+            value: true,
+            label: (
+              <>
+                <Check aria-hidden />
+                Je l&apos;ai
+              </>
+            ),
+          },
+          { value: false, label: "Je ne l'ai pas" },
+        ]}
+        current={item.owned}
+        onPick={actions.onSetOwned && ((owned) => actions.onSetOwned?.(item, owned))}
+      />
+      <p className="hint">
+        Un outil n&apos;est pas suivi à chaque entretien : seulement s&apos;il est là.
+      </p>
+    </div>
+  );
+}
+
+const STOCK_TITLES: Record<InventoryKind, string> = {
+  part: "En stock",
+  product: "Niveau",
+  tool: "Possession",
+};
+
 function StockCard({
   item,
   today,
@@ -199,54 +391,57 @@ function StockCard({
   actions: ItemActions;
   receiveRef: React.RefObject<HTMLButtonElement | null>;
 }) {
-  const [one, many] = UNIT_LABELS[item.unit];
-  // Reset by the parent's `key` when the item or its restocking changes.
-  const [quantity, setQuantity] = React.useState(item.restock.quantity ?? 1);
-  const ordered = item.restock.status === "ordered";
-  const restocking = item.restock.status !== "none";
-
   return (
     <Card asChild padded>
       <section aria-labelledby="stock-title">
         <div className="flex min-h-6 items-center justify-between gap-2">
           <h3 id="stock-title" className="eyebrow">
-            En stock
+            {STOCK_TITLES[item.kind]}
           </h3>
           {item.state ? <RebuyBadge state={item.state} /> : null}
         </div>
-        <Stepper
-          value={item.quantity}
-          unitText={plural(item.quantity, one, many)}
-          minusLabel={`Retirer 1 ${one} (utilisation)`}
-          plusLabel={`Ajouter 1 ${one} (achat)`}
-          minusDisabled={item.quantity === 0}
-          onMinus={actions.onMove && (() => actions.onMove?.(item, -1))}
-          onPlus={actions.onMove && (() => actions.onMove?.(item, 1))}
-        />
-        <p className="hint">
-          {item.lowStockThreshold != null
-            ? `Alerte à partir de ${formatStock(item.lowStockThreshold, item.unit)}. `
-            : "Pas d'alerte de stock. "}
-          « − » note une utilisation, « + » un achat : le stock n&apos;est jamais saisi directement.
-        </p>
-        <div className="mt-1.5 -ml-3 flex flex-wrap gap-2">
-          <Button variant="ghost" size="sm" onClick={() => actions.onEditThreshold?.(item)}>
-            <SlidersHorizontal />
-            Modifier le seuil
-          </Button>
-          <Button variant="ghost" size="sm" onClick={() => actions.onCorrectStock?.(item)}>
-            <ClipboardList />
-            Corriger le stock
-          </Button>
-        </div>
+        {item.kind === "part" ? (
+          <PartStock item={item} actions={actions} />
+        ) : item.kind === "product" ? (
+          <ProductStock item={item} actions={actions} />
+        ) : (
+          <ToolStock item={item} actions={actions} />
+        )}
+        <RestockSection item={item} today={today} actions={actions} receiveRef={receiveRef} />
+      </section>
+    </Card>
+  );
+}
 
-        {restocking ? (
-          <div className="mt-3.5 grid gap-3 border-t border-border pt-3.5">
-            <p className="text-sm">
-              <b>Rachat</b>
-              {ordered && item.restock.shopName ? ` · chez ${item.restock.shopName}` : ""}
-            </p>
-            <RestockSteps item={item} today={today} />
+/** Restocking: to order → ordered → received (D-33, D-42). A tool comes one at a time. */
+function RestockSection({
+  item,
+  today,
+  actions,
+  receiveRef,
+}: {
+  item: InventoryItemVM;
+  today: LocalDate;
+  actions: ItemActions;
+  receiveRef: React.RefObject<HTMLButtonElement | null>;
+}) {
+  const words =
+    item.kind === "part" ? UNIT_LABELS[item.unit] : item.kind === "product" ? item.container : null;
+  // Reset by the card's `key` when the item or its restocking changes.
+  const [quantity, setQuantity] = React.useState(item.restock.quantity ?? 1);
+  const ordered = item.restock.status === "ordered";
+  const restocking = item.restock.status !== "none";
+
+  if (restocking) {
+    return (
+      <div className="mt-3.5 grid gap-3 border-t border-border pt-3.5">
+        <p className="text-sm">
+          <b>Rachat</b>
+          {ordered && item.restock.shopName ? ` · chez ${item.restock.shopName}` : ""}
+        </p>
+        <RestockSteps item={item} today={today} />
+        {words ? (
+          <>
             <div className="flex flex-wrap items-center justify-between gap-x-3">
               <span className="text-[13.5px] font-semibold">
                 {ordered ? "Quantité reçue" : "Quantité à commander"}
@@ -254,7 +449,7 @@ function StockCard({
               <Stepper
                 label={ordered ? "Quantité reçue" : "Quantité à commander"}
                 value={quantity}
-                unitText={plural(quantity, one, many)}
+                unitText={plural(quantity, words[0], words[1])}
                 minusLabel="1 de moins"
                 plusLabel="1 de plus"
                 minusDisabled={quantity <= 1}
@@ -267,49 +462,56 @@ function StockCard({
                 Préremplie avec la commande : ajuste-la si la livraison est incomplète.
               </p>
             ) : null}
-            <div className="flex flex-wrap gap-2">
-              {ordered ? (
-                <Button
-                  ref={receiveRef}
-                  size="sm"
-                  onClick={() => actions.onRestock?.(item, "received", quantity)}
-                >
-                  <PackageCheck />
-                  Marquer reçu · +{formatStock(quantity, item.unit)}
-                </Button>
-              ) : (
-                <Button size="sm" onClick={() => actions.onRestock?.(item, "ordered", quantity)}>
-                  <Truck />
-                  Marquer commandé
-                </Button>
-              )}
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => actions.onRestock?.(item, "none", quantity)}
-              >
-                Annuler le rachat
-              </Button>
-            </div>
-          </div>
-        ) : item.state === "low_stock" ? (
-          <div className="mt-3.5 grid gap-3 border-t border-border pt-3.5">
-            <p className="text-sm">
-              Stock bas. Ajoute-le à « À racheter » pour ne pas l&apos;oublier.
-            </p>
-            <div>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => actions.onRestock?.(item, "to_order", 1)}
-              >
-                <ShoppingCart />À commander
-              </Button>
-            </div>
-          </div>
+          </>
         ) : null}
-      </section>
-    </Card>
+        <div className="flex flex-wrap gap-2">
+          {ordered ? (
+            <Button
+              ref={receiveRef}
+              size="sm"
+              onClick={() => actions.onRestock?.(item, "received", words ? quantity : 1)}
+            >
+              <PackageCheck />
+              Marquer reçu{words ? ` · +${formatCount(quantity, words[0], words[1])}` : ""}
+            </Button>
+          ) : (
+            <Button
+              size="sm"
+              onClick={() => actions.onRestock?.(item, "ordered", words ? quantity : 1)}
+            >
+              <Truck />
+              Marquer commandé
+            </Button>
+          )}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => actions.onRestock?.(item, "none", words ? quantity : 1)}
+          >
+            Annuler le rachat
+          </Button>
+        </div>
+      </div>
+    );
+  }
+  const toBuy = item.kind === "tool" && !item.owned;
+  if (!toBuy && item.state !== "low_stock") return null;
+  return (
+    <div className="mt-3.5 grid gap-3 border-t border-border pt-3.5">
+      <p className="text-sm">
+        {toBuy ? "Pas dans ton atelier." : "Stock bas."} Ajoute-le à « À racheter » pour ne pas
+        l&apos;oublier.
+      </p>
+      <div>
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={() => actions.onRestock?.(item, "to_order", 1)}
+        >
+          <ShoppingCart />À commander
+        </Button>
+      </div>
+    </div>
   );
 }
 
@@ -323,7 +525,10 @@ function linkMeta(link: PurchaseLinkVM, today: LocalDate) {
   return [where, when].filter(Boolean).join(" · ");
 }
 
-/** The item page ("fiche"): stock, restocking, bikes, purchase links, maintenance, history. */
+/**
+ * The item page ("fiche"): its stock by kind (a part's units, a product's level and containers,
+ * a tool's possession, D-85), restocking, bikes, purchase links, maintenance, history.
+ */
 export function ItemDetail({
   item,
   today,
@@ -357,7 +562,11 @@ export function ItemDetail({
     [item.id],
   );
   const photoUploads = useUploads(photoOwner);
-  const mountOn = item.componentTypeCode && servedBikes.length === 1 ? servedBikes[0] : null;
+  // Only a part is fitted ("Remplacer une pièce", D-33).
+  const mountOn =
+    item.kind === "part" && item.componentTypeCode && servedBikes.length === 1
+      ? servedBikes[0]
+      : null;
 
   return (
     <article aria-labelledby="item-title" className="grid content-start gap-[22px]">
@@ -368,7 +577,9 @@ export function ItemDetail({
           onFiles={(files) => photoUploads.add(files.slice(0, 1), true)}
         />
         <div className="min-w-0">
-          <p className="eyebrow">Pièce · {INVENTORY_CATEGORY_LABELS[item.category]}</p>
+          <p className="eyebrow">
+            {INVENTORY_KIND_LABELS[item.kind]} · {INVENTORY_CATEGORY_LABELS[item.category]}
+          </p>
           <h2
             ref={titleRef}
             id="item-title"
@@ -569,13 +780,26 @@ export function ItemDetail({
                       move.quantityDelta > 0 && "text-brand-ink",
                     )}
                   >
-                    <span aria-hidden>{formatSignedInteger(move.quantityDelta)}</span>
-                    <span className="sr-only">
-                      {move.quantityDelta > 0 ? "plus" : "moins"} {Math.abs(move.quantityDelta)}
-                    </span>
+                    {item.kind === "product" && move.quantityDelta === 0 && move.levelAfter ? (
+                      // A level noted by eye: the gauge, its word is in the title.
+                      <LevelGauge level={move.levelAfter} />
+                    ) : (
+                      <>
+                        <span aria-hidden>{formatSignedInteger(move.quantityDelta)}</span>
+                        <span className="sr-only">
+                          {move.quantityDelta > 0 ? "plus" : "moins"} {Math.abs(move.quantityDelta)}
+                        </span>
+                      </>
+                    )}
                   </span>
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold">{MOVEMENT_LABELS[move.kind]}</p>
+                    <p className="text-sm font-semibold">
+                      {movementTitle(
+                        item.kind,
+                        move,
+                        item.kind === "product" ? item.container : undefined,
+                      )}
+                    </p>
                     {move.source || move.detail ? (
                       <p className="text-[13px] text-fg-muted">
                         {[move.source, move.maintenance ? null : move.detail]

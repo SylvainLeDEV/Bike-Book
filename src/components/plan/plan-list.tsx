@@ -15,7 +15,7 @@ import { RuleStatusBadge, WearBar } from "@/components/status";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { formatQuantity, formatStock, ruleNote } from "@/lib/display";
+import { formatItemStock, formatQuantity, ruleNote } from "@/lib/display";
 import { formatDate, type LocalDate } from "@/lib/format";
 import { REBUY_STATE_LABELS } from "@/lib/labels";
 import type { RuleRowVM, TaskRowVM } from "@/lib/view-models";
@@ -98,7 +98,7 @@ function RuleRow({
         {stock ? (
           <p className="mt-2 text-[13px] text-fg-muted [&_svg]:mr-1.5 [&_svg]:inline [&_svg]:size-[15px] [&_svg]:align-[-3px]">
             {stock.state ? <PackageX aria-hidden /> : <PackageCheck aria-hidden />}
-            {stock.name} : {formatStock(stock.quantity, stock.unit)}
+            {stock.name} : {formatItemStock(stock)}
             {stock.state ? ` · ${REBUY_STATE_LABELS[stock.state].toLowerCase()}` : ""}
             {actions.workshopItemHref ? (
               <>

@@ -11,7 +11,7 @@ import { Sheet, SheetBody, SheetContent, SheetFooter, SheetForm } from "@/compon
 import { formatQuantity, formatStock } from "@/lib/display";
 import { REMOVAL_REASON_CHOICES } from "@/lib/labels";
 import { parseMoneyInput } from "@/lib/parse";
-import type { InventoryItemVM, ReplacePartInput, ReplacePartVM } from "@/lib/view-models";
+import type { PartItemVM, ReplacePartInput, ReplacePartVM } from "@/lib/view-models";
 
 /*
  * "Remplacer une pièce" (D-33, D-38, D-43): the removed part, why, then the new part taken from
@@ -24,7 +24,7 @@ function centsToInput(cents: number | null): string {
   return cents == null ? "" : (cents / 100).toFixed(2).replace(".", ",");
 }
 
-function servesBike(item: InventoryItemVM, bikeId: number) {
+function servesBike(item: PartItemVM, bikeId: number) {
   return item.bikes === "all" || item.bikes.some((bike) => bike.id === bikeId);
 }
 
@@ -43,7 +43,7 @@ export function ReplacePartSheet({
   /** Saves; an `{ ok: false }` answer keeps the sheet open with its message. */
   onSubmit: (
     input: ReplacePartInput,
-    item: InventoryItemVM | null,
+    item: PartItemVM | null,
   ) => void | Promise<void | { ok: false; error: string }>;
 }) {
   return (
@@ -74,7 +74,7 @@ function ReplaceForm({
   vm: ReplacePartVM;
   initialItemId: number | null;
   /** Resolves with an error message, or null once saved. */
-  onSubmit: (input: ReplacePartInput, item: InventoryItemVM | null) => Promise<string | null>;
+  onSubmit: (input: ReplacePartInput, item: PartItemVM | null) => Promise<string | null>;
 }) {
   const initialItem = vm.stock.find((it) => it.id === initialItemId) ?? null;
   const firstSlot =
@@ -94,7 +94,7 @@ function ReplaceForm({
   const candidates = vm.stock.filter(
     (item) => item.componentTypeCode === slot?.componentTypeCode && servesBike(item, vm.bike.id),
   );
-  const firstUsable = (list: InventoryItemVM[], prefer?: number | null) =>
+  const firstUsable = (list: PartItemVM[], prefer?: number | null) =>
     list.find((it) => it.id === prefer && it.quantity > 0) ?? list.find((it) => it.quantity > 0);
 
   const [choice, setChoice] = React.useState<number | "other">(

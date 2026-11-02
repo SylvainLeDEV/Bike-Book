@@ -12,6 +12,7 @@ import type {
   InventoryItemVM,
   WorkshopVM,
 } from "@/lib/view-models";
+import type { WorkshopView as WorkshopAddress } from "@/lib/workshop-filter";
 import {
   addLinkAction,
   archiveItemAction,
@@ -19,26 +20,45 @@ import {
   moveItemAction,
   restockAction,
   saveItemAction,
+  setLevelAction,
+  setOwnedAction,
   undoWorkshopAction,
   type UndoToken,
 } from "@/server/actions/workshop";
 
-/** The current values of an item, for "Modifier l'objet". */
+/** The current values of an item, for "Modifier l'objet" (its kind never changes). */
 function valuesOf(item: InventoryItemVM): AddItemInput {
-  return {
+  const common = {
     name: item.name,
     brand: item.brand,
     reference: item.reference,
     category: item.category,
     componentTypeCode: item.componentTypeCode,
-    bikes: item.bikes === "all" ? "all" : item.bikes.map((bike) => bike.id),
-    quantity: item.quantity,
-    unit: item.unit,
-    lowStockThreshold: item.lowStockThreshold,
+    bikes: item.bikes === "all" ? ("all" as const) : item.bikes.map((bike) => bike.id),
     location: item.location,
     link: null,
     notes: item.notes,
   };
+  switch (item.kind) {
+    case "part":
+      return {
+        ...common,
+        kind: item.kind,
+        quantity: item.quantity,
+        unit: item.unit,
+        lowStockThreshold: item.lowStockThreshold,
+      };
+    case "product":
+      return {
+        ...common,
+        kind: item.kind,
+        containers: item.containers,
+        level: item.level === "empty" ? "full" : item.level,
+        containerLabel: item.containerLabel ?? null,
+      };
+    case "tool":
+      return { ...common, kind: item.kind, owned: item.owned };
+  }
 }
 
 export function WorkshopView({
@@ -48,7 +68,7 @@ export function WorkshopView({
 }: {
   vm: WorkshopVM;
   componentTypes: ComponentTypeOption[];
-  initial: { tab: "parts" | "rebuy"; bikeId: number | null; itemId: number | null };
+  initial: WorkshopAddress;
 }) {
   const toast = useToast();
   const router = useRouter();
@@ -76,11 +96,12 @@ export function WorkshopView({
 
   const actions: WorkshopActions = {
     onMove: async (item, delta) => withUndo(await moveItemAction(item.id, delta)),
+    onSetLevel: async (item, level) => withUndo(await setLevelAction(item.id, level)),
+    onSetOwned: async (item, owned) => withUndo(await setOwnedAction(item.id, owned)),
     onRestock: async (item, to, quantity) => withUndo(await restockAction(item.id, to, quantity)),
     // The replace sheet lives on the bike page: open it there with this item chosen.
     onMount: (item, bike) => router.push(`/bikes/${bike.id}?replace=${item.id}`),
-    onAddItem: (suggestion) =>
-      setSheet({ open: true, prefill: suggestion ? { name: suggestion } : null, editing: null }),
+    onAddItem: (prefill) => setSheet({ open: true, prefill: prefill ?? null, editing: null }),
     onEdit: edit,
     onEditThreshold: edit,
     onEditBikes: edit,

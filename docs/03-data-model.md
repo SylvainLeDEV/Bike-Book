@@ -511,7 +511,8 @@ attachments stay. Bikes are never deleted (Q-12).
 ### Workshop (D-33 to D-42)
 
 The garage's inventory, owned by the workspace. Created complete in phase 1; the phase 1 UI
-offers parts only, products and tools come in 1.5 (D-33).
+offered parts only (D-33), products and tools were built on 2026-11-01 without any schema change
+(D-85).
 
 Status: **Built** in phase 1 feature 8 (2026-10-26, migration `0008_workshop`, which also adds
 `components.inventory_item_id`); `inventory_items.photo_attachment_id` added with the
@@ -521,13 +522,14 @@ of each movement kind (below); prices and thresholds ≥ 0. Values of `kind`: `p
 units), `product` (levels and containers, 1.5), `tool` (owned or not, 1.5); of `unit`: `piece`,
 `pair`, `set` (a kit); of `restock_status`: `none`, `to_order`, `ordered`; of `level_after`: `full`,
 `started`, `low`, `empty`; of movement `kind`: `initial` (stock when the item was added), `purchase`,
-`use`, `adjustment` (a correction after a count).
+`use`, `adjustment` (a correction: after a count, a level raised, a tool's possession; see
+[movements by kind](#movements-by-kind)).
 
 | Kind | Tracked as | "Stock bas" when |
 |------|------------|------------------|
 | Part | Exact quantity and a unit (piece, pair, set) | Quantity ≤ the item's alert level |
-| Product (1.5) | Level of the open container (full, started, low, empty) and the number of containers (D-36) | The last container is low, or none is left |
-| Tool (1.5) | Owned or not | Never; a tool not owned can be put on the "to buy" list |
+| Product (D-85) | Level of the open container (full, started, low, empty; shown Plein, Entamé, Presque vide, Vide) and the number of containers, the open one included (D-36) | The last container is low, or none is left |
+| Tool (D-85) | Owned or not | Never; a tool not owned can be put on the "to buy" list |
 
 ```mermaid
 erDiagram
@@ -558,9 +560,9 @@ erDiagram
 | `all_bikes` | boolean | `true`: every bike of the workspace, future ones included; `inventory_item_bikes` is then empty |
 | `unit` | enum: `piece`, `pair`, `set`, nullable | Parts only |
 | `low_stock_threshold` | integer, nullable | Parts only, in the item's `unit`: "Stock bas" at or below it. A suggestion, never an order by itself (D-35) |
-| `container_label` | text, nullable | Products only: "flacon", "tube", "bidon" |
+| `container_label` | text, nullable | Products only: the container's name, typed with suggestions (flacon, bidon, tube, pot, bombe, cartouche), stored trimmed and in lower case; null reads "flacon". Its plural is made by the app on its first word ("pots à graisse", `containerWords`, D-85) |
 | `restock_status` | enum: `none`, `to_order`, `ordered` | Received is an event (a purchase movement), not a status |
-| `restock_quantity` | integer, nullable | Set when ordering; prefilled at reception and correctable, then added to the stock (D-42) |
+| `restock_quantity` | integer, nullable | Set when ordering; prefilled at reception and correctable, then added to the stock (D-42). A tool's is always 1 (D-85) |
 | `restock_changed_on` | date, nullable | Shown on the restocking steps |
 | `location` | text | Storage place, free text |
 | `photo_attachment_id` | FK `attachments`, nullable, `ON DELETE SET NULL` | Its photo: a `photo` attached to this item, whatever its `kind` (D-75); the first one by default. Added with feature 10 (migration `0010_attachments`) |
@@ -570,7 +572,10 @@ erDiagram
 
 No quantity is stored (D-39): the quantity of a part or tool, and the container count of a
 product, are the sum of its movements; a product's level is the `level_after` of its latest
-movement that sets one.
+movement that sets one (none left: `empty`; containers but no level yet: `full`); a tool is owned
+when its sum is above zero. An item's `kind` never changes once created (D-85); the fields of the
+other kinds stay null (`unit` by CHECK, `low_stock_threshold` and `container_label` by the
+data-access layer).
 
 **`inventory_item_bikes`**: the bikes an item serves when `all_bikes` is `false`.
 
@@ -588,7 +593,7 @@ movement that sets one.
 | `occurred_at` | timestamp | |
 | `kind` | enum: `initial`, `purchase`, `use`, `adjustment` | CHECK: `purchase` > 0, `use` ≤ 0, `initial` ≥ 0 |
 | `quantity_delta` | integer, signed | Parts: units. Products: containers (0 when only the level changes). Tools: +1 or −1 |
-| `level_after` | enum: `full`, `started`, `low`, `empty`, nullable | Products only |
+| `level_after` | enum: `full`, `started`, `low`, `empty`, nullable | Products only: the level of the **open container after** this movement, when the movement sets one (D-85). After a container is finished it is the next one's (`full`), or `empty` when none is left |
 | `unit_cost_cents` | integer, nullable | Purchases |
 | `purchase_link_id` | FK `purchase_links`, nullable | Where it was bought |
 | `maintenance_item_id` | FK `maintenance_items`, nullable | The intervention that used it |
@@ -599,6 +604,22 @@ movement that sets one.
 Stock moves by movements, never by a typed total: "−" records a use, "+" a purchase, and
 "Corriger le stock" after a count records the difference as an `adjustment`. Tools are not
 recorded per job (D-40).
+
+<a id="movements-by-kind"></a>**Movements by kind (D-85).** No movement kind was added for
+products or tools, so the CHECK of `inventory_movements` stays as built:
+
+| Action | Part | Product | Tool |
+|--------|------|---------|------|
+| Added with a stock | `initial`, its units | `initial`, its containers, `level_after` = the open one's level | Owned: `initial` +1 |
+| "+", "Reçu" | `purchase` | `purchase` of containers; `level_after` = `full` if none was left | "Reçu": `purchase` +1, only when not owned |
+| "−" | `use` −1 | `use` −1 (a container thrown or given; the open one keeps its level), `level_after` = `empty` when it was the last | — |
+| A level picked by eye | — | Lower: `use` of 0 with `level_after`; higher (a mistake corrected): `adjustment` of 0 with `level_after` | — |
+| "Vide" | — | `use` −1, `level_after` = `full` (the next one is opened) or `empty` (none left) | — |
+| "Je l'ai" / "Je ne l'ai pas" | — | — | `adjustment` +1 / −1 (not a purchase: nothing says it was just bought); "Je l'ai" also ends a restocking in progress |
+| "Corriger le stock" | `adjustment` of the difference | `adjustment` of the containers' difference (`level_after` as for "+" and "−") | — |
+
+A tool is ordered one at a time, and only when it is not owned: a broken tool is first marked
+"Je ne l'ai pas", then "À commander". A tool added as "À acheter" starts on `to_order`.
 
 **`purchase_links`**
 
@@ -618,7 +639,10 @@ The last purchase date and the last price paid come from the movements, not from
 part taken from stock costs its last purchase price (D-38).
 
 **Rules meet items through the slot type:** an item with a component type serves the rules of
-that slot on its bikes. "À racheter" (dashboard and workshop) lists, most urgent first (D-41):
+that slot on its bikes. A rule's row shows one of them (D-85): a part, else a product, one to
+rebuy first; never a tool. "En stock pour ce vélo" lists the parts and products serving the bike,
+its tools only counted among the items to rebuy; only a part can be fitted ("Remplacer une
+pièce"). "À racheter" (dashboard and workshop) lists, most urgent first (D-41):
 items needed by a late or due-soon rule, then `to_order`, `ordered`, and low stock not ordered yet.
 
 **Flows**

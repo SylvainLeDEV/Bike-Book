@@ -1,10 +1,13 @@
 import "server-only";
+import { containerWords } from "@/lib/display";
 import { localDateOf, startOfLocalDay } from "@/lib/format";
 import type {
   BikeRef,
   InventoryItemVM,
   InventoryRowVM,
+  ItemStockVM,
   MovementVM,
+  PartItemVM,
   PurchaseLinkVM,
   RebuyRowVM,
   RuleRowVM,
@@ -24,11 +27,12 @@ import {
 } from "@/server/db";
 import { canBeRidden } from "@/server/domain/bikes";
 import {
+  itemStock,
   lastUnitCostCents,
   rebuyOrder,
   rebuyState,
   servesBike,
-  stockQuantity,
+  type ItemStock,
   type RuleNeed,
 } from "@/server/domain/inventory";
 import { getEnv } from "@/server/env";
@@ -36,9 +40,10 @@ import { today } from "@/server/time";
 import { bikeRef } from "./refs";
 import { evaluateBikeRules, type EvaluatedRule } from "./rules";
 
-// The garage as a whole: every ridable bike with its evaluated rules, and the workshop's parts
-// with their computed stock (D-39), restocking state (D-35) and the rules they serve. Shared by
-// the dashboard, the bike page and the workshop, so the three always agree.
+// The garage as a whole: every ridable bike with its evaluated rules, and the workshop's parts,
+// products and tools (D-85) with their computed stock (D-39), restocking state (D-35) and the
+// rules they serve. Shared by the dashboard, the bike page and the workshop, so the three always
+// agree.
 
 export type Garage = {
   bikes: Bike[];
@@ -82,7 +87,7 @@ export function loadGarage(ctx: AccessContext): Garage {
     );
   }
   const items = listInventory(ctx)
-    .filter((item) => item.kind === "part" && item.archivedAt == null)
+    .filter((item) => item.archivedAt == null)
     .map((item) => itemVM(item, bikes, ridable, rules, timeZone));
   // A rule row shows the workshop part that serves its slot (the sealant's "vide · à commander").
   for (const [bikeId, evaluated] of rules) {
@@ -91,6 +96,43 @@ export function loadGarage(ctx: AccessContext): Garage {
     }
   }
   return { bikes, ridable, rides, rules, items };
+}
+
+/** What an item holds, with the words to say it: its unit, its container (D-85). */
+export function stockVM(
+  item: Pick<InventoryItem, "unit" | "containerLabel">,
+  stock: ItemStock,
+): ItemStockVM {
+  switch (stock.kind) {
+    case "part":
+      return { ...stock, unit: item.unit ?? "piece" };
+    case "product":
+      return { ...stock, container: containerWords(item.containerLabel) };
+    case "tool":
+      return stock;
+  }
+}
+
+/** Only the stock of a row: what a rule's line and "À racheter" carry. */
+export function pickStock(item: ItemStockVM): ItemStockVM {
+  switch (item.kind) {
+    case "part":
+      return { kind: item.kind, quantity: item.quantity, unit: item.unit };
+    case "product":
+      return {
+        kind: item.kind,
+        containers: item.containers,
+        level: item.level,
+        container: item.container,
+      };
+    case "tool":
+      return { kind: item.kind, owned: item.owned };
+  }
+}
+
+/** The parts of the workshop: what "Remplacer une pièce" offers. */
+export function isPartItem(item: InventoryItemVM): item is PartItemVM {
+  return item.kind === "part";
 }
 
 function cheapest(links: PurchaseLinkVM[]) {
@@ -117,7 +159,7 @@ function itemVM(
   rules: Map<number, EvaluatedRule[]>,
   timeZone: string,
 ): InventoryItemVM {
-  const quantity = stockQuantity(item.movements);
+  const stock = itemStock(item.kind, item.movements);
   const refs = new Map(bikes.map((bike) => [bike.id, bikeRef(bike)]));
   const links: PurchaseLinkVM[] = item.links.map((link) => {
     const lastPurchase = [...item.movements]
@@ -170,12 +212,13 @@ function itemVM(
       maintenance: movement.maintenance
         ? { bikeId: movement.maintenance.bikeId, title: movement.maintenance.eventTitle }
         : null,
+      levelAfter: movement.levelAfter,
     };
   });
   const best = cheapest(links);
   return {
     id: item.id,
-    kind: "part",
+    ...stockVM(item, stock),
     name: item.name,
     photoUrl:
       item.photoAttachmentId == null ? null : `/api/uploads/${item.photoAttachmentId}?size=thumb`,
@@ -187,10 +230,9 @@ function itemVM(
       ? "all"
       : item.bikeIds.flatMap((id) => (refs.has(id) ? [refs.get(id) as BikeRef] : [])),
     location: item.location,
-    quantity,
-    unit: item.unit ?? "piece",
-    state: rebuyState(item, quantity),
+    state: rebuyState(item, stock),
     lowStockThreshold: item.lowStockThreshold,
+    containerLabel: item.containerLabel,
     lastUnitCostCents: lastUnitCostCents(item.movements),
     restock: {
       status: item.restockStatus,
@@ -214,7 +256,10 @@ function itemVM(
   };
 }
 
-/** The workshop part a rule's slot uses on that bike: one to rebuy first, else the first one. */
+/**
+ * What a rule's slot uses on that bike (D-85): a part, else a product, one to rebuy first; never
+ * a tool (tools show in "À racheter" and on their own page).
+ */
 export function stockLine(
   typeCode: string | null,
   bikeId: number,
@@ -226,16 +271,10 @@ export function stockLine(
       item.componentTypeCode === typeCode &&
       (item.bikes === "all" || item.bikes.some((bike) => bike.id === bikeId)),
   );
-  const item = fitting.find((i) => i.state != null) ?? fitting[0];
-  return item
-    ? {
-        itemId: item.id,
-        name: item.name,
-        quantity: item.quantity,
-        unit: item.unit,
-        state: item.state,
-      }
-    : null;
+  const parts = fitting.filter((item) => item.kind === "part");
+  const pool = parts.length ? parts : fitting.filter((item) => item.kind === "product");
+  const item = pool.find((i) => i.state != null) ?? pool[0];
+  return item ? { itemId: item.id, name: item.name, state: item.state, ...pickStock(item) } : null;
 }
 
 /** What "À racheter" needs from the rules: the worst late or due-soon rule an item serves. */
@@ -251,6 +290,7 @@ export function rebuyRows(items: InventoryItemVM[]): RebuyRowVM[] {
     const price = cheapest(item.purchaseLinks)?.priceCents ?? null;
     return {
       itemId: item.id,
+      itemKind: item.kind,
       name: item.name,
       bikes: item.bikes,
       state: item.state!,
@@ -263,30 +303,41 @@ export function rebuyRows(items: InventoryItemVM[]): RebuyRowVM[] {
               priceCents: price,
             }
           : item.state === "low_stock"
-            ? { kind: "low_stock", quantity: item.quantity, unit: item.unit }
+            ? { kind: "low_stock", stock: pickStock(item) }
             : { kind: "price", priceCents: price },
     };
   });
 }
 
-/** "En stock pour ce vélo": the parts that serve it, those to rebuy first. */
+/**
+ * "En stock pour ce vélo": the parts and products that serve it, those to rebuy first, parts
+ * before products. Tools are not listed but count among the items to rebuy (D-85).
+ */
 export function bikeStock(items: InventoryItemVM[], bikeId: number) {
-  const rows: InventoryRowVM[] = items
-    .filter((item) => item.bikes === "all" || item.bikes.some((bike) => bike.id === bikeId))
+  const serving = items.filter(
+    (item) => item.bikes === "all" || item.bikes.some((bike) => bike.id === bikeId),
+  );
+  const rows: InventoryRowVM[] = serving
+    .filter((item) => item.kind !== "tool")
     .sort(
       (a, b) =>
-        Number(b.state != null) - Number(a.state != null) || a.name.localeCompare(b.name, "fr"),
+        Number(b.state != null) - Number(a.state != null) ||
+        Number(a.kind === "product") - Number(b.kind === "product") ||
+        a.name.localeCompare(b.name, "fr"),
     )
-    .map(({ id, name, photoUrl, category, bikes, location, quantity, unit, state }) => ({
-      id,
-      name,
-      photoUrl,
-      category,
-      bikes,
-      location,
-      quantity,
-      unit,
-      state,
+    .map((item) => ({
+      id: item.id,
+      name: item.name,
+      photoUrl: item.photoUrl,
+      category: item.category,
+      bikes: item.bikes,
+      location: item.location,
+      state: item.state,
+      ...pickStock(item),
     }));
-  return { rows, total: rows.length, toRebuy: rows.filter((row) => row.state != null).length };
+  return {
+    rows,
+    total: serving.length,
+    toRebuy: serving.filter((item) => item.state != null).length,
+  };
 }

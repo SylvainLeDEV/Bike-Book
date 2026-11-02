@@ -6,6 +6,7 @@ import type {
   InventoryKind,
   InventoryUnit,
   MovementKind,
+  ProductLevel,
   RestockStatus,
   ShopKind,
 } from "@/lib/enums";
@@ -25,14 +26,17 @@ import {
 } from "./schema";
 import { resolveShopId } from "./shops";
 
-// The workshop of the workspace (feature 8, D-33 to D-42). Items carry the workspace; their
-// bikes, links and movements are reached through them. Quantities are never stored (D-39).
+// The workshop of the workspace (feature 8, D-33 to D-42; products and tools, D-85). Items carry
+// the workspace; their bikes, links and movements are reached through them. Quantities and
+// levels are never stored (D-39): they are read from the movements.
 
 export type InventoryMovement = {
   id: number;
   occurredAt: number;
   kind: MovementKind;
   quantityDelta: number;
+  /** Products: the open container's level after it, when it set one (D-85). */
+  levelAfter: ProductLevel | null;
   unitCostCents: number | null;
   purchaseLinkId: number | null;
   maintenanceItemId: number | null;
@@ -61,6 +65,8 @@ export type InventoryItem = {
   bikeIds: number[];
   unit: InventoryUnit | null;
   lowStockThreshold: number | null;
+  /** Products only: "flacon", as typed (D-85). */
+  containerLabel: string | null;
   restockStatus: RestockStatus;
   restockQuantity: number | null;
   restockChangedOn: LocalDate | null;
@@ -73,6 +79,7 @@ export type InventoryItem = {
   links: InventoryLink[];
 };
 
+/** An item's description; the fields of another kind are left empty (CHECK on `unit`). */
 export type ItemData = {
   name: string;
   brand: string | null;
@@ -81,11 +88,23 @@ export type ItemData = {
   componentTypeCode: ComponentTypeCode | null;
   allBikes: boolean;
   bikeIds: number[];
-  unit: InventoryUnit;
+  /** Parts only. */
+  unit: InventoryUnit | null;
   lowStockThreshold: number | null;
+  /** Products only. */
+  containerLabel: string | null;
   location: string | null;
   notes: string | null;
 };
+
+/** Keeps only the fields of the item's kind (D-33, D-85). */
+function kindFields(kind: InventoryKind, data: ItemData) {
+  return {
+    unit: kind === "part" ? (data.unit ?? "piece") : null,
+    lowStockThreshold: kind === "part" ? data.lowStockThreshold : null,
+    containerLabel: kind === "product" ? data.containerLabel : null,
+  };
+}
 
 type Outcome<T = object> = ({ ok: true } & T) | { ok: false; reason: "not_found" };
 
@@ -162,6 +181,7 @@ export function listInventory(ctx: AccessContext): InventoryItem[] {
       occurredAt: inventoryMovements.occurredAt,
       kind: inventoryMovements.kind,
       quantityDelta: inventoryMovements.quantityDelta,
+      levelAfter: inventoryMovements.levelAfter,
       unitCostCents: inventoryMovements.unitCostCents,
       purchaseLinkId: inventoryMovements.purchaseLinkId,
       maintenanceItemId: inventoryMovements.maintenanceItemId,
@@ -189,6 +209,7 @@ export function listInventory(ctx: AccessContext): InventoryItem[] {
     bikeIds: itemBikes.filter((b) => b.itemId === item.id).map((b) => b.bikeId),
     unit: item.unit,
     lowStockThreshold: item.lowStockThreshold,
+    containerLabel: item.containerLabel,
     restockStatus: item.restockStatus,
     restockQuantity: item.restockQuantity,
     restockChangedOn: item.restockChangedOn,
@@ -215,6 +236,7 @@ export function listInventory(ctx: AccessContext): InventoryItem[] {
         occurredAt: movement.occurredAt.getTime(),
         kind: movement.kind,
         quantityDelta: movement.quantityDelta,
+        levelAfter: movement.levelAfter,
         unitCostCents: movement.unitCostCents,
         purchaseLinkId: movement.purchaseLinkId,
         maintenanceItemId: movement.maintenanceItemId,
@@ -231,11 +253,20 @@ export function listInventory(ctx: AccessContext): InventoryItem[] {
   }));
 }
 
-/** A new part: the item, its bikes, its first stock (an `initial` movement) and a purchase link. */
+/**
+ * A new item: the item, its bikes, its first stock (an `initial` movement: a part's units, a
+ * product's containers with the open one's level, an owned tool) and a purchase link. A tool not
+ * owned goes straight to "À commander" (D-85).
+ */
 export function createItem(
   ctx: AccessContext,
   data: ItemData & {
+    kind: InventoryKind;
     initialQuantity: number;
+    /** Products: the open container's level. */
+    initialLevel?: ProductLevel | null;
+    /** Put on "À commander" at once, one unit. */
+    toOrder?: boolean;
     link: {
       shop: { name: string; kind: ShopKind } | null;
       url: string | null;
@@ -251,17 +282,19 @@ export function createItem(
       .insert(inventoryItems)
       .values({
         workspaceId: ctx.workspace.id,
-        kind: "part",
+        kind: data.kind,
         name: data.name,
         brand: data.brand,
         reference: data.reference,
         category: data.category,
         componentTypeCode: data.componentTypeCode,
         allBikes: data.allBikes,
-        unit: data.unit,
-        lowStockThreshold: data.lowStockThreshold,
+        ...kindFields(data.kind, data),
         location: data.location,
         notes: data.notes,
+        ...(data.toOrder
+          ? { restockStatus: "to_order" as const, restockQuantity: 1, restockChangedOn: data.today }
+          : {}),
       })
       .returning({ id: inventoryItems.id })
       .get();
@@ -273,6 +306,7 @@ export function createItem(
           occurredAt: new Date(data.at),
           kind: "initial",
           quantityDelta: data.initialQuantity,
+          levelAfter: data.kind === "product" ? (data.initialLevel ?? "full") : null,
           createdBy: ctx.user.id,
         })
         .run();
@@ -292,14 +326,18 @@ export function createItem(
   });
 }
 
-/** Changes an item's description (not its stock, links or restocking). */
+/** Changes an item's description (not its kind, stock, links or restocking). */
 export function updateItem(ctx: AccessContext, itemId: number, data: ItemData): Outcome {
   return getDb().transaction((tx) => {
-    if (!ownedItem(tx, ctx, itemId) || !ownsBikes(tx, ctx, data.bikeIds)) {
+    const item = ownedItem(tx, ctx, itemId);
+    if (!item || !ownsBikes(tx, ctx, data.bikeIds)) {
       return { ok: false, reason: "not_found" };
     }
     const { bikeIds, ...fields } = data;
-    tx.update(inventoryItems).set(fields).where(eq(inventoryItems.id, itemId)).run();
+    tx.update(inventoryItems)
+      .set({ ...fields, ...kindFields(item.kind, data) })
+      .where(eq(inventoryItems.id, itemId))
+      .run();
     setBikes(tx, itemId, data.allBikes ? [] : bikeIds);
     return { ok: true };
   });
@@ -328,6 +366,8 @@ export function addMovement(
   movement: {
     kind: "purchase" | "use" | "adjustment";
     quantityDelta: number;
+    /** Products: the open container's level after it (D-85). */
+    levelAfter?: ProductLevel | null;
     unitCostCents: number | null;
     note: string | null;
     at: number;
@@ -342,6 +382,7 @@ export function addMovement(
         occurredAt: new Date(movement.at),
         kind: movement.kind,
         quantityDelta: movement.quantityDelta,
+        levelAfter: movement.levelAfter ?? null,
         unitCostCents: movement.unitCostCents,
         note: movement.note,
         createdBy: ctx.user.id,
@@ -421,6 +462,8 @@ export function receiveItem(
   itemId: number,
   input: {
     quantity: number;
+    /** Products: the level the reception sets (a first container opens full, D-85). */
+    levelAfter?: ProductLevel | null;
     unitCostCents: number | null;
     purchaseLinkId: number | null;
     at: number;
@@ -436,6 +479,7 @@ export function receiveItem(
         occurredAt: new Date(input.at),
         kind: "purchase",
         quantityDelta: input.quantity,
+        levelAfter: input.levelAfter ?? null,
         unitCostCents: input.unitCostCents,
         purchaseLinkId: input.purchaseLinkId,
         createdBy: ctx.user.id,
@@ -458,7 +502,52 @@ export function receiveItem(
   });
 }
 
-/** "Annuler" after "Reçu": deletes the purchase and puts the restocking step back. */
+/**
+ * "Je l'ai" / "Je ne l'ai pas" on a tool (D-85): a correction of its possession; "Je l'ai" also
+ * ends a restocking in progress. Returns the previous step, so `undoReceive` can put it back.
+ */
+export function setToolOwned(
+  ctx: AccessContext,
+  itemId: number,
+  input: { quantityDelta: number; at: number },
+): Outcome<{ movementId: number; previous: RestockFields }> {
+  return getDb().transaction((tx) => {
+    const item = ownedItem(tx, ctx, itemId);
+    if (!item || item.kind !== "tool") return { ok: false, reason: "not_found" };
+    const { id } = tx
+      .insert(inventoryMovements)
+      .values({
+        itemId,
+        occurredAt: new Date(input.at),
+        kind: "adjustment",
+        quantityDelta: input.quantityDelta,
+        note: input.quantityDelta > 0 ? "Possédé" : "Perdu, cassé ou prêté",
+        createdBy: ctx.user.id,
+      })
+      .returning({ id: inventoryMovements.id })
+      .get();
+    if (input.quantityDelta > 0) {
+      tx.update(inventoryItems)
+        .set({ restockStatus: "none", restockQuantity: null, restockChangedOn: null })
+        .where(eq(inventoryItems.id, itemId))
+        .run();
+    }
+    return {
+      ok: true,
+      movementId: id,
+      previous: {
+        status: item.restockStatus,
+        quantity: item.restockQuantity,
+        changedOn: item.restockChangedOn,
+      },
+    };
+  });
+}
+
+/**
+ * "Annuler" after "Reçu" or a tool's "Je l'ai": deletes that movement and puts the restocking
+ * step back.
+ */
 export function undoReceive(
   ctx: AccessContext,
   itemId: number,

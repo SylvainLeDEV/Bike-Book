@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   bikesText,
+  containerWords,
+  formatItemStock,
   formatQuantity,
   formatStock,
+  movementTitle,
   initialsOf,
   maskSerial,
   rideFigures,
@@ -134,5 +137,53 @@ describe("slots in words", () => {
     expect(replacedTitle("rear_derailleur", "none")).toBe("Dérailleur arrière remplacé");
     expect(agreed("tire", "ajouté")).toBe("ajouté");
     expect(agreed("grips", "monté")).toBe("montées");
+  });
+});
+
+describe("workshop stock in words (D-85)", () => {
+  it("names a product's container, plural included", () => {
+    expect(containerWords(null)).toEqual(["flacon", "flacons"]);
+    expect(containerWords("  Bidon ")).toEqual(["bidon", "bidons"]);
+    expect(containerWords("seau")).toEqual(["seau", "seaux"]);
+    expect(containerWords("pot à graisse")).toEqual(["pot à graisse", "pots à graisse"]);
+    expect(containerWords("tubes")).toEqual(["tubes", "tubes"]);
+  });
+
+  it("says what each kind holds", () => {
+    const flacon = containerWords(null);
+    expect(formatItemStock({ kind: "part", quantity: 2, unit: "pair" })).toBe(fr("2~paires"));
+    expect(
+      formatItemStock({ kind: "product", containers: 1, level: "low", container: flacon }),
+    ).toBe("presque vide");
+    expect(
+      formatItemStock({ kind: "product", containers: 2, level: "started", container: flacon }),
+    ).toBe(fr("entamé · 2~flacons"));
+    expect(
+      formatItemStock({ kind: "product", containers: 0, level: "empty", container: flacon }),
+    ).toBe("vide");
+    expect(formatItemStock({ kind: "tool", owned: true })).toBe("possédé");
+    expect(formatItemStock({ kind: "tool", owned: false })).toBe("non possédé");
+  });
+
+  it("titles a movement by the item's kind", () => {
+    const bombe = containerWords("bombe");
+    expect(movementTitle("part", { kind: "use", quantityDelta: -1 })).toBe("Utilisation");
+    expect(
+      movementTitle("product", { kind: "use", quantityDelta: 0, levelAfter: "low" }, bombe),
+    ).toBe("Niveau : presque vide");
+    expect(
+      movementTitle("product", { kind: "adjustment", quantityDelta: 0, levelAfter: "full" }),
+    ).toBe("Niveau : plein");
+    expect(
+      movementTitle("product", { kind: "use", quantityDelta: -1, levelAfter: "full" }, bombe),
+    ).toBe(fr("Vide · 1~bombe en moins"));
+    expect(
+      movementTitle("product", { kind: "use", quantityDelta: -1, levelAfter: null }, bombe),
+    ).toBe(fr("1~bombe en moins"));
+    expect(movementTitle("product", { kind: "purchase", quantityDelta: 1 })).toBe("Achat");
+    expect(movementTitle("tool", { kind: "adjustment", quantityDelta: 1 })).toBe("Dans l'atelier");
+    expect(movementTitle("tool", { kind: "adjustment", quantityDelta: -1 })).toBe(
+      "Plus dans l'atelier",
+    );
   });
 });

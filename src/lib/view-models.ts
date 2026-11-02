@@ -18,11 +18,13 @@ import type {
   Discipline,
   EvidenceLevel,
   InventoryCategory,
+  InventoryKind,
   InventoryUnit,
   MaintenanceAction,
   MaintenancePerformer,
   MeasurementUnit,
   MovementKind,
+  ProductLevel,
   RemovalReason,
   RestockStatus,
   RideConditions,
@@ -43,9 +45,11 @@ export type {
   ComponentPosition,
   Discipline,
   InventoryCategory,
+  InventoryKind,
   InventoryUnit,
   MaintenancePerformer,
   MovementKind,
+  ProductLevel,
   RemovalReason,
   RestockStatus,
   RideConditions,
@@ -96,14 +100,8 @@ export type RuleRowVM = {
   /** Projection from the last 8 weeks (Estimate); null when there is not enough riding. */
   etaDays: number | null;
   lastDoneOn: LocalDate | null;
-  /** The workshop part this slot needs, when one is linked and to rebuy. */
-  stock: {
-    itemId: number;
-    name: string;
-    quantity: number;
-    unit: InventoryUnit;
-    state: RebuyState | null;
-  } | null;
+  /** The workshop part, else product, this slot uses on the bike; tools are never shown (D-85). */
+  stock: ({ itemId: number; name: string; state: RebuyState | null } & ItemStockVM) | null;
 };
 
 /** "Nouvelle tâche" (feature 7). */
@@ -230,6 +228,7 @@ export type BikeCardVM = {
 
 export type RebuyRowVM = {
   itemId: number;
+  itemKind: InventoryKind;
   name: string;
   bikes: BikeRef[] | "all";
   state: RebuyState;
@@ -237,7 +236,7 @@ export type RebuyRowVM = {
   reason:
     | { kind: "rule"; status: "overdue" | "due_soon"; neededOn: LocalDate | null }
     | { kind: "ordered"; orderedOn: LocalDate; priceCents: number | null }
-    | { kind: "low_stock"; quantity: number; unit: InventoryUnit }
+    | { kind: "low_stock"; stock: ItemStockVM }
     | { kind: "price"; priceCents: number | null };
 };
 
@@ -329,6 +328,25 @@ export type BikeRecordVM = {
   cost: TotalCostVM;
 };
 
+/** "flacon" / "flacons": a product's container, in words (D-85). */
+export type ContainerWords = [one: string, many: string];
+
+/**
+ * What an item holds, by kind, computed from its movements (D-39): a part's quantity and unit,
+ * a product's containers and the level of the open one (D-36), a tool's possession (D-40).
+ */
+export type ItemStockVM =
+  | { kind: "part"; quantity: number; unit: InventoryUnit }
+  | {
+      kind: "product";
+      /** Containers in stock, the open one included. */
+      containers: number;
+      /** The open container's level; `empty` when no container is left. */
+      level: ProductLevel;
+      container: ContainerWords;
+    }
+  | { kind: "tool"; owned: boolean };
+
 export type InventoryRowVM = {
   id: number;
   name: string;
@@ -337,10 +355,8 @@ export type InventoryRowVM = {
   category: InventoryCategory;
   bikes: BikeRef[] | "all";
   location: string | null;
-  quantity: number;
-  unit: InventoryUnit;
   state: RebuyState | null;
-};
+} & ItemStockVM;
 
 export type BikePageVM = {
   today: LocalDate;
@@ -579,14 +595,18 @@ export type MovementVM = {
   source: string | null;
   detail: string | null;
   maintenance: { bikeId: number; title: string } | null;
+  /** Products: the open container's level after this movement, when it set one (D-85). */
+  levelAfter?: ProductLevel | null;
 };
 
 export type InventoryItemVM = InventoryRowVM & {
-  kind: "part";
   brand: string | null;
   reference: string | null;
   componentTypeCode: string | null;
+  /** Parts only: "Stock bas" at or below it (D-35). */
   lowStockThreshold: number | null;
+  /** Products only: the container's name as typed ("flacon", D-85). */
+  containerLabel?: string | null;
   /** Unit cost of the latest purchase movement: the cost of a part taken from stock (D-38). */
   lastUnitCostCents: number | null;
   restock: {
@@ -611,6 +631,9 @@ export type InventoryItemVM = InventoryRowVM & {
   notes: string | null;
 };
 
+/** A part of the workshop: what "Remplacer une pièce" offers (D-33). */
+export type PartItemVM = Extract<InventoryItemVM, { kind: "part" }>;
+
 export type WorkshopVM = {
   today: LocalDate;
   bikes: BikeRef[];
@@ -629,7 +652,7 @@ export type ReplacePartVM = {
     componentTypeCode: string;
     fitted: { model: string; counter: Quantity };
   }[];
-  stock: InventoryItemVM[];
+  stock: PartItemVM[];
 };
 
 // --- Quick ride entry ------------------------------------------------------------------------------
@@ -679,7 +702,10 @@ export type ReplacePartInput = {
   priceCents: number | null;
 };
 
-/** "Ajouter un objet", parts only in phase 1 (D-33). */
+/**
+ * "Ajouter un objet" and "Modifier l'objet" (D-33, D-85): the fields every kind has, then its
+ * own. The stock fields are read only when the item is created; its kind never changes.
+ */
 export type AddItemInput = {
   name: string;
   brand: string | null;
@@ -688,13 +714,21 @@ export type AddItemInput = {
   componentTypeCode: string | null;
   /** "all", or the ids of the bikes it serves (none is allowed). */
   bikes: "all" | number[];
-  quantity: number;
-  unit: InventoryUnit;
-  lowStockThreshold: number | null;
   location: string | null;
   link: { shopName: string | null; url: string | null; priceCents: number | null } | null;
   notes: string | null;
-};
+} & (
+  | { kind: "part"; quantity: number; unit: InventoryUnit; lowStockThreshold: number | null }
+  | {
+      kind: "product";
+      /** Containers in stock, the open one included. */
+      containers: number;
+      level: Exclude<ProductLevel, "empty">;
+      containerLabel: string | null;
+    }
+  /** Not owned: the tool goes to "À commander". */
+  | { kind: "tool"; owned: boolean }
+);
 
 /** Answer of the replace action: the undo token is the `replaced` line (D-60). */
 export type ReplacePartResult =

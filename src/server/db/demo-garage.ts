@@ -656,6 +656,7 @@ export function seedDemoParts(input: {
   const items = new Map<string, number>();
   for (const item of ITEMS) {
     const created = createItem(ctx, {
+      kind: "part",
       name: item.name,
       brand: item.brand,
       reference: item.reference,
@@ -665,6 +666,7 @@ export function seedDemoParts(input: {
       bikeIds: item.bikes === "all" ? [] : item.bikes.map((name) => bikes.get(name)?.id ?? -1),
       unit: item.unit,
       lowStockThreshold: item.threshold,
+      containerLabel: null,
       location: item.location,
       notes: null,
       initialQuantity: item.initial?.quantity ?? 0,

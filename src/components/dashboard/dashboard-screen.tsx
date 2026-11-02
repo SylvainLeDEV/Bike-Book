@@ -1,17 +1,18 @@
 import Link from "next/link";
 import { cn } from "cn";
-import { Clock, OctagonAlert, Package, Plus, ShoppingCart } from "lucide-react";
+import { Clock, OctagonAlert, Plus, ShoppingCart } from "lucide-react";
 import { BikeLine } from "@/components/bike-cover";
 import { BikeCard } from "@/components/bike/bike-card";
 import { EmptyState } from "@/components/empty-state";
+import { KIND_ICONS } from "@/components/icons";
 import { PlanList, type PlanActions } from "@/components/plan/plan-list";
 import { RebuyBadge } from "@/components/status";
 import { Timeline } from "@/components/timeline";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { bikesText, formatStock } from "@/lib/display";
+import { bikesText, formatItemStock } from "@/lib/display";
 import { formatDate, formatMoney, type LocalDate } from "@/lib/format";
-import type { DashboardVM, RebuyRowVM } from "@/lib/view-models";
+import type { DashboardVM, InventoryKind, RebuyRowVM } from "@/lib/view-models";
 
 export type DashboardLinks = {
   bike: (bikeId: number) => string;
@@ -78,6 +79,11 @@ function SummaryPill({
   );
 }
 
+function KindIcon({ kind }: { kind: InventoryKind }) {
+  const Icon = KIND_ICONS[kind];
+  return <Icon aria-hidden />;
+}
+
 function rebuyMeta(row: RebuyRowVM, today: LocalDate): string {
   const reason = row.reason;
   switch (reason.kind) {
@@ -94,7 +100,7 @@ function rebuyMeta(row: RebuyRowVM, today: LocalDate): string {
         .filter(Boolean)
         .join(" · ");
     case "low_stock":
-      return `reste ${formatStock(reason.quantity, reason.unit)}`;
+      return `reste ${formatItemStock(reason.stock)}`;
     case "price":
       return reason.priceCents != null ? formatMoney(reason.priceCents) : "aucun lien d'achat";
   }
@@ -121,7 +127,7 @@ export function RebuyList({
                 className="flex min-h-[60px] items-center gap-3 px-4 py-3 transition-colors hover:bg-[color-mix(in_oklch,var(--surface-2),var(--surface)_40%)] focus-visible:-outline-offset-3"
               >
                 <span className="grid size-9 shrink-0 place-items-center rounded-[10px] bg-surface-2 text-fg-muted [&_svg]:size-[18px]">
-                  <Package aria-hidden />
+                  <KindIcon kind={row.itemKind} />
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="block text-[14.5px] font-semibold">{row.name}</span>

@@ -2,7 +2,8 @@
 
 import * as React from "react";
 import { cn } from "cn";
-import { replaceQuery, writeBikeTab, type BikeTabId } from "@/lib/bike-tabs";
+import { replaceQuery } from "@/lib/address";
+import { writeBikeTab, type BikeTabId } from "@/lib/bike-tabs";
 
 /*
  * Bike page sections (D-48, D-78, D-79). Below 1024 px (phone and tablet): six tabs, only the

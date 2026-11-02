@@ -6,10 +6,12 @@ import {
   CircleDot,
   Clock,
   Disc,
+  Droplet,
   Link,
   type LucideIcon,
   Mountain,
   OctagonAlert,
+  Package,
   PackageMinus,
   Pause,
   Route,
@@ -21,7 +23,13 @@ import {
   Zap,
   Gauge,
 } from "lucide-react";
-import type { InventoryCategory, RebuyState, RideType, RuleStatus } from "@/lib/view-models";
+import type {
+  InventoryCategory,
+  InventoryKind,
+  RebuyState,
+  RideType,
+  RuleStatus,
+} from "@/lib/view-models";
 
 /** One icon per component group and workshop category (the mockup's choices). */
 export const CATEGORY_ICONS: Record<InventoryCategory, LucideIcon> = {
@@ -60,4 +68,11 @@ export const REBUY_STATE_ICONS: Record<RebuyState, LucideIcon> = {
   to_order: ShoppingCart,
   ordered: Truck,
   low_stock: PackageMinus,
+};
+
+/** A workshop item's kind (the mockup's choices): part, product, tool. */
+export const KIND_ICONS: Record<InventoryKind, LucideIcon> = {
+  part: Package,
+  product: Droplet,
+  tool: Wrench,
 };

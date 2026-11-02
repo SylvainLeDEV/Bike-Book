@@ -78,8 +78,8 @@ weeks of real use.
 - [ ] A model's own starting values for a setup (pressure by rider weight, clicks by pressure, from the manufacturer's guide, D-81)
 - [ ] E-bike readings (D-19): typed from the Bosch eBike Flow app, battery capacity and cycles charts
 - [ ] Photo labels and the photo search across bikes, in Activité › Photos (D-45)
-- [ ] Workshop: products (four levels plus containers, D-36) and tools (D-33), **next** (D-82: before the procedures, so their material links to the stock); built directly in the app from the mockup (D-54)
-- [ ] Maintenance procedures ("fiches"): list (an Atelier tab), detail, editor, task or rule → procedure link (D-47, D-82; ≈ 3–4 evenings, **Estimate**)
+- [x] Workshop: products (four levels plus containers, D-36) and tools (D-33), before the procedures so their material links to the stock (D-82); built directly in the app from the mockup, no `/design` screen and no demo data (done 2026-11-01, D-85: Pièces · Produits · Outils · À racheter, levels and possession recorded as movements, the view kept in the address; no migration)
+- [ ] Maintenance procedures ("fiches"), **next**: list (an Atelier tab), detail, editor, task or rule → procedure link (D-47, D-82; ≈ 3–4 evenings, **Estimate**)
 - [ ] Runs ("suivi"): to do, in progress, done, stored in the database, steps checked with comments and photos, summary that writes the maintenance event (D-82, revising D-47's workshop mode; ≈ 3–4 evenings, **Estimate**)
 - [ ] Statistics: km and hours per bike per month, cost per bike per year, cost per 100 km over time (D-23, D-44)
 - [ ] Search and filters beyond the workshop (the bike history's year, month and kind filters exist, D-78; next: the same in Activité with a bike filter, text search, place, ride type, conditions, totals per period)

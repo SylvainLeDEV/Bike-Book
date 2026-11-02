@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Chip, ChipCount, ChipRow } from "@/components/ui/chip";
 import { NativeSelect } from "@/components/ui/field";
-import { replaceQuery } from "@/lib/bike-tabs";
+import { replaceQuery } from "@/lib/address";
 import { formatCount, formatInteger, formatMonthName, type LocalDate } from "@/lib/format";
 import {
   filterHistory,

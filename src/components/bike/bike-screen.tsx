@@ -24,7 +24,7 @@ import { BIKE_STATUS_LABELS, DISCIPLINE_LABELS } from "@/lib/labels";
 import type {
   AttachmentVM,
   BikePageVM,
-  InventoryItemVM,
+  PartItemVM,
   ReplacePartInput,
   ReplacePartVM,
   TimelineItemVM,
@@ -44,7 +44,7 @@ import { ComponentsSection } from "./components-section";
 export type BikeScreenActions = PlanActions & {
   onReplacePart?: (
     input: ReplacePartInput,
-    item: InventoryItemVM | null,
+    item: PartItemVM | null,
   ) => void | Promise<void | { ok: false; error: string }>;
   onAddComponent?: () => void;
   onEditComponent?: (componentId: number) => void;

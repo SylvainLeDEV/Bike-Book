@@ -12,9 +12,11 @@ import type {
   Discipline,
   EvidenceLevel,
   InventoryCategory,
+  InventoryKind,
   InventoryUnit,
   MaintenanceAction,
   MovementKind,
+  ProductLevel,
   RemovalReason,
   RideConditions,
   RideType,
@@ -260,6 +262,23 @@ export const REMOVAL_REASON_CHOICES: Record<Exclude<RemovalReason, "sold_with_bi
   upgrade: "Amélioration",
   other: "Autre",
 };
+
+export const INVENTORY_KIND_LABELS: Record<InventoryKind, string> = {
+  part: "Pièce",
+  product: "Produit",
+  tool: "Outil",
+};
+
+/** The level of a product's open container (D-36, D-85). */
+export const PRODUCT_LEVEL_LABELS: Record<ProductLevel, string> = {
+  full: "Plein",
+  started: "Entamé",
+  low: "Presque vide",
+  empty: "Vide",
+};
+
+/** Suggestions of a product's "Contenant" (free text, D-85); the first one is the default. */
+export const CONTAINER_SUGGESTIONS = ["flacon", "bidon", "tube", "pot", "bombe", "cartouche"];
 
 export const UNIT_LABELS: Record<InventoryUnit, [one: string, many: string]> = {
   piece: ["pièce", "pièces"],

@@ -85,6 +85,7 @@ export {
   receiveItem,
   setItemArchived,
   setRestock,
+  setToolOwned,
   undoMovement,
   undoReceive,
   updateItem,

@@ -42,7 +42,7 @@ rebuilt when their phase starts. It is then deleted (git history keeps it).
 | Bike edit sheet, "Joindre un document", "Ajouter des photos" (upload rows with progress) | Built in the app (features 1 and 10, D-54, D-74): `src/components/attachments/` | Done (2026-10-26, 2026-10-27) |
 | Maintenance entry and "C'est fait" without a procedure | Not mocked: the toast stands in | With features 5 and 6 |
 | "Réglages" tab (suspension and tyre setup, sag scale, advice, setup log, "Débattement et molettes"), the "Suspension" section of the component sheet, the bike cards' "Réglages" shortcut | Not mocked: built in the app (D-79, D-83, D-54) | Not needed |
-| Workshop products (four levels, containers) and tools (owned or not) | Mockup only | Phase 1.5 |
+| Workshop products (four levels, containers) and tools (owned or not), the Pièces · Produits · Outils · À racheter filters | Built in the app (D-85, D-54) | Not needed (D-85) |
 | Photo labels, photos across all bikes (Activité › Photos) | Mockup only | Phase 1.5 |
 | Maintenance procedures (list, detail, editor, rule link) and workshop mode (run, summary) | Mockup only | Phase 1.5 |
 | Phase 3 preview: certainty levels, suggestions, questions on the data | Mockup only | Phase 3 |
@@ -96,7 +96,11 @@ Consequences for phase 1, without building any AI:
 ## Workshop and inventory
 
 Status: **Decided** (2026-10-25, D-33 to D-42), shown on the mockup's "Atelier" screen. Phase 1:
-parts, restocking, search and bike filter. Phase 1.5: products and tools.
+parts, restocking, search and bike filter. Phase 1.5: products and tools, **built** on 2026-11-01
+(D-85) in the app only. **Built differently (D-85):** a level picked by eye and a tool's
+possession are buttons (`aria-pressed`), not radios, so the arrow keys record nothing; the
+level words are Plein · Entamé · Presque vide · Vide; "−" on a product removes a container from
+the reserve, "Vide" finishes the open one; a tool ordered is received at once ("Reçu").
 
 ### Concept
 

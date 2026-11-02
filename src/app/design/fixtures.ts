@@ -3,8 +3,8 @@
  * Sunday 25 October 2026; the demo owner is Camille Martin, garage "Mon garage". Units and enum
  * values follow docs/03 (D-50), so these fixtures read like what the real pages will receive.
  *
- * Phase 1 only: the workshop holds parts (products and tools come in 1.5, D-33), and no
- * procedure or photo label appears (D-45, D-47).
+ * Phase 1 only: the workshop holds parts (products and tools are built in the app only, without
+ * /design screens, D-85), and no procedure or photo label appears (D-45, D-47).
  */
 import type {
   AttachmentVM,
@@ -12,7 +12,7 @@ import type {
   ComponentTypeOption,
   BikeRef,
   DashboardVM,
-  InventoryItemVM,
+  PartItemVM,
   PhotoVM,
   QuickRideVM,
   ReplacePartVM,
@@ -65,7 +65,14 @@ const lyrikRule: RuleRowVM = {
   dueOn: null,
   etaDays: null,
   lastDoneOn: "2026-03-02",
-  stock: { itemId: 105, name: "Kit joints Lyrik", quantity: 0, unit: "set", state: "to_order" },
+  stock: {
+    itemId: 105,
+    name: "Kit joints Lyrik",
+    kind: "part",
+    quantity: 0,
+    unit: "set",
+    state: "to_order",
+  },
 };
 
 const gravelChainRule: RuleRowVM = {
@@ -81,7 +88,14 @@ const gravelChainRule: RuleRowVM = {
   dueOn: null,
   etaDays: 5,
   lastDoneOn: "2026-05-06",
-  stock: { itemId: 103, name: "Chaîne CN-M8100", quantity: 0, unit: "piece", state: "ordered" },
+  stock: {
+    itemId: 103,
+    name: "Chaîne CN-M8100",
+    kind: "part",
+    quantity: 0,
+    unit: "piece",
+    state: "ordered",
+  },
 };
 
 const sealantRule: RuleRowVM = {
@@ -116,6 +130,7 @@ const floatRule: RuleRowVM = {
   stock: {
     itemId: 108,
     name: "Kit chambre à air Float X",
+    kind: "part",
     quantity: 0,
     unit: "set",
     state: "to_order",
@@ -641,9 +656,9 @@ const RAYON = { shopName: "Rayon Libre", shopKind: "online" as const };
 const CYCLES = { shopName: "Cycles du Lac", shopKind: "physical" as const };
 
 function item(
-  fields: Partial<InventoryItemVM> &
-    Pick<InventoryItemVM, "id" | "name" | "category" | "bikes" | "quantity" | "unit">,
-): InventoryItemVM {
+  fields: Partial<PartItemVM> &
+    Pick<PartItemVM, "id" | "name" | "category" | "bikes" | "quantity" | "unit">,
+): PartItemVM {
   return {
     kind: "part",
     photoUrl: null,
@@ -664,7 +679,7 @@ function item(
   };
 }
 
-export const WORKSHOP_ITEMS: InventoryItemVM[] = [
+export const WORKSHOP_ITEMS: PartItemVM[] = [
   item({
     id: 101,
     lastUnitCostCents: 2200,
@@ -1188,6 +1203,7 @@ export const DASHBOARD: DashboardVM = {
   rebuy: [
     {
       itemId: 105,
+      itemKind: "part",
       name: byId(105).name,
       bikes: [SPECTRAL],
       state: "to_order",
@@ -1195,6 +1211,7 @@ export const DASHBOARD: DashboardVM = {
     },
     {
       itemId: 108,
+      itemKind: "part",
       name: byId(108).name,
       bikes: [LOURD],
       state: "to_order",
@@ -1202,6 +1219,7 @@ export const DASHBOARD: DashboardVM = {
     },
     {
       itemId: 109,
+      itemKind: "part",
       name: byId(109).name,
       bikes: [GRAVEL],
       state: "to_order",
@@ -1209,6 +1227,7 @@ export const DASHBOARD: DashboardVM = {
     },
     {
       itemId: 103,
+      itemKind: "part",
       name: byId(103).name,
       bikes: [GRAVEL],
       state: "ordered",
@@ -1216,17 +1235,19 @@ export const DASHBOARD: DashboardVM = {
     },
     {
       itemId: 101,
+      itemKind: "part",
       name: byId(101).name,
       bikes: [SPECTRAL],
       state: "low_stock",
-      reason: { kind: "low_stock", quantity: 1, unit: "pair" },
+      reason: { kind: "low_stock", stock: { kind: "part", quantity: 1, unit: "pair" } },
     },
     {
       itemId: 110,
+      itemKind: "part",
       name: byId(110).name,
       bikes: "all",
       state: "low_stock",
-      reason: { kind: "low_stock", quantity: 1, unit: "pair" },
+      reason: { kind: "low_stock", stock: { kind: "part", quantity: 1, unit: "pair" } },
     },
   ],
   activity: [
@@ -1615,6 +1636,7 @@ export const SPECTRAL_PAGE: BikePageVM = {
         category: it.category,
         bikes: it.bikes,
         location: it.location,
+        kind: it.kind,
         quantity: it.quantity,
         unit: it.unit,
         state: it.state,
