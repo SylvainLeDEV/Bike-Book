@@ -71,7 +71,8 @@ bikes and parts dictated to Claude Code, personal tokens in Paramètres; rides t
   French, a required `dry_run` (a rolled-back transaction), paginated lists, one log line per
   write, no delete, never the frame number. V1: bikes and parts; rides later. A new part's rules
   can take the day each was last done (`rules[].last_done_on`, as the "Règles" sheet), so an old
-  bike's day-based rules do not start overdue.
+  bike's day-based rules do not start overdue. Since 0.3.1 (D-91), `list_rules` and `add_rule`
+  (the "Règles" sheet's schema and slots) add any rule to a bike or a fitted part type.
 - **Setup (D-79, D-81):** a fork's or shock's spring, travel and adjusters (clicks from fully
   closed) live on the part (`suspension_specs`); each setup is a dated full copy whose values belong
   to the part measured. Advice only from manufacturers' documents, each with its source and date.
@@ -133,7 +134,7 @@ src/
 │   │               # attachments' originals under uploads/
 │   ├── files/      # uploads on disk: streaming to a temp file, atomic rename, sharp copies in
 │   │               # cache/ (upright, no metadata), generated demo photos and PDFs (D-76)
-│   ├── mcp/        # MCP server (D-90): tools/ (bikes.ts, components.ts: one file per domain),
+│   ├── mcp/        # MCP server (D-90): tools/ (bikes.ts, components.ts, rules.ts: one per domain),
 │   │               # registry.ts, server.ts, http.ts (stateless JSON transport), tool.ts
 │   │               # (results, errors, pagination, dry_run, logs), describe.ts (answers)
 │   ├── env.ts      # configuration, validated with Zod (TZ included); time.ts: today in TZ

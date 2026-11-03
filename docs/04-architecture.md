@@ -173,7 +173,7 @@ describes the result. Anything that computes or decides lives in `src/server/dom
 
 **Conventions for tools** (`src/server/mcp/tool.ts`):
 
-- One file per domain in `src/server/mcp/tools/` (`bikes.ts`, `components.ts`), listed in
+- One file per domain in `src/server/mcp/tools/` (`bikes.ts`, `components.ts`, `rules.ts`), listed in
   `registry.ts`: the rides will be `rides.ts` and one line there.
 - Names are `verb_noun` in snake_case and stable: tools are added, never renamed.
 - Input in the app's raw units, recalled in each description (D-50): distances in metres,
@@ -198,7 +198,15 @@ describes the result. Anything that computes or decides lives in `src/server/dom
 
 **Tools of V1:** `list_bikes`, `get_bike`, `list_component_types` (read-only), `create_bike`
 (optionally with its `components`), `update_bike`, `add_component`, `update_component` (only the
-fields given change), `set_suspension_specs` (merged with the current specs).
+fields given change), `set_suspension_specs` (merged with the current specs). Since 0.3.1
+(D-91): `list_rules` (read-only) and `add_rule` (`tools/rules.ts`).
+
+**Rules of a bike (D-91).** `add_rule` is the "Règles" sheet's "Nouvelle règle": the same schema
+(`ruleInputSchema`, `toRuleData`), the same slots (`ruleSlots`: the whole bike, each fitted slot,
+both ends of a front/rear type, so a type with no part fitted is refused), the same defaults
+(warn from 90 %, replacing the part restarts the rule). `last_done_on` works as for a new part's
+rules below; the answer gives the rule's status, and the dry run warns when it would start
+overdue or due soon. Changing, snoozing or deactivating a rule stays in the app.
 
 **Rules of a new part.** A part gets its type's rule templates (`rules` omitted), some of them
 (`rules: [{ template_id }]`) or none (`[]`). Each may carry `last_done_on`: the counter then starts

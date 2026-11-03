@@ -529,6 +529,155 @@ describe("component tools", () => {
   });
 });
 
+describe("rule tools", () => {
+  async function bikeWithPads(token: string, ctx: AccessContext): Promise<number> {
+    const bikeId = addBike(ctx, "Gravel"); // bought on 2021-05-02
+    for (const position of ["front", "rear"]) {
+      await callTool(token, "add_component", {
+        bike_id: bikeId,
+        type_code: "brake_pads",
+        position,
+        model: "L05A-RF",
+        dry_run: false,
+      });
+    }
+    return bikeId;
+  }
+
+  it("add_rule: dry run, then a distance rule on both ends of the pads", async () => {
+    const { ctx, token } = garage("Rules");
+    const bikeId = await bikeWithPads(token, ctx);
+    const pads = {
+      bike_id: bikeId,
+      component_type_code: "brake_pads",
+      title: "Contrôle d'usure des plaquettes",
+      interval_distance_m: 1_000_000,
+    };
+
+    const preview = await callTool(token, "add_rule", { ...pads, dry_run: true });
+    expect(preview.isError).toBeUndefined();
+    expect(preview.structuredContent.rule).toMatchObject({
+      id: null,
+      title: "Contrôle d'usure des plaquettes",
+      component_type_code: "brake_pads",
+      position: null,
+      slot_label: expect.any(String),
+      interval_distance_m: 1_000_000,
+      warn_ratio: 0.9,
+      reset_on_replacement: true,
+      status: "ok",
+      counts_from: "2021-05-02",
+    });
+    expect(listRules(ctx, bikeId)).toEqual([]);
+
+    const written = await callTool(token, "add_rule", { ...pads, dry_run: false });
+    const ruleId = written.structuredContent.rule.id as number;
+    expect(listRules(ctx, bikeId)).toEqual([
+      expect.objectContaining({
+        id: ruleId,
+        componentTypeCode: "brake_pads",
+        position: null,
+        intervalDistanceM: 1_000_000,
+        intervalDays: null,
+        resetOnReplacement: true,
+        active: true,
+      }),
+    ]);
+
+    const front = await callTool(token, "add_rule", {
+      ...pads,
+      position: "front",
+      dry_run: false,
+    });
+    expect(front.structuredContent.rule).toMatchObject({ position: "front" });
+
+    const listed = await callTool(token, "list_rules", { bike_id: bikeId });
+    expect(listed.structuredContent.rules.map((r: { id: number }) => r.id)).toEqual([
+      ruleId,
+      front.structuredContent.rule.id,
+    ]);
+    expect(listed.structuredContent.next_cursor).toBeNull();
+  });
+
+  it("add_rule: a day-based rule warns when it starts overdue, and takes last_done_on", async () => {
+    const { ctx, token } = garage("Bike rule");
+    const bikeId = addBike(ctx, "Gravel");
+    const wash = { bike_id: bikeId, title: "Lavage complet", interval_days: 30 };
+
+    const preview = await callTool(token, "add_rule", { ...wash, dry_run: true });
+    expect(preview.structuredContent.rule).toMatchObject({
+      component_type_code: null,
+      reset_on_replacement: false,
+      status: "overdue",
+    });
+    expect(preview.structuredContent.warnings).toEqual([expect.stringContaining("last_done_on")]);
+
+    const lastWash = addDays(today(), -3);
+    const written = await callTool(token, "add_rule", {
+      ...wash,
+      last_done_on: lastWash,
+      dry_run: false,
+    });
+    expect(written.structuredContent.rule).toMatchObject({
+      status: "ok",
+      counts_from: lastWash,
+      due_on: addDays(lastWash, 30),
+    });
+    expect(written.structuredContent.warnings).toEqual([]);
+    expect(listRules(ctx, bikeId)[0]!.counterStartAt).toBe(
+      endOfLocalDay(lastWash, getEnv().timeZone),
+    );
+  });
+
+  it("add_rule refuses with the sheet's French messages, and writes nothing", async () => {
+    const { ctx, token } = garage("Rule refusals");
+    const bikeId = await bikeWithPads(token, ctx);
+    const base = { bike_id: bikeId, title: "Contrôle", dry_run: false };
+
+    const cases: [Record<string, unknown>, { field: string; message: string }[]][] = [
+      [
+        { component_type_code: "brake_pads" },
+        [
+          {
+            field: "interval_distance_m",
+            message: "Indique au moins un intervalle : km, heures ou jours.",
+          },
+        ],
+      ],
+      [
+        { title: " ", interval_days: 4000 },
+        [
+          { field: "title", message: "Donne un titre à la règle." },
+          { field: "interval_days", message: "Entre 1 et 3650 jours." },
+        ],
+      ],
+      [
+        { interval_days: 30, last_done_on: "2999-01-01" },
+        [{ field: "last_done_on", message: "La date ne peut pas être dans le futur." }],
+      ],
+      [
+        { component_type_code: "chain", interval_distance_m: 500_000 },
+        [
+          {
+            field: "component_type_code",
+            message: "Aucune pièce de ce type n'est montée à cet emplacement.",
+          },
+        ],
+      ],
+      [
+        { component_type_code: "saddle", position: "front", interval_days: 30 },
+        [{ field: "position", message: "Ce type de pièce n'a pas d'avant ni d'arrière." }],
+      ],
+    ];
+    for (const [args, errors] of cases) {
+      const answer = await callTool(token, "add_rule", { ...base, ...args });
+      expect(answer.isError, JSON.stringify(args)).toBe(true);
+      expect(answer.structuredContent.errors).toEqual(errors);
+    }
+    expect(listRules(ctx, bikeId)).toEqual([]);
+  });
+});
+
 describe("workspace boundary and logs", () => {
   it("a token of workspace A sees and changes nothing of workspace B", async () => {
     const a = garage("Alice");
@@ -556,6 +705,12 @@ describe("workspace boundary and logs", () => {
         "set_suspension_specs",
         { component_id: bobPartId, spring_type: "air", dry_run: false },
         "component_id",
+      ],
+      ["list_rules", { bike_id: bobBike }, "bike_id"],
+      [
+        "add_rule",
+        { bike_id: bobBike, title: "Volée", interval_days: 30, dry_run: false },
+        "bike_id",
       ],
     ];
     for (const [tool, args, field] of calls) {

@@ -14,6 +14,8 @@ const TOOLS = [
   "add_component",
   "update_component",
   "set_suspension_specs",
+  "list_rules",
+  "add_rule",
 ];
 
 describe("POST /api/mcp (D-90)", () => {

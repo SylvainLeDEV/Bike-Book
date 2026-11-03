@@ -85,6 +85,7 @@ weeks of real use.
 - [x] Runs ("suivi"): stored in the database, one step at a time with comments and photos, started from a rule, a task or a procedure, "En cours" in "À prévoir", summary that writes the maintenance event, the parts and products used and the rule reset, "Annuler" (done 2026-11-02, D-87, migration `0014_runs`)
 - [ ] "Dupliquer" a procedure (left for later by D-86)
 - [x] MCP server V1 for an external assistant (D-90): bikes and parts dictated to Claude Code, written through the forms' validation; personal tokens in Paramètres (done 2026-11-03, migration `0016_api_tokens`)
+- [x] Maintenance rules through the MCP (D-91): `list_rules` and `add_rule`, the "Règles" sheet's validation and slots (done 2026-11-03, release 0.3.1)
 - [ ] Rides through the MCP (D-90): `create_rides` (batches, `dry_run`, one transaction) fed by the assistant from a spreadsheet it reads itself; goes with the CSV import below, and answers Q-14 to Q-16 first (`rides.source` value, undoing an import, initial counters against imported history)
 - [ ] Statistics: km and hours per bike per month, cost per bike per year, cost per 100 km over time (D-23, D-44)
 - [ ] Search and filters beyond the workshop (the bike history's year, month and kind filters exist, D-78; next: the same in Activité with a bike filter, text search, place, ride type, conditions, totals per period)
