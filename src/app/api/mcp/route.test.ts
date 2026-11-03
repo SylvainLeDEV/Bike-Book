@@ -53,6 +53,10 @@ const TOOLS = [
   "update_setup",
   "delete_setup",
   "delete_maintenance",
+  "get_upload_link",
+  "list_attachments",
+  "update_attachment",
+  "delete_attachment",
   "list_procedures",
   "get_procedure",
 ];

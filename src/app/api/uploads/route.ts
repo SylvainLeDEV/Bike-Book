@@ -2,6 +2,7 @@ import * as z from "zod";
 import { ATTACHMENT_OWNERS } from "@/lib/enums";
 import { MAX_UPLOAD_BYTES, UPLOAD_ERROR_MESSAGES, type UploadErrorCode } from "@/lib/uploads";
 import { getAccessContext } from "@/server/auth/context";
+import { authenticateUploadLink } from "@/server/auth/upload-links";
 import { getEnv } from "@/server/env";
 import { storeUpload } from "@/server/files/upload";
 
@@ -13,6 +14,9 @@ import { storeUpload } from "@/server/files/upload";
  *   ?owner=<bike|component|maintenance_event|ride|task|inventory_item>&id=<n>
  *   &lastModified=<File.lastModified>&cover=1 (optional)
  *   X-File-Name: <encodeURIComponent(file.name)>
+ * Without a session, a signed upload link for that element in `X-Upload-Link` (D-99) stands for
+ * it: the MCP's get_upload_link answers one, so an assistant sends a file without handling a
+ * token. A header, never the URL: access logs keep URLs.
  */
 
 const query = z.object({
@@ -51,9 +55,14 @@ function fileName(header: string | null): string | null {
 }
 
 export async function POST(request: Request) {
-  const ctx = await getAccessContext();
-  if (!ctx) return refuse("signed_out");
   const params = query.safeParse(Object.fromEntries(new URL(request.url).searchParams));
+  const link = request.headers.get("x-upload-link")?.slice(0, 1000);
+  const ctx =
+    (await getAccessContext()) ??
+    (params.success && link
+      ? authenticateUploadLink(link, { kind: params.data.owner, id: params.data.id })
+      : null);
+  if (!ctx) return refuse("signed_out");
   if (!params.success || !request.body) return refuse("invalid");
   // A declared size over the limit is refused before reading; the stream is checked anyway.
   if (Number(request.headers.get("content-length") ?? 0) > MAX_UPLOAD_BYTES) {
@@ -69,6 +78,17 @@ export async function POST(request: Request) {
     timeZone: getEnv().timeZone,
   });
   if (!outcome.ok) return refuse(outcome.code);
+  // A file sent with an upload link is an assistant's write: one log line, as the MCP's (D-90).
+  if (ctx.tokenId != null) {
+    console.info(
+      JSON.stringify({
+        event: "mcp_upload",
+        workspace_id: ctx.workspace.id,
+        token_id: ctx.tokenId,
+        attachment_id: outcome.attachment.id,
+      }),
+    );
+  }
   return Response.json(
     { id: outcome.attachment.id },
     { status: 201, headers: { "Cache-Control": "no-store" } },

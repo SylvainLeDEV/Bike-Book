@@ -1,5 +1,5 @@
 import "server-only";
-import { and, desc, eq, isNull } from "drizzle-orm";
+import { and, desc, eq, isNull, type SQL } from "drizzle-orm";
 import type { AccessContext } from "./access-context";
 import { getDb } from "./client";
 import { apiTokens, memberships, users, workspaces } from "./schema";
@@ -76,6 +76,18 @@ export function revokeApiToken(ctx: AccessContext, tokenId: number, now = new Da
  * longer a member of the token's workspace. Records the use (`last_used_at`).
  */
 export function findTokenAccess(tokenHash: string, now = new Date()): AccessContext | null {
+  return tokenAccess(eq(apiTokens.tokenHash, tokenHash), now);
+}
+
+/**
+ * The same, by the token's id: an upload link carries the id of the token that asked for it, so
+ * the link stops working once that token is revoked (D-99).
+ */
+export function findTokenAccessById(tokenId: number, now = new Date()): AccessContext | null {
+  return tokenAccess(eq(apiTokens.id, tokenId), now);
+}
+
+function tokenAccess(which: SQL, now: Date): AccessContext | null {
   const row = getDb()
     .select({
       tokenId: apiTokens.id,
@@ -96,7 +108,7 @@ export function findTokenAccess(tokenHash: string, now = new Date()): AccessCont
         eq(memberships.workspaceId, apiTokens.workspaceId),
       ),
     )
-    .where(and(eq(apiTokens.tokenHash, tokenHash), isNull(apiTokens.revokedAt)))
+    .where(and(which, isNull(apiTokens.revokedAt)))
     .get();
   if (!row) return null;
   getDb().update(apiTokens).set({ lastUsedAt: now }).where(eq(apiTokens.id, row.tokenId)).run();

@@ -10,6 +10,7 @@ export { atomically, previewWrite } from "./transactions";
 export {
   createApiToken,
   findTokenAccess,
+  findTokenAccessById,
   listApiTokens,
   revokeApiToken,
   type ApiToken,

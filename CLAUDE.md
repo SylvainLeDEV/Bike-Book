@@ -17,7 +17,8 @@ and the "Réparé" action (D-88). On 2026-11-03, an MCP server for an external a
 bikes and parts dictated to Claude Code, personal tokens in Paramètres; the same day, rides,
 what is to do, the workshop and the procedures through it (D-92), then maintenance done (D-93),
 restocking and edits (D-94), history and setups (D-95), usage and procedures (D-96), rides imported
-in batches (D-97), runs and deletes for mistakes (D-98).
+in batches (D-97), runs and deletes for mistakes (D-98), photos and PDFs through upload
+links (D-99).
 
 ## Read first
 
@@ -88,7 +89,9 @@ in batches (D-97), runs and deletes for mistakes (D-98).
   `update_procedure`, `archive_procedure`. Since D-97: `create_rides` (an import, up to 500, one
   transaction) and `delete_rides` (its undo). Since D-98: runs (`start_run`, `get_run`,
   `update_run_steps`, `finish_run`, `abandon_run`), `delete_maintenance`, `update_setup`,
-  `delete_setup`.
+  `delete_setup`. Since D-99: `get_upload_link` (a signed link, 15 minutes, one element, in the
+  `X-Upload-Link` header: the assistant sends files from the computer with curl, never through the
+  MCP), `list_attachments`, `update_attachment`, `delete_attachment`.
 - **Setup (D-79, D-81):** a fork's or shock's spring, travel and adjusters (clicks from fully
   closed) live on the part (`suspension_specs`); each setup is a dated full copy whose values belong
   to the part measured. Advice only from manufacturers' documents, each with its source and date.
@@ -139,7 +142,8 @@ src/
 │   ├── db/         # schema, migrations/, seed, data-access layer (index.ts = public API),
 │   │               # transactions.ts (atomically, previewWrite for dry runs, D-90)
 │   ├── auth/       # Better Auth instance, sign-up policy, current user + workspace,
-│   │               # personal tokens (tokens.ts: authenticateBearer, D-90)
+│   │               # personal tokens (tokens.ts: authenticateBearer, D-90),
+│   │               # upload links (upload-links.ts, D-99)
 │   ├── actions/    # Server Actions, their Zod input schemas in *-input.ts
 │   ├── domain/     # pure, tested logic: bike status, total cost, wear (D-13), part history,
 │   │               # instants of dated entries (D-61), rule engine (D-65), attachments
@@ -150,9 +154,9 @@ src/
 │   │               # attachments' originals under uploads/
 │   ├── files/      # uploads on disk: streaming to a temp file, atomic rename, sharp copies in
 │   │               # cache/ (upright, no metadata), generated demo photos and PDFs (D-76)
-│   ├── mcp/        # MCP server (D-90, D-92 to D-98): tools/ (bikes, components, rules,
-│   │               # rides, maintenance, setups, usage, runs, todo, workshop, procedures:
-│   │               # one file per domain),
+│   ├── mcp/        # MCP server (D-90, D-92 to D-99): tools/ (bikes, components, rules,
+│   │               # rides, maintenance, setups, usage, runs, attachments, todo, workshop,
+│   │               # procedures: one file per domain),
 │   │               # registry.ts, server.ts, http.ts (stateless JSON transport), tool.ts
 │   │               # (results, errors, pagination, dry_run, logs), describe.ts (answers)
 │   ├── env.ts      # configuration, validated with Zod (TZ included); time.ts: today in TZ

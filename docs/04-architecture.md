@@ -139,7 +139,7 @@ of the navigation shows a "Bientôt ici" page rather than a 404.
 | `/workshop` | Atelier | Parts, products, tools (D-85) and maintenance procedures ("Fiches", D-86). `?tab=` selects the filter (`parts`, the default, is left out; `products`, `tools`, `rebuy`, `procedures`), `?bike=` the bike, `?q=` the search, `?item=` the item open, `?procedure=` the procedure open: read on arrival (an item alone opens its kind's tab) and rewritten in place as they change (`src/lib/workshop-filter.ts`, D-85). `?new=1` opens "Nouvelle fiche" on arrival (from a bike page, with `?bike=`), then leaves the address. Items and procedures are not routes of their own: under 1024 px they replace the list, from 1024 px the list stays beside them |
 | `/settings` | Paramètres | Account and sign-out, theme of this device, "Exporter mes données" (feature 12, D-68; labelled "Paramètres" since D-80), "Accès pour un assistant": personal tokens of the MCP server (D-90) |
 | `/login`, `/setup` | Connexion, premier lancement | Unchanged |
-| `/api/uploads`, `/api/uploads/[id]` | Pièces jointes | `POST /api/uploads?owner=<kind>&id=<n>&lastModified=<ms>[&cover=1]`: the raw file as body, its name in `X-File-Name` (URI-encoded), 201 `{ id }` or an error `{ error, message }` (401, 404, 413, 415). `GET /api/uploads/<id>[?size=thumb\|display][&download=1]`: signed in, scoped, `nosniff`, private cache revalidated by ETag (D-76) |
+| `/api/uploads`, `/api/uploads/[id]` | Pièces jointes | `POST /api/uploads?owner=<kind>&id=<n>&lastModified=<ms>[&cover=1]`: the raw file as body, its name in `X-File-Name` (URI-encoded), 201 `{ id }` or an error `{ error, message }` (401, 404, 413, 415). Without a session, a signed upload link for that element in `X-Upload-Link` (D-99). `GET /api/uploads/<id>[?size=thumb\|display][&download=1]`: signed in, scoped, `nosniff`, private cache revalidated by ETag (D-76) |
 | `/api/export` | Export ZIP | Current workspace only, auth tables never included; 401 when signed out (D-68) |
 | `/api/mcp` | Serveur MCP | `POST` only, JSON-RPC, stateless, JSON answers (no SSE); a personal token in `Authorization: Bearer bb_…`, never the session cookie; 401 without it, 405 for GET and DELETE, 413 over 1 MB ([MCP server](#mcp-server-d-90), D-90) |
 | `/design` | Design system | Development only |
@@ -152,7 +152,7 @@ routes: they open from any screen and keep it underneath.
 Status: **Decided** and built on 2026-11-03 (V1: bikes and parts; D-91: rules; D-92: rides, what
 is to do, the workshop, the procedures; D-93: maintenance done; D-94: restocking and edits;
 D-95: maintenance history, setups, archiving; D-96: usage and cost, writing procedures;
-D-97: rides imported in batches; D-98: runs, deletes for mistakes).
+D-97: rides imported in batches; D-98: runs, deletes for mistakes; D-99: photos and PDFs through upload links).
 
 An assistant on the owner's computer (Claude Code) reads and writes bikes, parts, rules, rides,
 tasks and the workshop, and reads the procedures, through `POST /api/mcp`. Registering it, once a token exists (Paramètres › "Accès pour un assistant"):
@@ -177,7 +177,7 @@ describes the result. Anything that computes or decides lives in `src/server/dom
 **Conventions for tools** (`src/server/mcp/tool.ts`):
 
 - One file per domain in `src/server/mcp/tools/` (`bikes.ts`, `components.ts`, `rules.ts`,
-  `rides.ts`, `maintenance.ts`, `setups.ts`, `usage.ts`, `runs.ts`, `todo.ts`, `workshop.ts`, `procedures.ts`), listed in `registry.ts`.
+  `rides.ts`, `maintenance.ts`, `setups.ts`, `usage.ts`, `runs.ts`, `attachments.ts`, `todo.ts`, `workshop.ts`, `procedures.ts`), listed in `registry.ts`.
 - Names are `verb_noun` in snake_case and stable: tools are added, never renamed.
 - Input in the app's raw units, recalled in each description (D-50): distances in metres,
   durations in seconds, weights in grams, money in euro cents, dates `YYYY-MM-DD`, instants ISO
@@ -283,9 +283,19 @@ kept passes back its id) and `archive_procedure`, through `procedureInputSchema`
 `parseProcedureInput`. A dry run that would remove a step's photos describes the change instead
 of running it: `updateProcedure` deletes those files after its write.
 
-**Later (not built):** adding or removing a run's steps along the way; attachments; the assistant on the phone (internet exposure and OAuth); FIT
-files read by the app (phase 2.1), sent through `/api/uploads` with the token or in base64, their
-duplicates checked by the same `ridesNear` as every import.
+**Attachments (D-99).** Files never go through the MCP. `get_upload_link` answers the URL of
+`/api/uploads` for one element and a signed link (`src/server/auth/upload-links.ts`: the token's
+id, the element, a 15-minute expiry, HMAC-SHA256 under a key derived from `AUTH_SECRET`; nothing
+stored). The assistant sends each file from the owner's computer:
+`curl -X POST --data-binary @file -H "X-Upload-Link: …" -H "X-File-Name: …" "<url>"`. The link is
+a header, never in the URL, which access logs keep. It works for that element until it expires,
+and stops when its token is revoked. `list_attachments`, `update_attachment` and
+`delete_attachment` handle them afterwards.
+
+**Later (not built):** adding or removing a run's steps along the way; FIT files read by the app
+(phase 2.1), sent with an upload link, their duplicates checked by the same `ridesNear` as every
+import. The phone goes through Claude Code's remote control: the app is not exposed to the
+internet for claude.ai's connectors (D-99).
 
 ## Running it
 
@@ -426,8 +436,9 @@ Backing up is the operator's job (D-12); the app makes it easy:
   user and a workspace, revocable; the session cookie does not open it, so a page on another
   site cannot drive it through the browser. `authenticateBearer` rebuilds the same scoped
   `AccessContext` as a session (membership checked on every request) and records the last use.
-  Tokens never appear in logs or in the export. The tools cannot delete anything and never read
-  the frame number. Whatever the assistant reads goes to its provider, outside the private network
+  Tokens never appear in logs or in the export. The tools delete only to fix a mistake (D-98) and
+  never read the frame number. An upload link (D-99) is signed, scoped to one element, expires
+  after 15 minutes, dies with its token, and travels in a header, never in a URL. Whatever the assistant reads goes to its provider, outside the private network
   (D-49 covers the app's own AI only): one token per assistant, revoked when no longer used.
 - Container: non-root user, read-only root filesystem, `no-new-privileges`.
 - **Public repository (D-22):** no secrets, no real data, no installation details. `.gitignore`
