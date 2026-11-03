@@ -150,7 +150,8 @@ routes: they open from any screen and keep it underneath.
 ## MCP server (D-90)
 
 Status: **Decided** and built on 2026-11-03 (V1: bikes and parts; D-91: rules; D-92: rides, what
-is to do, the workshop, the procedures; D-93: maintenance done).
+is to do, the workshop, the procedures; D-93: maintenance done; D-94: restocking and edits;
+D-95: maintenance history, setups, archiving).
 
 An assistant on the owner's computer (Claude Code) reads and writes bikes, parts, rules, rides,
 tasks and the workshop, and reads the procedures, through `POST /api/mcp`. Registering it, once a token exists (Paramètres › "Accès pour un assistant"):
@@ -175,7 +176,7 @@ describes the result. Anything that computes or decides lives in `src/server/dom
 **Conventions for tools** (`src/server/mcp/tool.ts`):
 
 - One file per domain in `src/server/mcp/tools/` (`bikes.ts`, `components.ts`, `rules.ts`,
-  `rides.ts`, `maintenance.ts`, `todo.ts`, `workshop.ts`, `procedures.ts`), listed in `registry.ts`.
+  `rides.ts`, `maintenance.ts`, `setups.ts`, `todo.ts`, `workshop.ts`, `procedures.ts`), listed in `registry.ts`.
 - Names are `verb_noun` in snake_case and stable: tools are added, never renamed.
 - Input in the app's raw units, recalled in each description (D-50): distances in metres,
   durations in seconds, weights in grams, money in euro cents, dates `YYYY-MM-DD`, instants ISO
@@ -237,7 +238,13 @@ stock computed from movements, `stock_text` in the app's French words, rebuy sta
 served. `add_workshop_item` validates with `itemInputSchema` and writes through `newItem` and
 `createItem`; a field of another kind is refused; `bike_ids` omitted means all bikes.
 `update_stock` writes one movement as the item's buttons do (`containersChange`, `levelChange`,
-`ownedChange`, then `addMovement` or `setToolOwned`).
+`ownedChange`, then `addMovement` or `setToolOwned`). Since D-94: `update_workshop_item`
+(`itemData`, `updateItem`, a purchase link with `add_link`), `set_restock` (`setRestock`) and
+`receive_item` (`receiveItem`, at the cheapest link's price unless one is given).
+
+**Edits (D-94).** `update_task` (`taskSchema`, `updateTask`), `update_rule` (the rule as the sheet
+edits it, `ruleFormInput`, then `ruleInputSchema` and `updateRule`; its slot never changes) and
+`snooze_rule` (`snoozeRule`). Only the fields given change; null clears.
 
 **Maintenance done (D-93).** `record_maintenance` is the maintenance sheet (`maintenanceSchema`,
 `createMaintenanceEvent`): a line with `rule_id` restarts that rule, and takes the app's own line
@@ -246,10 +253,16 @@ with "C'est fait"). `replace_component` is "Remplacer une pièce" (`replacePartS
 `replaceComponent`, its messages from `replacementError`), with a part from the workshop's stock
 (`from_item_id`) or typed. `set_task_done` marks a task done or open again (`setTaskStatus`).
 
+**History and setups (D-95).** `list_maintenance` (filters bike, days, part, rule, words) and
+`update_maintenance` ("Modifier l'entretien": `maintenanceEdit`, then `updateMaintenanceEvent`;
+its replacements stay). `list_setups` and `add_setup` (`setupPrefill` from the current setup, the
+values given merged in, `parseSetupInput` against the part's specs, `createSetup`).
+`archive_workshop_item` (`setItemArchived`, reversible).
+
 **Procedures (D-92), read-only.** `list_procedures` and `get_procedure`, from `procedureVMs`,
 with the material read for a bike.
 
-**Later (D-90, D-92, D-93, not built):** changing or deleting a maintenance event, runs, writing procedures,
+**Later (D-90, D-92 to D-95, not built):** deleting a maintenance event, changing a setup, runs, writing procedures,
 "À commander"; the assistant on the phone (internet exposure and OAuth); `create_rides`, fed by
 the assistant from a spreadsheet it reads itself; FIT files read by the app (phase 2.1) and sent through `/api/uploads` with the token or in
 base64; duplicates checked by one domain function for every import.

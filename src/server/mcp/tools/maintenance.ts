@@ -1,6 +1,8 @@
 import "server-only";
 import { z } from "zod";
 import { formatItemStock, replacedTitle, slotLabel } from "@/lib/display";
+import { isLocalDate } from "@/lib/format";
+import { nameKey } from "@/lib/names";
 import { MAINTENANCE_LINE_ACTIONS, MEASUREMENT_UNITS, SHOP_KINDS } from "@/lib/enums";
 import { MAINTENANCE_ACTION_LABELS, REMOVAL_REASON_LABELS } from "@/lib/labels";
 import type { MaintenanceLineInput } from "@/lib/view-models";
@@ -11,21 +13,25 @@ import {
   createMaintenanceEvent,
   getBike,
   getComponent,
+  listBikes,
   listComponents,
   listMaintenanceEvents,
   listRules,
   listSuspensionSpecs,
   previewWrite,
   replaceComponent,
+  updateMaintenanceEvent,
   type AccessContext,
   type Component,
   type MaintenanceEvent,
+  type Rule,
 } from "@/server/db";
 import { inSlot } from "@/server/domain/rules";
 import { eventInstant } from "@/server/domain/time";
 import { getEnv } from "@/server/env";
 import { today } from "@/server/time";
 import { doneLine } from "@/server/views/rules";
+import { maintenanceEdit } from "@/server/views/timeline";
 import { loadGarage } from "@/server/views/workshop";
 import { bikeUrl, describeComponent, describeRule, evaluateRules, type Ids } from "../describe";
 import {
@@ -34,6 +40,8 @@ import {
   dryRunInput,
   fieldErrorsOf,
   logWrite,
+  pageInput,
+  paginate,
   refused,
   ToolRefusal,
   type FieldError,
@@ -90,6 +98,46 @@ function describeEvent(
 
 function findEvent(ctx: AccessContext, bikeId: number, eventId: number) {
   return listMaintenanceEvents(ctx, bikeId).find((event) => event.id === eventId) ?? null;
+}
+
+type LineArgs = z.output<typeof lineInput>;
+
+/**
+ * The tool's lines as the sheet's: a line with a rule takes the app's own line for it
+ * (`doneLine`) where the part or the action is left out; rules and parts checked against the bike.
+ */
+function resolveLines(
+  given: LineArgs[],
+  rules: Map<number, Rule>,
+  components: Component[],
+): { lines: MaintenanceLineInput[]; errors: FieldError[] } {
+  const partIds = new Set(components.map((component) => component.id));
+  const errors: FieldError[] = [];
+  const lines = given.map((line, index): MaintenanceLineInput => {
+    const field = (name: string) => `lines[${index}].${name}`;
+    const rule = line.rule_id == null ? null : rules.get(line.rule_id);
+    if (line.rule_id != null && !rule) {
+      errors.push({ field: field("rule_id"), message: "Règle introuvable sur ce vélo." });
+    }
+    if (line.component_id != null && !partIds.has(line.component_id)) {
+      errors.push({ field: field("component_id"), message: "Pièce introuvable sur ce vélo." });
+    }
+    if (line.action == null && line.rule_id == null) {
+      errors.push({ field: field("action"), message: "Indique ce qui a été fait." });
+    }
+    const base = rule ? doneLine(rule, components) : null;
+    return {
+      action: line.action ?? base?.action ?? "other",
+      componentId:
+        line.component_id === undefined ? (base?.componentId ?? null) : line.component_id,
+      ruleId: line.rule_id ?? null,
+      description: line.description ?? null,
+      costCents: line.cost_cents ?? null,
+      measurementValue: line.measurement_value ?? null,
+      measurementUnit: line.measurement_unit ?? null,
+    };
+  });
+  return { lines, errors };
 }
 
 // --- record_maintenance --------------------------------------------------------------------------
@@ -157,33 +205,7 @@ const recordMaintenanceTool = defineTool({
       return refused([{ field: "bike_id", message: "Vélo introuvable." }], "Unknown bike.");
     const components = listComponents(ctx, bikeId);
     const rules = new Map(listRules(ctx, bikeId).map((rule) => [rule.id, rule]));
-    const partIds = new Set(components.map((component) => component.id));
-
-    const errors: FieldError[] = [];
-    const lines: MaintenanceLineInput[] = args.lines.map((line, index) => {
-      const field = (name: string) => `lines[${index}].${name}`;
-      const rule = line.rule_id == null ? null : rules.get(line.rule_id);
-      if (line.rule_id != null && !rule) {
-        errors.push({ field: field("rule_id"), message: "Règle introuvable sur ce vélo." });
-      }
-      if (line.component_id != null && !partIds.has(line.component_id)) {
-        errors.push({ field: field("component_id"), message: "Pièce introuvable sur ce vélo." });
-      }
-      if (!rule && line.action == null && line.rule_id == null) {
-        errors.push({ field: field("action"), message: "Indique ce qui a été fait." });
-      }
-      const base = rule ? doneLine(rule, components) : null;
-      return {
-        action: line.action ?? base?.action ?? "other",
-        componentId:
-          line.component_id === undefined ? (base?.componentId ?? null) : line.component_id,
-        ruleId: line.rule_id ?? null,
-        description: line.description ?? null,
-        costCents: line.cost_cents ?? null,
-        measurementValue: line.measurement_value ?? null,
-        measurementUnit: line.measurement_unit ?? null,
-      };
-    });
+    const { lines, errors } = resolveLines(args.lines, rules, components);
     if (errors.length) return refused(errors, REFUSED);
 
     const ruleTitles = lines.flatMap((line) =>
@@ -431,4 +453,185 @@ const replaceComponentTool = defineTool({
   },
 });
 
-export const maintenanceTools = [recordMaintenanceTool, replaceComponentTool];
+// --- list_maintenance ----------------------------------------------------------------------------
+
+const listMaintenanceTool = defineTool({
+  name: "list_maintenance",
+  title: "Historique d'entretien",
+  kind: "read",
+  description:
+    "The maintenance history, newest first: each event's day, title, who did it, costs, and its lines (action, part, the rule it fulfilled, a part replaced with the new one fitted, measures). Filters: bike_id, from and to (days, both included), component_id (lines on that part, as removed or fitted), rule_id (the times that rule was done), query (title, notes and lines' descriptions, ignoring case and accents). Answers \"when did I last…?\".",
+  input: z.strictObject({
+    bike_id: z.number().optional().describe("Only this bike (list_bikes)."),
+    from: z.string().optional().describe("First day, YYYY-MM-DD."),
+    to: z.string().optional().describe("Last day, YYYY-MM-DD."),
+    component_id: z.number().optional().describe("Only the events touching this part."),
+    rule_id: z.number().optional().describe("Only the events that fulfilled this rule."),
+    query: z.string().optional(),
+    ...pageInput,
+  }),
+  run: (
+    ctx,
+    { bike_id: bikeId, from, to, component_id: partId, rule_id: ruleId, query, ...page },
+  ) => {
+    const errors: FieldError[] = [];
+    if (bikeId != null && !getBike(ctx, bikeId)) {
+      errors.push({ field: "bike_id", message: "Vélo introuvable." });
+    }
+    for (const [field, value] of [
+      ["from", from],
+      ["to", to],
+    ] as const) {
+      if (value != null && !isLocalDate(value)) errors.push({ field, message: "Date invalide." });
+    }
+    if (errors.length) return refused(errors, "The filters were refused.");
+    const bikes = listBikes(ctx).filter((bike) => bikeId == null || bike.id === bikeId);
+    const components = bikes.flatMap((bike) => listComponents(ctx, bike.id));
+    const titles = new Map(
+      bikes.flatMap((bike) => listRules(ctx, bike.id).map((r) => [r.id, r.title] as const)),
+    );
+    const names = new Map(bikes.map((bike) => [bike.id, bike.name]));
+    const words = query ? nameKey(query) : "";
+    const events = listMaintenanceEvents(ctx, bikeId ?? null).filter(
+      (event) =>
+        (from == null || event.performedOn >= from) &&
+        (to == null || event.performedOn <= to) &&
+        (partId == null ||
+          event.items.some((i) => i.componentId === partId || i.newComponentId === partId)) &&
+        (ruleId == null || event.items.some((i) => i.ruleId === ruleId)) &&
+        (!words ||
+          nameKey(
+            [event.title, event.notes, ...event.items.map((i) => i.description)]
+              .filter(Boolean)
+              .join(" "),
+          ).includes(words)),
+    );
+    const { items, next_cursor } = paginate(events, (event) => String(event.id), page);
+    return answer(`${items.length} of ${events.length} maintenance events.`, {
+      events: items.map((event) => ({
+        bike: { id: event.bikeId, name: names.get(event.bikeId) ?? "" },
+        ...describeEvent(event, components, titles, "real"),
+      })),
+      next_cursor,
+    });
+  },
+});
+
+// --- update_maintenance --------------------------------------------------------------------------
+
+const updateMaintenanceTool = defineTool({
+  name: "update_maintenance",
+  title: "Modifier un entretien",
+  kind: "write",
+  description:
+    "Changes a maintenance event, as \"Modifier l'entretien\": only the fields given change. lines, when given, replace the event's lines (same shape as record_maintenance; a rule_id fulfils that rule from the event's day); its replacements always stay, and follow a new day. Moving the day is refused when a replaced part was fitted after it, or the part fitted already removed. Call with dry_run true first.",
+  input: z.strictObject({
+    event_id: z.number().describe("The maintenance event (list_maintenance)."),
+    on: z.string().optional().describe("YYYY-MM-DD, not in the future."),
+    title: z.string().optional(),
+    performed_by: z.enum(["self", "shop"]).optional(),
+    shop: z
+      .strictObject({ name: z.string(), kind: z.enum(SHOP_KINDS).optional() })
+      .nullable()
+      .optional(),
+    total_cost_cents: z.number().nullable().optional(),
+    notes: z.string().nullable().optional(),
+    lines: z.array(lineInput).optional().describe("All its lines but the replacements."),
+    dry_run: dryRunInput,
+  }),
+  run: (ctx, { event_id: eventId, dry_run: dryRun, ...args }) => {
+    const event = listMaintenanceEvents(ctx, null).find((e) => e.id === eventId);
+    if (!event) {
+      return refused([{ field: "event_id", message: "Entretien introuvable." }], "Unknown event.");
+    }
+    const bikeId = event.bikeId;
+    const components = listComponents(ctx, bikeId);
+    const rules = new Map(listRules(ctx, bikeId).map((rule) => [rule.id, rule]));
+    const current = maintenanceEdit(event, components).input;
+    let lines = current.lines;
+    if (args.lines) {
+      const resolved = resolveLines(args.lines, rules, components);
+      if (resolved.errors.length) return refused(resolved.errors, REFUSED);
+      lines = resolved.lines;
+    }
+    const performedBy = args.performed_by ?? (args.shop ? "shop" : current.performedBy);
+    const shop =
+      args.shop === undefined
+        ? current.shop
+        : args.shop && { name: args.shop.name, kind: args.shop.kind ?? "physical" };
+    const parsed = maintenanceSchema(today()).safeParse({
+      ...current,
+      on: args.on ?? current.on,
+      title: args.title ?? current.title,
+      performedBy,
+      shop: performedBy === "shop" ? shop : null,
+      totalCostCents:
+        args.total_cost_cents === undefined ? current.totalCostCents : args.total_cost_cents,
+      notes: args.notes === undefined ? current.notes : args.notes,
+      lines,
+    });
+    if (!parsed.success) return refused(fieldErrorsOf(parsed.error.issues), REFUSED);
+    const data = parsed.data;
+    if (data.performedBy === "shop" && !data.shop) {
+      return refused([{ field: "shop", message: "Indique l'atelier qui l'a fait." }], REFUSED);
+    }
+    const titles = new Map([...rules].map(([id, rule]) => [id, rule.title]));
+    const { timeZone } = getEnv();
+    const write = () => {
+      const outcome = updateMaintenanceEvent(
+        ctx,
+        eventId,
+        {
+          performedOn: data.on,
+          title: data.title,
+          performedBy: data.performedBy,
+          shop: data.performedBy === "shop" ? data.shop : null,
+          totalCostCents: data.totalCostCents,
+          notes: data.notes,
+          lines: data.lines,
+        },
+        timeZone,
+      );
+      if (!outcome.ok) {
+        const [field, message] = {
+          not_found: ["event_id", "Entretien introuvable."],
+          unknown_part: ["lines", "Pièce introuvable sur ce vélo."],
+          unknown_rule: ["lines", "Règle introuvable sur ce vélo."],
+          before_fitting: ["on", "La pièce remplacée a été montée après cette date."],
+          after_removal: [
+            "on",
+            "La pièce montée par cet entretien a été remplacée avant cette date.",
+          ],
+        }[outcome.reason];
+        throw new ToolRefusal([{ field, message }], REFUSED);
+      }
+      const after = listComponents(ctx, bikeId);
+      const evaluations = evaluateRules(ctx, bikeId);
+      const fulfilled = [
+        ...new Set(data.lines.flatMap((l) => (l.ruleId == null ? [] : [l.ruleId]))),
+      ];
+      return {
+        event: describeEvent(findEvent(ctx, bikeId, eventId)!, after, titles, "real"),
+        rules: fulfilled.map((ruleId) =>
+          describeRule(rules.get(ruleId)!, "real", evaluations.get(ruleId)),
+        ),
+      };
+    };
+    const before = describeEvent(event, components, titles, "real");
+    const result = dryRun ? previewWrite(write) : atomically(write);
+    if (!dryRun) logWrite(ctx, "update_maintenance", { event_id: eventId });
+    return answer(
+      dryRun
+        ? `Dry run: would change "${result.event.title}". Nothing was written.`
+        : `Changed "${result.event.title}" (event ${eventId}).`,
+      { dry_run: dryRun, event: result.event, before, rules_fulfilled: result.rules, warnings: [] },
+    );
+  },
+});
+
+export const maintenanceTools = [
+  listMaintenanceTool,
+  recordMaintenanceTool,
+  updateMaintenanceTool,
+  replaceComponentTool,
+];

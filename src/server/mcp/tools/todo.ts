@@ -13,6 +13,7 @@ import {
   listProcedures,
   previewWrite,
   setTaskStatus,
+  updateTask,
 } from "@/server/db";
 import { byUrgency } from "@/server/domain/rules";
 import { eventInstant } from "@/server/domain/time";
@@ -318,4 +319,95 @@ const setTaskDoneTool = defineTool({
   },
 });
 
-export const todoTools = [listDueWorkTool, addTaskTool, setTaskDoneTool];
+// --- update_task ---------------------------------------------------------------------------------
+
+const updateTaskTool = defineTool({
+  name: "update_task",
+  title: "Modifier une tâche",
+  kind: "write",
+  description:
+    'Changes a task, as "Modifier la tâche": only the fields given change; null clears the bike (a general task), the due day, the notes or the procedure. Call with dry_run true first.',
+  input: z.strictObject({
+    task_id: z.number().describe("The task (list_due_work)."),
+    bike_id: z.number().nullable().optional().describe("Another bike (list_bikes), or null."),
+    title: z.string().optional(),
+    due_on: z.string().nullable().optional().describe("YYYY-MM-DD, or null."),
+    notes: z.string().nullable().optional(),
+    procedure_id: z.number().nullable().optional().describe("list_procedures, or null."),
+    dry_run: dryRunInput,
+  }),
+  run: (ctx, { task_id: taskId, dry_run: dryRun, ...args }) => {
+    const task =
+      listOpenTasks(ctx).find((t) => t.id === taskId) ??
+      listDoneTasks(ctx).find((t) => t.id === taskId);
+    if (!task)
+      return refused([{ field: "task_id", message: "Tâche introuvable." }], "Unknown task.");
+    const pick = <T>(value: T | undefined, base: T) => (value === undefined ? base : value);
+    const parsed = taskSchema.safeParse({
+      bikeId: pick(args.bike_id, task.bikeId),
+      title: args.title ?? task.title,
+      dueOn: pick(args.due_on, task.dueOn),
+      notes: pick(args.notes, task.notes),
+      procedureId: pick(args.procedure_id, task.procedureId),
+    });
+    if (!parsed.success) {
+      return refused(
+        fieldErrorsOf(parsed.error.issues, "", RENAME),
+        "The task was refused; nothing was written.",
+      );
+    }
+    const data = parsed.data;
+    const bike = data.bikeId == null ? null : getBike(ctx, data.bikeId);
+    if (data.bikeId != null && !bike) {
+      return refused([{ field: "bike_id", message: "Vélo introuvable." }], "Unknown bike.");
+    }
+    const procedure =
+      data.procedureId == null ? null : listProcedures(ctx).find((p) => p.id === data.procedureId);
+    if (
+      data.procedureId != null &&
+      data.procedureId !== task.procedureId &&
+      (!procedure || procedure.archivedAt != null)
+    ) {
+      return refused(
+        [
+          {
+            field: "procedure_id",
+            message: procedure ? "Cette fiche est archivée." : "Fiche introuvable.",
+          },
+        ],
+        "The task was refused; nothing was written.",
+      );
+    }
+    const write = () => {
+      if (!updateTask(ctx, taskId, data).ok) {
+        throw new Error("updateTask refused a checked task");
+      }
+    };
+    if (dryRun) previewWrite(write);
+    else {
+      atomically(write);
+      logWrite(ctx, "update_task", { task_id: taskId });
+    }
+    return answer(
+      dryRun
+        ? `Dry run: would change the task "${data.title}". Nothing was written.`
+        : `Changed the task "${data.title}" (task ${taskId}).`,
+      {
+        dry_run: dryRun,
+        task: {
+          id: taskId,
+          bike: bike ? { id: bike.id, name: bike.name } : null,
+          title: data.title,
+          due_on: data.dueOn,
+          notes: data.notes,
+          procedure: procedure ? { id: procedure.id, title: procedure.title } : null,
+          status: task.status,
+        },
+        warnings: [],
+        url: bike ? bikeUrl(bike.id) : `${getEnv().publicUrl}/`,
+      },
+    );
+  },
+});
+
+export const todoTools = [listDueWorkTool, addTaskTool, updateTaskTool, setTaskDoneTool];

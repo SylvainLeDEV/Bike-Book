@@ -13,6 +13,7 @@ import type {
   MaintenanceLineInput,
   Quantity,
   RuleFormVM,
+  RuleInput,
   RuleRowVM,
   RuleSlotOption,
   RulesSheetVM,
@@ -204,6 +205,27 @@ export function slotValue(rule: Pick<Rule, "componentTypeCode" | "position">): s
   return rule.componentTypeCode ? `${rule.componentTypeCode}:${rule.position ?? "*"}` : "bike";
 }
 
+/**
+ * A rule as "Modifier la règle" edits it: "Dernière fois" is the day its counter was set to,
+ * when later than the start of tracking. Shared with the MCP's update_rule (D-94).
+ */
+export function ruleFormInput(rule: Rule, trackingStartAt: number, timeZone: string): RuleInput {
+  return {
+    slot: slotValue(rule),
+    title: rule.title,
+    intervalDistanceM: rule.intervalDistanceM,
+    intervalWearS: rule.intervalWearS,
+    intervalDays: rule.intervalDays,
+    warnRatio: rule.warnRatio,
+    resetOnReplacement: rule.resetOnReplacement,
+    lastDoneOn:
+      rule.counterStartAt > trackingStartAt ? localDateOf(rule.counterStartAt, timeZone) : null,
+    active: rule.active,
+    notes: rule.notes,
+    procedureId: rule.procedureId,
+  };
+}
+
 export function rulesSheet(input: BikeRulesInput, evaluated: EvaluatedRule[]): RulesSheetVM {
   const byId = new Map(evaluated.map((entry) => [entry.rule.id, entry]));
   const options = ruleSlots(input.components, input.types);
@@ -219,20 +241,7 @@ export function rulesSheet(input: BikeRulesInput, evaluated: EvaluatedRule[]): R
     }
     return {
       id: rule.id,
-      slot: slotValue(rule),
-      title: rule.title,
-      intervalDistanceM: rule.intervalDistanceM,
-      intervalWearS: rule.intervalWearS,
-      intervalDays: rule.intervalDays,
-      warnRatio: rule.warnRatio,
-      resetOnReplacement: rule.resetOnReplacement,
-      lastDoneOn:
-        rule.counterStartAt > input.bike.trackingStartAt
-          ? localDateOf(rule.counterStartAt, input.timeZone)
-          : null,
-      active: rule.active,
-      notes: rule.notes,
-      procedureId: rule.procedureId,
+      ...ruleFormInput(rule, input.bike.trackingStartAt, input.timeZone),
       status: evaluation?.status ?? null,
       explanation: evaluation
         ? {

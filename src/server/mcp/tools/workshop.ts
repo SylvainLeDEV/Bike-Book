@@ -11,15 +11,26 @@ import {
 import { COMPONENT_TYPE_LABELS, INVENTORY_CATEGORY_LABELS, REBUY_STATE_LABELS } from "@/lib/labels";
 import { nameKey } from "@/lib/names";
 import type { InventoryItemVM } from "@/lib/view-models";
-import { itemInputSchema, newItem } from "@/server/actions/workshop-input";
+import {
+  itemData,
+  itemInputSchema,
+  newItem,
+  pageUrl,
+  priceCents,
+} from "@/server/actions/workshop-input";
 import {
   addMovement,
+  addPurchaseLink,
   atomically,
   createItem,
   getBike,
   listInventory,
   previewWrite,
+  receiveItem,
+  setItemArchived,
+  setRestock,
   setToolOwned,
+  updateItem,
   type AccessContext,
 } from "@/server/db";
 import {
@@ -511,4 +522,334 @@ const updateStockTool = defineTool({
   },
 });
 
-export const workshopTools = [listWorkshopItemsTool, addWorkshopItemTool, updateStockTool];
+// --- update_workshop_item ------------------------------------------------------------------------
+
+const STOCK_FIELDS = ["quantity", "containers", "level", "owned"] as const;
+
+const updateWorkshopItemTool = defineTool({
+  name: "update_workshop_item",
+  title: "Modifier un objet de l'atelier",
+  kind: "write",
+  description:
+    'Changes a workshop item\'s description, as "Modifier l\'objet": only the fields given change; null clears a text. Its kind never changes, and its stock is changed with update_stock, never here. bike_ids: "all" or a list of bikes. add_link adds a purchase link (a shop, an https page, a price noted today). Call with dry_run true first.',
+  input: z.strictObject({
+    item_id: z.number().describe("The workshop item (list_workshop_items)."),
+    name: z.string().optional(),
+    brand: z.string().nullable().optional(),
+    reference: z.string().nullable().optional(),
+    category: z.enum(INVENTORY_CATEGORIES).optional(),
+    component_type_code: z.enum(COMPONENT_TYPE_CODES).nullable().optional(),
+    bike_ids: z
+      .union([z.literal("all"), z.array(z.number())])
+      .optional()
+      .describe('"all", or the bikes it serves.'),
+    location: z.string().nullable().optional(),
+    notes: z.string().nullable().optional(),
+    unit: z.enum(INVENTORY_UNITS).optional().describe("Part only."),
+    low_stock_threshold: z.number().nullable().optional().describe("Part only."),
+    container_label: z.string().nullable().optional().describe("Product only."),
+    add_link: z
+      .strictObject({
+        shop_name: z.string().nullable().optional(),
+        url: z.string().nullable().optional(),
+        price_cents: z.number().nullable().optional(),
+      })
+      .optional(),
+    // Refused with a pointer to update_stock rather than rejected as unknown.
+    quantity: z.unknown().optional(),
+    containers: z.unknown().optional(),
+    level: z.unknown().optional(),
+    owned: z.unknown().optional(),
+    dry_run: dryRunInput,
+  }),
+  run: (ctx, { item_id: itemId, dry_run: dryRun, add_link: link, ...args }) => {
+    const REFUSED = "The item was refused; nothing was written.";
+    const item = findItem(ctx, itemId);
+    if (!item)
+      return refused([{ field: "item_id", message: "Objet introuvable." }], "Unknown item.");
+    const errors: FieldError[] = [
+      ...STOCK_FIELDS.filter((field) => args[field] !== undefined).map((field) => ({
+        field,
+        message: "Le stock se change avec update_stock.",
+      })),
+      ...(["unit", "low_stock_threshold", "container_label"] as const)
+        .filter(
+          (field) =>
+            args[field] !== undefined &&
+            !(KIND_FIELDS[item.kind] as readonly string[]).includes(field),
+        )
+        .map((field) => ({ field, message: "Ce champ ne concerne pas ce type d'objet." })),
+    ];
+    if (errors.length) return refused(errors, REFUSED);
+
+    const pick = <T>(value: T | undefined, base: T) => (value === undefined ? base : value);
+    const common = {
+      name: args.name ?? item.name,
+      brand: pick(args.brand, item.brand),
+      reference: pick(args.reference, item.reference),
+      category: args.category ?? item.category,
+      componentTypeCode: pick(args.component_type_code, item.componentTypeCode),
+      bikes:
+        args.bike_ids ?? (item.bikes === "all" ? ("all" as const) : item.bikes.map((b) => b.id)),
+      location: pick(args.location, item.location),
+      link: null,
+      notes: pick(args.notes, item.notes),
+    };
+    const input =
+      item.kind === "part"
+        ? {
+            ...common,
+            kind: item.kind,
+            quantity: Math.max(0, item.quantity),
+            unit: args.unit ?? item.unit,
+            lowStockThreshold: pick(args.low_stock_threshold, item.lowStockThreshold),
+          }
+        : item.kind === "product"
+          ? {
+              ...common,
+              kind: item.kind,
+              containers: item.containers,
+              level: item.level === "empty" ? ("full" as const) : item.level,
+              containerLabel: pick(args.container_label, item.containerLabel ?? null),
+            }
+          : { ...common, kind: item.kind, owned: item.owned };
+    const parsed = itemInputSchema.safeParse(input);
+    if (!parsed.success) return refused(fieldErrorsOf(parsed.error.issues, "", RENAME), REFUSED);
+
+    const linkInput = link
+      ? z
+          .object({
+            shopName: z
+              .string()
+              .trim()
+              .max(100, "100 caractères au maximum.")
+              .nullable()
+              .transform((value) => value || null),
+            url: pageUrl,
+            priceCents,
+          })
+          .refine((l) => l.shopName || l.url, {
+            error: "Indique la boutique ou l'adresse de la page.",
+          })
+          .safeParse({
+            shopName: link.shop_name ?? null,
+            url: link.url ?? null,
+            priceCents: link.price_cents ?? null,
+          })
+      : null;
+    if (linkInput && !linkInput.success) {
+      return refused(fieldErrorsOf(linkInput.error.issues, "add_link"), REFUSED);
+    }
+
+    const write = () => {
+      if (!updateItem(ctx, item.id, itemData(parsed.data)).ok) {
+        throw new ToolRefusal([{ field: "bike_ids", message: "Vélo introuvable." }], REFUSED);
+      }
+      if (linkInput?.success) {
+        const l = linkInput.data;
+        addPurchaseLink(ctx, item.id, {
+          shop: l.shopName ? { name: l.shopName, kind: l.url ? "online" : "physical" } : null,
+          url: l.url,
+          priceCents: l.priceCents,
+          notedOn: today(),
+        });
+      }
+      return describeItem(findItem(ctx, item.id)!);
+    };
+    const after = dryRun ? previewWrite(write) : atomically(write);
+    if (!dryRun) logWrite(ctx, "update_workshop_item", { item_id: item.id });
+    return answer(
+      dryRun
+        ? `Dry run: would change "${after.name}". Nothing was written.`
+        : `Changed "${after.name}" (item ${item.id}).`,
+      { dry_run: dryRun, item: after, before: describeItem(item), warnings: [] },
+    );
+  },
+});
+
+// --- set_restock and receive_item ----------------------------------------------------------------
+
+const OWNED_TOOL = "Tu as déjà cet outil : note d'abord « Je ne l'ai pas » (update_stock, owned).";
+
+const setRestockTool = defineTool({
+  name: "set_restock",
+  title: "À commander",
+  kind: "write",
+  description:
+    'Moves a workshop item along its restocking, as the workshop\'s buttons: to_order ("À commander": on the list to buy), ordered ("En commande"), or none (cancelled). quantity: units or containers wanted (default: the one noted, else 1; a tool: 1). What arrives is receive_item. list_workshop_items with to_rebuy gives the list. Call with dry_run true first.',
+  input: z.strictObject({
+    item_id: z.number().describe("The workshop item (list_workshop_items)."),
+    status: z.enum(["to_order", "ordered", "none"]),
+    quantity: z.number().optional().describe("Units or containers wanted (integer ≥ 1)."),
+    dry_run: dryRunInput,
+  }),
+  run: (ctx, { item_id: itemId, status, quantity, dry_run: dryRun }) => {
+    const REFUSED = "The restocking was refused; nothing was written.";
+    const item = findItem(ctx, itemId);
+    if (!item)
+      return refused([{ field: "item_id", message: "Objet introuvable." }], "Unknown item.");
+    if (item.kind === "tool" && item.owned && status !== "none") {
+      return refused([{ field: "item_id", message: OWNED_TOOL }], REFUSED);
+    }
+    const wanted = item.kind === "tool" ? 1 : (quantity ?? item.restock.quantity ?? 1);
+    if (!Number.isInteger(wanted) || wanted < 1 || wanted > 10_000) {
+      return refused([{ field: "quantity", message: "Quantité invalide." }], REFUSED);
+    }
+    const write = () => {
+      const outcome = setRestock(ctx, item.id, {
+        status,
+        quantity: status === "none" ? null : wanted,
+        changedOn: status === "none" ? null : today(),
+      });
+      if (!outcome.ok) throw new ToolRefusal([{ field: "item_id", message: "Objet introuvable." }]);
+      return describeItem(findItem(ctx, item.id)!);
+    };
+    const after = dryRun ? previewWrite(write) : atomically(write);
+    if (!dryRun) logWrite(ctx, "set_restock", { item_id: item.id });
+    const label = { to_order: "to order", ordered: "ordered", none: "no longer to rebuy" }[status];
+    return answer(
+      dryRun
+        ? `Dry run: "${item.name}" would be ${label}. Nothing was written.`
+        : `"${item.name}" is ${label}.`,
+      {
+        dry_run: dryRun,
+        item: after,
+        restock_quantity: status === "none" ? null : wanted,
+        warnings: [],
+      },
+    );
+  },
+});
+
+const receiveItemTool = defineTool({
+  name: "receive_item",
+  title: "Reçu",
+  kind: "write",
+  description:
+    "Records what arrived, as the workshop's \"Reçu\": a purchase of quantity (default: the quantity ordered, else 1; a tool: 1) at unit_price_cents (default: the cheapest link's price, when known), and the restocking ends. Works whether or not it was marked to order. Call with dry_run true first.",
+  input: z.strictObject({
+    item_id: z.number().describe("The workshop item (list_workshop_items)."),
+    quantity: z.number().optional().describe("Units or containers received (integer ≥ 1)."),
+    unit_price_cents: z
+      .number()
+      .nullable()
+      .optional()
+      .describe("Price of one unit or container, euro cents."),
+    dry_run: dryRunInput,
+  }),
+  run: (ctx, { item_id: itemId, quantity, unit_price_cents: price, dry_run: dryRun }) => {
+    const REFUSED = "The reception was refused; nothing was written.";
+    const item = findItem(ctx, itemId);
+    if (!item)
+      return refused([{ field: "item_id", message: "Objet introuvable." }], "Unknown item.");
+    if (item.kind === "tool" && item.owned) {
+      return refused([{ field: "item_id", message: OWNED_TOOL }], REFUSED);
+    }
+    const wanted = item.kind === "tool" ? 1 : (quantity ?? item.restock.quantity ?? 1);
+    if (!Number.isInteger(wanted) || wanted < 1 || wanted > 10_000) {
+      return refused([{ field: "quantity", message: "Quantité invalide." }], REFUSED);
+    }
+    if (price != null && (!Number.isInteger(price) || price < 0 || price > 100_000_000)) {
+      return refused(
+        [{ field: "unit_price_cents", message: "Prix invalide : en centimes, entier positif." }],
+        REFUSED,
+      );
+    }
+    // The price of the cheapest link, when one is known, as the app does.
+    const link = item.purchaseLinks
+      .filter((l) => l.priceCents != null)
+      .sort((a, b) => a.priceCents! - b.priceCents!)[0];
+    const change =
+      item.kind === "product"
+        ? containersChange(item.containers, wanted, "purchase")
+        : ({ kind: "purchase", quantityDelta: wanted, levelAfter: null } as const);
+    if (!change) return refused([{ field: "quantity", message: "Quantité invalide." }], REFUSED);
+    const before = formatItemStock(item);
+    const write = () => {
+      const outcome = receiveItem(ctx, item.id, {
+        quantity: wanted,
+        levelAfter: change.levelAfter,
+        unitCostCents: price === undefined ? (link?.priceCents ?? null) : price,
+        purchaseLinkId: price === undefined ? (link?.id ?? null) : null,
+        at: Date.now(),
+      });
+      if (!outcome.ok) throw new ToolRefusal([{ field: "item_id", message: "Objet introuvable." }]);
+      return { movementId: outcome.movementId, item: describeItem(findItem(ctx, item.id)!) };
+    };
+    const result = dryRun ? previewWrite(write) : atomically(write);
+    if (!dryRun) {
+      logWrite(ctx, "receive_item", { item_id: item.id, movement_id: result.movementId });
+    }
+    const summary = `${item.name}: ${before} → ${result.item.stock_text}`;
+    return answer(dryRun ? `Dry run: ${summary}. Nothing was written.` : `${summary}.`, {
+      dry_run: dryRun,
+      stock_before: before,
+      item: result.item,
+      warnings: [],
+    });
+  },
+});
+
+// --- archive_workshop_item -----------------------------------------------------------------------
+
+const archiveWorkshopItemTool = defineTool({
+  name: "archive_workshop_item",
+  title: "Archiver un objet de l'atelier",
+  kind: "write",
+  description:
+    "Archives a workshop item, as \"Archiver\": it leaves the workshop's lists, rebuying and procedures' material; its history stays (never deleted), and the parts fitted from it keep their link. archived false brings it back. Call with dry_run true first.",
+  input: z.strictObject({
+    item_id: z.number().describe("The workshop item (list_workshop_items)."),
+    archived: z.boolean().optional().describe("true (default): archive; false: bring it back."),
+    dry_run: dryRunInput,
+  }),
+  run: (ctx, { item_id: itemId, archived = true, dry_run: dryRun }) => {
+    const item = listInventory(ctx).find((i) => i.id === itemId);
+    if (!item)
+      return refused([{ field: "item_id", message: "Objet introuvable." }], "Unknown item.");
+    if ((item.archivedAt != null) === archived) {
+      return answer(
+        `Nothing to change: "${item.name}" is already ${archived ? "archived" : "in the workshop"}.`,
+        {
+          dry_run: dryRun,
+          changed: false,
+          item: { id: item.id, name: item.name, archived },
+          warnings: [],
+        },
+      );
+    }
+    const write = () => {
+      if (!setItemArchived(ctx, item.id, archived ? Date.now() : null).ok) {
+        throw new ToolRefusal([{ field: "item_id", message: "Objet introuvable." }]);
+      }
+    };
+    if (dryRun) previewWrite(write);
+    else {
+      atomically(write);
+      logWrite(ctx, "archive_workshop_item", { item_id: item.id });
+    }
+    const what = archived ? "archived" : "back in the workshop";
+    return answer(
+      dryRun
+        ? `Dry run: "${item.name}" would be ${what}. Nothing was written.`
+        : `"${item.name}" is ${what}.`,
+      {
+        dry_run: dryRun,
+        changed: true,
+        item: { id: item.id, name: item.name, archived },
+        warnings: [],
+        url: archived ? null : workshopItemUrl(item.id),
+      },
+    );
+  },
+});
+
+export const workshopTools = [
+  listWorkshopItemsTool,
+  addWorkshopItemTool,
+  updateWorkshopItemTool,
+  updateStockTool,
+  setRestockTool,
+  receiveItemTool,
+  archiveWorkshopItemTool,
+];

@@ -65,7 +65,7 @@ import { runRows } from "./runs";
 import { bikeStock, isPartItem, loadGarage, runOf, stockLine } from "./workshop";
 
 /** Disciplines whose new forks are suspension forks by default (D-79): the mountain bikes. */
-const SUSPENSION_DISCIPLINES: Discipline[] = ["xc", "trail", "enduro", "dh", "dirt"];
+export const SUSPENSION_DISCIPLINES: Discipline[] = ["xc", "trail", "enduro", "dh", "dirt"];
 
 // Bike view models for the real pages, built from the data-access layer and the domain
 // functions. Same shapes as the /design fixtures.

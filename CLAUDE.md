@@ -15,7 +15,8 @@ is now "Paramètres" (D-80); then the workshop's products and tools (D-85) and t
 procedures ("fiches", D-86) and the runs ("suivi", D-87) on 2026-11-02, the three steps of D-82,
 and the "Réparé" action (D-88). On 2026-11-03, an MCP server for an external assistant (D-90):
 bikes and parts dictated to Claude Code, personal tokens in Paramètres; the same day, rides,
-what is to do, the workshop and the procedures through it (D-92), then maintenance done (D-93).
+what is to do, the workshop and the procedures through it (D-92), then maintenance done (D-93),
+restocking and edits (D-94), history and setups (D-95).
 
 ## Read first
 
@@ -79,7 +80,9 @@ what is to do, the workshop and the procedures through it (D-92), then maintenan
   read against the workshop), `add_task`, the workshop (`list_workshop_items`,
   `add_workshop_item`, `update_stock`) and the procedures (read-only). Since D-93:
   `record_maintenance` (lines with `rule_id` are "C'est fait"), `replace_component` (a part from
-  the workshop's stock or typed), `set_task_done`.
+  the workshop's stock or typed), `set_task_done`. Since D-94: `set_restock`, `receive_item`,
+  `update_workshop_item`, `update_task`, `update_rule`, `snooze_rule`. Since D-95:
+  `list_maintenance`, `update_maintenance`, `list_setups`, `add_setup`, `archive_workshop_item`.
 - **Setup (D-79, D-81):** a fork's or shock's spring, travel and adjusters (clicks from fully
   closed) live on the part (`suspension_specs`); each setup is a dated full copy whose values belong
   to the part measured. Advice only from manufacturers' documents, each with its source and date.
@@ -141,8 +144,8 @@ src/
 │   │               # attachments' originals under uploads/
 │   ├── files/      # uploads on disk: streaming to a temp file, atomic rename, sharp copies in
 │   │               # cache/ (upright, no metadata), generated demo photos and PDFs (D-76)
-│   ├── mcp/        # MCP server (D-90, D-92, D-93): tools/ (bikes, components, rules, rides,
-│   │               # maintenance, todo, workshop, procedures: one file per domain),
+│   ├── mcp/        # MCP server (D-90, D-92 to D-95): tools/ (bikes, components, rules, rides,
+│   │               # maintenance, setups, todo, workshop, procedures: one file per domain),
 │   │               # registry.ts, server.ts, http.ts (stateless JSON transport), tool.ts
 │   │               # (results, errors, pagination, dry_run, logs), describe.ts (answers)
 │   ├── env.ts      # configuration, validated with Zod (TZ included); time.ts: today in TZ

@@ -1,16 +1,20 @@
 import "server-only";
 import { z } from "zod";
 import { COMPONENT_TYPE_CODES } from "@/lib/enums";
-import { startOfLocalDay } from "@/lib/format";
+import { addDays, isLocalDate, startOfLocalDay } from "@/lib/format";
 import { ruleInputSchema, toRuleData } from "@/server/actions/rule-input";
 import {
   atomically,
   createRule,
   getBike,
   listComponents,
+  listBikes,
   listComponentTypes,
+  listProcedures,
   listRules,
   previewWrite,
+  snoozeRule,
+  updateRule,
   type AccessContext,
   type Rule,
 } from "@/server/db";
@@ -18,7 +22,7 @@ import { trackingStartOn } from "@/server/domain/bikes";
 import type { RuleEvaluation } from "@/server/domain/rules";
 import { getEnv } from "@/server/env";
 import { today } from "@/server/time";
-import { ruleSlots, slotValue } from "@/server/views/rules";
+import { ruleFormInput, ruleSlots, slotValue } from "@/server/views/rules";
 import { bikeUrl, describeRule, evaluateRules, type Ids } from "../describe";
 import {
   answer,
@@ -236,4 +240,154 @@ const addRuleTool = defineTool({
   },
 });
 
-export const ruleTools = [listRulesTool, addRuleTool];
+/** A rule of the workspace with its bike, or null. */
+function findRule(ctx: AccessContext, ruleId: number) {
+  for (const bike of listBikes(ctx)) {
+    const rule = listRules(ctx, bike.id).find((r) => r.id === ruleId);
+    if (rule) return { bike, rule };
+  }
+  return null;
+}
+
+const updateRuleTool = defineTool({
+  name: "update_rule",
+  title: "Modifier une règle d'entretien",
+  kind: "write",
+  description:
+    'Changes a maintenance rule, as "Modifier la règle" in the "Règles" sheet: only the fields given change; null clears an interval, last_done_on or the procedure. active false pauses the rule (it leaves "À prévoir"; the app\'s "Désactiver"). The part type and end it applies to never change: add another rule instead. last_done_on sets the day its counter starts from, as "Dernière fois" (a maintenance done is record_maintenance). The answer gives its status now. Call with dry_run true first.',
+  input: z.strictObject({
+    rule_id: z.number().describe("The rule (list_rules, list_due_work)."),
+    title: z.string().optional(),
+    interval_distance_m: z.number().nullable().optional().describe("Metres, or null."),
+    interval_wear_s: z.number().nullable().optional().describe("Seconds of wear, or null."),
+    interval_days: z.number().nullable().optional().describe("Days, 1 to 3650, or null."),
+    warn_ratio: z.number().optional().describe("0.5 to 0.99."),
+    reset_on_replacement: z.boolean().optional(),
+    last_done_on: z.string().nullable().optional().describe("YYYY-MM-DD, or null."),
+    active: z.boolean().optional(),
+    notes: z.string().nullable().optional(),
+    procedure_id: z
+      .number()
+      .nullable()
+      .optional()
+      .describe("The procedure it is done with (list_procedures), or null."),
+    dry_run: dryRunInput,
+  }),
+  run: (ctx, { rule_id: ruleId, dry_run: dryRun, ...args }) => {
+    const found = findRule(ctx, ruleId);
+    if (!found) return notFound("rule_id", "Règle introuvable.");
+    const { bike, rule } = found;
+    const { timeZone } = getEnv();
+    const trackingStartAt = startOfLocalDay(trackingStartOn(bike, timeZone), timeZone);
+    const current = ruleFormInput(rule, trackingStartAt, timeZone);
+    const pick = <T>(value: T | undefined, base: T) => (value === undefined ? base : value);
+    const parsed = ruleInputSchema(today()).safeParse({
+      ...current,
+      title: args.title ?? current.title,
+      intervalDistanceM: pick(args.interval_distance_m, current.intervalDistanceM),
+      intervalWearS: pick(args.interval_wear_s, current.intervalWearS),
+      intervalDays: pick(args.interval_days, current.intervalDays),
+      warnRatio: args.warn_ratio ?? current.warnRatio,
+      resetOnReplacement: args.reset_on_replacement ?? current.resetOnReplacement,
+      lastDoneOn: pick(args.last_done_on, current.lastDoneOn),
+      active: args.active ?? current.active,
+      notes: pick(args.notes, current.notes),
+      procedureId: pick(args.procedure_id, current.procedureId),
+    });
+    if (!parsed.success) {
+      return refused(
+        fieldErrorsOf(parsed.error.issues, "", RENAME),
+        "The rule was refused; nothing was written.",
+      );
+    }
+    if (parsed.data.procedureId != null) {
+      const procedure = listProcedures(ctx).find((p) => p.id === parsed.data.procedureId);
+      if (!procedure || procedure.archivedAt != null) {
+        return refused(
+          [
+            {
+              field: "procedure_id",
+              message: procedure ? "Cette fiche est archivée." : "Fiche introuvable.",
+            },
+          ],
+          "The rule was refused; nothing was written.",
+        );
+      }
+    }
+    const data = toRuleData(parsed.data, trackingStartAt, timeZone);
+    const labels = slotLabelsOf(ctx, bike.id);
+    const write = () => {
+      if (!updateRule(ctx, ruleId, data).ok) {
+        throw new ToolRefusal([{ field: "rule_id", message: "Règle introuvable." }]);
+      }
+      const updated = listRules(ctx, bike.id).find((r) => r.id === ruleId)!;
+      return describeFullRule(updated, labels, "real", evaluateRules(ctx, bike.id).get(ruleId));
+    };
+    const before = describeFullRule(rule, labels, "real", evaluateRules(ctx, bike.id).get(ruleId));
+    const after = dryRun ? previewWrite(write) : atomically(write);
+    if (!dryRun) logWrite(ctx, "update_rule", { rule_id: ruleId });
+    return answer(
+      dryRun
+        ? `Dry run: would change the rule "${after.title}" of ${bike.name} (${before.status ?? "inactive"} → ${after.status ?? "inactive"}). Nothing was written.`
+        : `Changed the rule "${after.title}" of ${bike.name}.`,
+      { dry_run: dryRun, rule: after, before, warnings: [], bike_url: bikeUrl(bike.id) },
+    );
+  },
+});
+
+const SNOOZE_DAYS = 14;
+
+const snoozeRuleTool = defineTool({
+  name: "snooze_rule",
+  title: "Reporter une règle",
+  kind: "write",
+  description:
+    'Snoozes a maintenance rule, as "Reporter" in "À prévoir": it leaves the due list until that day (status snoozed), then comes back if still due. until: the day, YYYY-MM-DD, after today (default: in 14 days, as the app); null cancels a snooze. Call with dry_run true first.',
+  input: z.strictObject({
+    rule_id: z.number().describe("The rule (list_due_work, list_rules)."),
+    until: z.string().nullable().optional(),
+    dry_run: dryRunInput,
+  }),
+  run: (ctx, { rule_id: ruleId, until, dry_run: dryRun }) => {
+    const found = findRule(ctx, ruleId);
+    if (!found) return notFound("rule_id", "Règle introuvable.");
+    const day = today();
+    const end = until === undefined ? addDays(day, SNOOZE_DAYS) : until;
+    if (end != null && (!isLocalDate(end) || end <= day)) {
+      return refused(
+        [
+          {
+            field: "until",
+            message: isLocalDate(end) ? "Choisis un jour après aujourd'hui." : "Date invalide.",
+          },
+        ],
+        "The snooze was refused; nothing was written.",
+      );
+    }
+    const { bike, rule } = found;
+    const labels = slotLabelsOf(ctx, bike.id);
+    const write = () => {
+      if (!snoozeRule(ctx, ruleId, end).ok) {
+        throw new ToolRefusal([{ field: "rule_id", message: "Règle introuvable." }]);
+      }
+      const updated = listRules(ctx, bike.id).find((r) => r.id === ruleId)!;
+      return describeFullRule(updated, labels, "real", evaluateRules(ctx, bike.id).get(ruleId));
+    };
+    const after = dryRun ? previewWrite(write) : atomically(write);
+    if (!dryRun) logWrite(ctx, "snooze_rule", { rule_id: ruleId });
+    const what = end ? `snoozed until ${end}` : "no longer snoozed";
+    return answer(
+      dryRun
+        ? `Dry run: the rule "${rule.title}" would be ${what}. Nothing was written.`
+        : `The rule "${rule.title}" is ${what}.`,
+      {
+        dry_run: dryRun,
+        rule: { ...after, snoozed_until: end },
+        warnings: [],
+        bike_url: bikeUrl(bike.id),
+      },
+    );
+  },
+});
+
+export const ruleTools = [listRulesTool, addRuleTool, updateRuleTool, snoozeRuleTool];
