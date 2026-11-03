@@ -1,12 +1,13 @@
 import type { Metadata } from "next";
 import { requireAccessContext } from "@/server/auth/context";
+import { apiTokensView } from "@/server/views/api-tokens";
 import packageJson from "../../../../package.json";
 import { SettingsView } from "./settings-view";
 
 export const metadata: Metadata = { title: "Paramètres · Bike-Book" };
 
 export default async function SettingsPage() {
-  // The shell already holds the account; this only keeps signed-out visitors out.
-  await requireAccessContext();
-  return <SettingsView version={packageJson.version} />;
+  // The shell already holds the account; the page adds the personal tokens (D-90).
+  const ctx = await requireAccessContext();
+  return <SettingsView version={packageJson.version} {...apiTokensView(ctx)} />;
 }

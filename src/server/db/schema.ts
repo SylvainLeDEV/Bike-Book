@@ -158,6 +158,39 @@ export const memberships = sqliteTable(
   ],
 );
 
+// --- Personal access tokens (D-90) -----------------------------------------------------------------
+
+/**
+ * A personal token for an external assistant (the MCP endpoint, D-90): it acts as its user in
+ * one workspace. Only its SHA-256 hash is stored; the token itself is shown once. Revoked tokens
+ * stay (their id is in the server logs) but never authenticate again. Not exported (D-68).
+ */
+export const apiTokens = sqliteTable(
+  "api_tokens",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    workspaceId: integer("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    /** Given by the owner: "Claude Code sur le Mac". */
+    name: text("name").notNull(),
+    /** SHA-256 of the whole token, lowercase hex (64 characters). */
+    tokenHash: text("token_hash").notNull(),
+    /** The token's first characters ("bb_x7Kq9"), shown to recognise it; never enough to use it. */
+    tokenStart: text("token_start").notNull(),
+    createdAt: createdAt(),
+    lastUsedAt: integer("last_used_at", { mode: "timestamp_ms" }),
+    revokedAt: integer("revoked_at", { mode: "timestamp_ms" }),
+  },
+  (table) => [
+    uniqueIndex("api_tokens_token_hash_unique").on(table.tokenHash),
+    index("api_tokens_user_id_workspace_id_idx").on(table.userId, table.workspaceId),
+  ],
+);
+
 // --- Shops (D-37) --------------------------------------------------------------------------------
 
 /** Where bikes and parts are bought or serviced: a physical shop or an online one. */

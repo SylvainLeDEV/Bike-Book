@@ -34,15 +34,20 @@ import {
 } from "./schema";
 
 // The ZIP export (feature 12, D-12, D-50): every table of the current workspace, as stored.
-// Auth tables (users, sessions, accounts, verifications, memberships) are never exported.
+// Auth tables (users, sessions, accounts, verifications, memberships) and the personal tokens
+// (D-90) are never exported.
 
-/** Tables left out of the export: the auth library's and the links between users and workspaces. */
+/**
+ * Tables left out of the export: the auth library's, the links between users and workspaces,
+ * and the personal tokens' hashes (credentials, not data).
+ */
 export const NOT_EXPORTED_TABLES = [
   "users",
   "sessions",
   "accounts",
   "verifications",
   "memberships",
+  "api_tokens",
 ];
 
 export type ExportColumn = {

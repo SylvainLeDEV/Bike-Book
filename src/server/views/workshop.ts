@@ -29,7 +29,7 @@ import {
   type Ride,
   type RunInProgress,
 } from "@/server/db";
-import { canBeRidden } from "@/server/domain/bikes";
+import { canBeRidden, trackingStartOn } from "@/server/domain/bikes";
 import {
   itemStock,
   lastUnitCostCents,
@@ -74,7 +74,7 @@ export function loadGarage(ctx: AccessContext): Garage {
   for (const bike of ridable) {
     const bikeRides = listRides(ctx, { bikeId: bike.id });
     rides.set(bike.id, bikeRides);
-    const trackedSince = bike.purchasedOn ?? localDateOf(bike.createdAt.getTime(), timeZone);
+    const trackedSince = trackingStartOn(bike, timeZone);
     rules.set(
       bike.id,
       evaluateBikeRules({

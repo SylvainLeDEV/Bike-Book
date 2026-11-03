@@ -1104,3 +1104,21 @@ export type FinishRunInput = {
   products: { itemId: number; levelAfter: ProductLevel }[];
   saveAsProcedure: boolean;
 };
+
+// --- Personal tokens (D-90) ------------------------------------------------------------------------
+
+/** A personal token in "Paramètres": never the token itself, only its first characters. */
+export type ApiTokenVM = {
+  id: number;
+  name: string;
+  /** "bb_x7Kq9", to recognise it. */
+  tokenStart: string;
+  createdOn: LocalDate;
+  /** The last use, local date and "HH:MM" in TZ; null: never used. */
+  lastUsed: { on: LocalDate; time: string } | null;
+};
+
+/** Answer of "Créer le jeton": the token is in this answer only, shown once. */
+export type CreateApiTokenResult =
+  | { ok: true; token: string; name: string }
+  | { ok: false; error?: string; fieldErrors?: { name?: string } };

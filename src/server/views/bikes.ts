@@ -43,7 +43,7 @@ import {
   type Bike,
   type MaintenanceEvent,
 } from "@/server/db";
-import { isListedFirst } from "@/server/domain/bikes";
+import { isListedFirst, trackingStartOn } from "@/server/domain/bikes";
 import { computeTotalCost, eventCostCents } from "@/server/domain/cost";
 import { rideWear, usageBetween } from "@/server/domain/wear";
 import { getEnv } from "@/server/env";
@@ -181,8 +181,7 @@ export function getBikePage(ctx: AccessContext, bikeId: number): BikePage | null
   const { timeZone } = getEnv();
   const day = today();
   const ref = bikeRef(bike);
-  const trackedSince: LocalDate =
-    bike.purchasedOn ?? localDateOf(bike.createdAt.getTime(), timeZone);
+  const trackedSince = trackingStartOn(bike, timeZone);
   const rides = listRides(ctx, { bikeId: bike.id });
   const usage = usageBetween(rides, null, null);
   const events = listMaintenanceEvents(ctx, bike.id);

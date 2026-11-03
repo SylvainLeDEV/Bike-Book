@@ -5,7 +5,9 @@ import { isLocalDate, startOfLocalDay, type LocalDate } from "@/lib/format";
 import { cleanName } from "@/lib/names";
 import { isSuspensionType } from "@/lib/setup";
 import type { ComponentInput, ReplacePartInput } from "@/lib/view-models";
-import type { ComponentData } from "@/server/db";
+import { agreed, slotLabel } from "@/lib/display";
+import type { ComponentPosition, ComponentTypeCode } from "@/lib/enums";
+import type { ComponentData, SaveComponentOutcome } from "@/server/db";
 import { eventInstant } from "@/server/domain/time";
 
 // Validation of the component and replace sheets (D-50: clean on the way in).
@@ -103,6 +105,29 @@ export function parseComponentInput(
     if (field) fieldErrors[field] ??= issue.message;
   }
   return { success: false, fieldErrors };
+}
+
+/** Why a part was not saved, as the sheet shows it: under a field, or for the whole form. */
+export function componentSaveErrors(
+  outcome: Extract<SaveComponentOutcome, { ok: false }>,
+  slot: { typeCode: ComponentTypeCode; position: ComponentPosition },
+  /** "not_found": the bike when adding a part, the part when editing it. */
+  notFound: "Vélo introuvable." | "Pièce introuvable.",
+): { fieldErrors: ComponentFieldErrors } | { error: string } {
+  switch (outcome.reason) {
+    case "slot_taken":
+      return {
+        fieldErrors: {
+          typeCode: `${slotLabel(slot.typeCode, slot.position)} déjà ${agreed(slot.typeCode, "monté")} (${outcome.takenBy}) : utilise « Remplacer une pièce ».`,
+        },
+      };
+    case "invalid_position":
+      return { fieldErrors: { position: "Choisis l'avant ou l'arrière." } };
+    case "after_removal":
+      return { fieldErrors: { installedOn: "Cette pièce a été retirée avant cette date." } };
+    case "not_found":
+      return { error: notFound };
+  }
 }
 
 /**

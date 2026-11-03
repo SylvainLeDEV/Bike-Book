@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { canBeRidden, defaultRideType, isListedFirst, resolveBikeStatus } from "./bikes";
+import {
+  canBeRidden,
+  defaultRideType,
+  isListedFirst,
+  resolveBikeStatus,
+  trackingStartOn,
+} from "./bikes";
 
 const TODAY = "2026-10-25";
 const input = {
@@ -80,5 +86,16 @@ describe("bike lists", () => {
     expect(defaultRideType("enduro")).toBe("enduro");
     expect(defaultRideType("city")).toBe("commute");
     expect(defaultRideType("dirt")).toBe("other");
+  });
+});
+
+describe("trackingStartOn", () => {
+  it("starts on the purchase day, else on the day the bike was added, in TZ", () => {
+    const createdAt = new Date("2026-10-31T23:30:00Z"); // 1 November in Paris
+    expect(trackingStartOn({ purchasedOn: "2024-03-14", createdAt }, "Europe/Paris")).toBe(
+      "2024-03-14",
+    );
+    expect(trackingStartOn({ purchasedOn: null, createdAt }, "Europe/Paris")).toBe("2026-11-01");
+    expect(trackingStartOn({ purchasedOn: null, createdAt }, "UTC")).toBe("2026-10-31");
   });
 });

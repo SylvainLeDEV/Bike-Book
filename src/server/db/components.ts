@@ -173,6 +173,8 @@ export function createComponent(
   data: ComponentData,
   /** Rule templates to copy for this slot (feature 6). */
   templateIds: number[] = [],
+  /** Per template, where its rule's counter starts instead of the fitting (D-90). */
+  ruleCounterStarts: ReadonlyMap<number, number> = new Map(),
 ): SaveComponentOutcome {
   return getDb().transaction((tx) => {
     if (!ownsBike(tx, ctx, bikeId)) return { ok: false, reason: "not_found" };
@@ -224,6 +226,7 @@ export function createComponent(
       position: slot.position,
       templateIds,
       counterStartAt: installedAt,
+      counterStarts: ruleCounterStarts,
     });
     return { ok: true, componentId: id };
   });

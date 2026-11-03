@@ -314,4 +314,33 @@ describe("openDatabase migrations", () => {
     });
     sqlite.close();
   });
+
+  it("adds the personal tokens table in 0016 and keeps the rows of a 0015 database (D-90)", () => {
+    upTo("0015_repaired_action");
+    const before = openDatabase(file, migrationsFolder).sqlite;
+    before.exec(`
+      INSERT INTO users (id, name, email, email_verified, created_at, updated_at)
+        VALUES ('u1', 'Alex', 'alex@example.com', 0, 0, 0);
+      INSERT INTO workspaces (id, name, created_at) VALUES (1, 'Garage', 0);
+      INSERT INTO memberships (user_id, workspace_id, role, created_at) VALUES ('u1', 1, 'owner', 0);
+      INSERT INTO bikes (id, workspace_id, name, discipline, created_at, updated_at)
+        VALUES (1, 1, 'Spectral', 'enduro', 0, 0);
+    `);
+    before.close();
+
+    upTo("0016_api_tokens");
+    const { sqlite } = openDatabase(file, migrationsFolder);
+    expect(sqlite.prepare("SELECT id, name FROM bikes").all()).toEqual([
+      { id: 1, name: "Spectral" },
+    ]);
+    const insert = sqlite.prepare(
+      "INSERT INTO api_tokens (user_id, workspace_id, name, token_hash, token_start, created_at) VALUES ('u1', 1, ?, ?, 'bb_abcde', 0)",
+    );
+    insert.run("Mac", "a".repeat(64));
+    // One row per hash; deleting the user removes their tokens.
+    expect(() => insert.run("Autre", "a".repeat(64))).toThrow(/UNIQUE/);
+    sqlite.exec("DELETE FROM users WHERE id = 'u1'");
+    expect(sqlite.prepare("SELECT count(*) AS n FROM api_tokens").get()).toEqual({ n: 0 });
+    sqlite.close();
+  });
 });

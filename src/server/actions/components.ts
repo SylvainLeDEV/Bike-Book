@@ -17,7 +17,12 @@ import {
 import { eventInstant } from "@/server/domain/time";
 import { getEnv } from "@/server/env";
 import { today } from "@/server/time";
-import { parseComponentInput, replacePartSchema, toComponentData } from "./component-input";
+import {
+  componentSaveErrors,
+  parseComponentInput,
+  replacePartSchema,
+  toComponentData,
+} from "./component-input";
 
 const id = z.number().int().positive();
 
@@ -46,18 +51,7 @@ export async function saveComponentAction(
       parsed.data.templateIds ?? [],
     );
     if (!outcome.ok) {
-      if (outcome.reason === "slot_taken") {
-        return {
-          ok: false,
-          fieldErrors: {
-            typeCode: `${label} déjà ${agreed(parsed.data.typeCode, "monté")} (${outcome.takenBy}) : utilise « Remplacer une pièce ».`,
-          },
-        };
-      }
-      if (outcome.reason === "invalid_position") {
-        return { ok: false, fieldErrors: { position: "Choisis l'avant ou l'arrière." } };
-      }
-      return { ok: false, error: "Vélo introuvable." };
+      return { ok: false, ...componentSaveErrors(outcome, parsed.data, "Vélo introuvable.") };
     }
     refresh();
     return {
@@ -72,9 +66,7 @@ export async function saveComponentAction(
     return { ok: false, error: "Pièce introuvable." };
   const outcome = updateComponent(ctx, current.id, data);
   if (!outcome.ok) {
-    return outcome.reason === "after_removal"
-      ? { ok: false, fieldErrors: { installedOn: "Cette pièce a été retirée avant cette date." } }
-      : { ok: false, error: "Pièce introuvable." };
+    return { ok: false, ...componentSaveErrors(outcome, current, "Pièce introuvable.") };
   }
   refresh();
   return { ok: true, componentId: current.id, message: "Pièce enregistrée" };

@@ -96,11 +96,33 @@ Scoping rules:
   `bike_id`, so no extra column is needed there. Attachments
   inherit it from their one element (a bike or something below it, a task, a workshop item).
 - Per-person data carries a `user_id`: Garmin integration (each person has their own Garmin
-  account), notification preferences, sessions.
+  account), notification preferences, sessions, personal tokens (with the `workspace_id` they
+  open, D-90).
 - `maintenance_events.created_by` records who logged the work (useful for a shop's mechanics).
 - Every server-side query goes through one data-access layer that receives the current user
   and workspace. No page or action queries the database directly. This is what makes adding
   real multi-user features later a matter of UI, not a rewrite.
+
+### Personal access tokens (D-90)
+
+Status: **Built** on 2026-11-03 (migration `0016_api_tokens`, one new table, nothing rebuilt).
+A token lets an external assistant (the MCP endpoint, `/api/mcp`) act as its user in one
+workspace. Only its SHA-256 is stored: a copy of the database holds no usable token. Like the
+auth tables, `api_tokens` is **not exported** (credentials, not data).
+
+**`api_tokens`**
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `id` | integer PK | Named in the server's log lines of MCP writes (`token_id`) |
+| `user_id` | FK `users`, required, `ON DELETE CASCADE` | The user the token acts as |
+| `workspace_id` | FK `workspaces`, required, `ON DELETE CASCADE` | The workspace it opens; it stops working when the user is no longer a member of it |
+| `name` | text, required | Given by the owner: "Claude Code sur le Mac", 60 characters at most |
+| `token_hash` | text, required, unique | SHA-256 of the whole token (`bb_` and 43 base64url characters), lowercase hex |
+| `token_start` | text, required | The token's first 8 characters (`bb_` and 5), shown in the list to recognise it |
+| `created_at` | timestamp | Instant, UTC epoch milliseconds |
+| `last_used_at` | timestamp, nullable | The last request it authenticated; null: never used |
+| `revoked_at` | timestamp, nullable | Set by "Révoquer": the token never works again; the row stays |
 
 ## Core tables
 
@@ -1120,5 +1142,6 @@ the app. The data therefore has to explain itself. **Decided** on 2026-10-25.
 - **Export**: every table can be exported to CSV/JSON in a single ZIP with the uploads (the
   originals, under `uploads/` at their `storage_path`, feature 10), the
   workshop tables included (and the label and procedure tables from 1.5). It doubles as a
-  portable backup. Built in feature 12 (D-68): the auth tables and `memberships` are left out; a
-  new table must be added to the export or to its exclusion list (a test checks it).
+  portable backup. Built in feature 12 (D-68): the auth tables, `memberships` and `api_tokens`
+  (D-90) are left out; a new table must be added to the export or to its exclusion list (a test
+  checks it).

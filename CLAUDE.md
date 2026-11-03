@@ -13,7 +13,8 @@ exit criteria come from real use. Phase 1.5 started on
 2026-11-01 with the setup log, the bike page's "Réglages" tab (D-79 to D-84); the settings page
 is now "Paramètres" (D-80); then the workshop's products and tools (D-85) and the maintenance
 procedures ("fiches", D-86) and the runs ("suivi", D-87) on 2026-11-02, the three steps of D-82,
-and the "Réparé" action (D-88).
+and the "Réparé" action (D-88). On 2026-11-03, an MCP server for an external assistant (D-90):
+bikes and parts dictated to Claude Code, personal tokens in Paramètres; rides through it later.
 
 ## Read first
 
@@ -63,6 +64,14 @@ and the "Réparé" action (D-88).
   start; status `in_progress` or `done` (abandoned = deleted); "Terminer" writes one event line,
   the parts and product levels used and the rule reset, in one transaction, with "Annuler";
   deleting that event deletes the run and gives the stock back.
+- **MCP server (D-90):** `POST /api/mcp`, `@modelcontextprotocol/server` (SDK v2), stateless,
+  JSON answers; a personal token (`bb_…`, SHA-256 in `api_tokens`, revocable), never the session.
+  A thin layer: the forms' Zod schemas and the data-access layer, no business rule in a tool.
+  Tools `verb_noun`, one file per domain plus a registry, raw units, `{ field, message }` errors in
+  French, a required `dry_run` (a rolled-back transaction), paginated lists, one log line per
+  write, no delete, never the frame number. V1: bikes and parts; rides later. A new part's rules
+  can take the day each was last done (`rules[].last_done_on`, as the "Règles" sheet), so an old
+  bike's day-based rules do not start overdue.
 - **Setup (D-79, D-81):** a fork's or shock's spring, travel and adjusters (clicks from fully
   closed) live on the part (`suspension_specs`); each setup is a dated full copy whose values belong
   to the part measured. Advice only from manufacturers' documents, each with its source and date.
@@ -99,7 +108,8 @@ src/
 ├── app/            # App Router: (app)/ signed-in pages, (auth)/ login + setup,
 │                   # design/ (development-only design system, D-32),
 │                   # api/auth/[...all] (Better Auth), api/healthz, api/export (ZIP, D-68),
-│                   # api/uploads (POST, raw body streamed) and api/uploads/[id] (GET, D-76).
+│                   # api/uploads (POST, raw body streamed) and api/uploads/[id] (GET, D-76),
+│                   # api/mcp (POST, the MCP server, personal token, D-90).
 │                   # Routes: /, /bikes, /bikes/[bikeId], /activity, /workshop (D-54), /settings,
 │                   # /runs/[runId] (a run, full screen, D-87);
 │                   # /workshop?tab=, ?bike=, ?q=, ?item=, ?procedure= stay in the address
@@ -109,8 +119,10 @@ src/
 │                   # the history's ?year=, ?month=, ?kind= stay in the address (D-78)
 │                   # globals.css = the design tokens (D-30, D-31)
 ├── server/         # server-only
-│   ├── db/         # schema, migrations/, seed, data-access layer (index.ts = public API)
-│   ├── auth/       # Better Auth instance, sign-up policy, current user + workspace
+│   ├── db/         # schema, migrations/, seed, data-access layer (index.ts = public API),
+│   │               # transactions.ts (atomically, previewWrite for dry runs, D-90)
+│   ├── auth/       # Better Auth instance, sign-up policy, current user + workspace,
+│   │               # personal tokens (tokens.ts: authenticateBearer, D-90)
 │   ├── actions/    # Server Actions, their Zod input schemas in *-input.ts
 │   ├── domain/     # pure, tested logic: bike status, total cost, wear (D-13), part history,
 │   │               # instants of dated entries (D-61), rule engine (D-65), attachments
@@ -121,11 +133,15 @@ src/
 │   │               # attachments' originals under uploads/
 │   ├── files/      # uploads on disk: streaming to a temp file, atomic rename, sharp copies in
 │   │               # cache/ (upright, no metadata), generated demo photos and PDFs (D-76)
+│   ├── mcp/        # MCP server (D-90): tools/ (bikes.ts, components.ts: one file per domain),
+│   │               # registry.ts, server.ts, http.ts (stateless JSON transport), tool.ts
+│   │               # (results, errors, pagination, dry_run, logs), describe.ts (answers)
 │   ├── env.ts      # configuration, validated with Zod (TZ included); time.ts: today in TZ
 │   └── (jobs/, integrations/ come with 1.5 and phase 2)
 ├── components/     # Screens and building blocks, fed by view models (props);
 │                   # primitives in components/ui (shadcn/ui style, Radix), shell/ = app shell,
 │                   # attachments/ = the "Pièces jointes" block and its service context (D-74),
+│                   # settings/ = Paramètres and its personal tokens (D-90),
 │                   # setup/ = the "Réglages" tab, its sheet and the component sheet's
 │                   # "Suspension" section (D-79), procedures/ = rows, detail and editor of the
 │                   # maintenance procedures (D-86), runs/ = the run's screen and summary (D-87)

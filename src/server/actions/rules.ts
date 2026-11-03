@@ -2,10 +2,11 @@
 
 import { refresh } from "next/cache";
 import { z } from "zod";
-import { addDays, isLocalDate, localDateOf, startOfLocalDay } from "@/lib/format";
+import { addDays, isLocalDate, startOfLocalDay } from "@/lib/format";
 import type { SaveRuleResult } from "@/lib/view-models";
 import { requireAccessContext } from "@/server/auth/context";
 import { createRule, getBike, listRules, snoozeRule, updateRule } from "@/server/db";
+import { trackingStartOn } from "@/server/domain/bikes";
 import { getEnv } from "@/server/env";
 import { today } from "@/server/time";
 import { ruleInputSchema, toRuleData } from "./rule-input";
@@ -28,7 +29,7 @@ export async function saveRuleAction(
   const bike = getBike(ctx, ids.data.bikeId);
   if (!bike) return { ok: false, error: "Vélo introuvable." };
   const { timeZone } = getEnv();
-  const trackedSince = bike.purchasedOn ?? localDateOf(bike.createdAt.getTime(), timeZone);
+  const trackedSince = trackingStartOn(bike, timeZone);
   const data = toRuleData(parsed.data, startOfLocalDay(trackedSince, timeZone), timeZone);
 
   if (ids.data.ruleId == null) {

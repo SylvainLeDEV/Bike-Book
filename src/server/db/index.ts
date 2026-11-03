@@ -6,6 +6,14 @@ export type { AccessContext } from "./access-context";
 export { checkDatabase, countUsers, createWorkspaceWithOwner, findAccessContext } from "./accounts";
 export { createAuthAdapter } from "./auth-adapter";
 export { initDatabase } from "./client";
+export { atomically, previewWrite } from "./transactions";
+export {
+  createApiToken,
+  findTokenAccess,
+  listApiTokens,
+  revokeApiToken,
+  type ApiToken,
+} from "./api-tokens";
 export { getWorkspaceOverview, type WorkspaceOverview } from "./workspaces";
 export {
   createBike,

@@ -40,6 +40,7 @@ you have backed up everything.
 | FIT parsing (phase 2) | **`@garmin/fitsdk`** | Garmin's official JavaScript FIT SDK on npm, decode only (**Verified 2026-10-24**) | fit-file-parser |
 | Scheduled jobs | In-process scheduler (e.g. croner) started from Next.js `instrumentation.ts` | Reminders (phase 1.5) and Garmin sync (phase 2) need no queue | System cron calling a protected route |
 | Authentication | **Better Auth** (email + password, Drizzle adapter, SQLite) | Supports several users from day one; roles, invitations, organisations and passkeys can be switched on later without a rewrite (D-25). Plugin availability to confirm at scaffold time | Auth.js; a hand-rolled single password (simplest, but a rewrite once there are several users) |
+| MCP server (D-90) | **`@modelcontextprotocol/server`** 2.4.0, the TypeScript SDK's v2 | An external assistant dictates bikes and parts through the app's own validation. Web `Request`/`Response` handler, two dependencies (its core, Zod) | v1 `@modelcontextprotocol/sdk` (about fifteen dependencies: express, hono, cors…); a separate server reading the SQLite file (bypasses validation and scoping) |
 | Tests | **Vitest** for the wear and rule engine, **Playwright** for 2–3 key flows | Counters are the logic that must not be wrong | — |
 | Runtime image | Node.js LTS on a Debian `slim` base | `better-sqlite3` and `sharp` ship prebuilt glibc binaries | Alpine (musl): possible, more friction |
 
@@ -67,6 +68,7 @@ src/
 │       ├── auth/[...all]/ # Better Auth endpoints
 │       ├── healthz/       # Health check for Docker and monitoring
 │       ├── export/        # The ZIP export (feature 12, D-68), attachments' files included
+│       ├── mcp/           # The MCP server for an external assistant, personal token (D-90)
 │       └── uploads/       # POST streams one file to disk; [id]/ serves it (feature 10)
 ├── components/            # Screens and building blocks, data received as view models (props)
 │   ├── ui/                # Primitives (shadcn/ui style, Radix): button, field, chip, sheet, toast…
@@ -79,12 +81,15 @@ src/
 │                          # procedures.ts (readiness), runs.ts (summary defaults, D-87)
 ├── server/                # Server-only code (`import "server-only"`)
 │   ├── db/                # Drizzle schema, migrations, seed, scoped data-access layer
-│   ├── auth/              # Better Auth setup, current user and workspace
+│   ├── auth/              # Better Auth setup, current user and workspace, personal tokens
+│   │                      # (tokens.ts: authenticateBearer, D-90)
 │   ├── actions/           # Server Actions (forms) and their Zod input schemas (*-input.ts)
 │   ├── domain/            # Pure, tested logic: bike status, total cost, (wear, rules, stock…)
 │   ├── views/             # View models of the real pages, from the data-access layer + domain
 │   ├── export/            # ZIP writer, CSV, data dictionary for the export (D-68)
 │   ├── files/             # Uploads on disk: streaming, atomic rename, sharp copies (feature 10)
+│   ├── mcp/               # MCP tools (D-90): tools/ one file per domain, registry.ts, server.ts,
+│   │                      # http.ts (stateless JSON transport), tool.ts, describe.ts
 │   ├── theme.ts           # Reads the theme cookie
 │   ├── time.ts            # "Today" in the configured TZ
 │   ├── startup.ts         # Server start: configuration, database (migrations); exit on failure
@@ -132,14 +137,80 @@ of the navigation shows a "Bientôt ici" page rather than a 404.
 | `/runs/[runId]` | Suivi | A run of a procedure or a task (D-87): one step at a time, full screen over the app shell; "Terminer" shows the summary, then goes to the bike's history (or the dashboard for a general task). A done run stays readable ("Voir le suivi", the event's photos) |
 | `/activity` | Activité | Rides, maintenance and done tasks log (features 4, 5 and 7; D-77) |
 | `/workshop` | Atelier | Parts, products, tools (D-85) and maintenance procedures ("Fiches", D-86). `?tab=` selects the filter (`parts`, the default, is left out; `products`, `tools`, `rebuy`, `procedures`), `?bike=` the bike, `?q=` the search, `?item=` the item open, `?procedure=` the procedure open: read on arrival (an item alone opens its kind's tab) and rewritten in place as they change (`src/lib/workshop-filter.ts`, D-85). `?new=1` opens "Nouvelle fiche" on arrival (from a bike page, with `?bike=`), then leaves the address. Items and procedures are not routes of their own: under 1024 px they replace the list, from 1024 px the list stays beside them |
-| `/settings` | Paramètres | Account and sign-out, theme of this device, "Exporter mes données" (feature 12, D-68; labelled "Paramètres" since D-80) |
+| `/settings` | Paramètres | Account and sign-out, theme of this device, "Exporter mes données" (feature 12, D-68; labelled "Paramètres" since D-80), "Accès pour un assistant": personal tokens of the MCP server (D-90) |
 | `/login`, `/setup` | Connexion, premier lancement | Unchanged |
 | `/api/uploads`, `/api/uploads/[id]` | Pièces jointes | `POST /api/uploads?owner=<kind>&id=<n>&lastModified=<ms>[&cover=1]`: the raw file as body, its name in `X-File-Name` (URI-encoded), 201 `{ id }` or an error `{ error, message }` (401, 404, 413, 415). `GET /api/uploads/<id>[?size=thumb\|display][&download=1]`: signed in, scoped, `nosniff`, private cache revalidated by ETag (D-76) |
 | `/api/export` | Export ZIP | Current workspace only, auth tables never included; 401 when signed out (D-68) |
+| `/api/mcp` | Serveur MCP | `POST` only, JSON-RPC, stateless, JSON answers (no SSE); a personal token in `Authorization: Bearer bb_…`, never the session cookie; 401 without it, 405 for GET and DELETE, 413 over 1 MB ([MCP server](#mcp-server-d-90), D-90) |
 | `/design` | Design system | Development only |
 
 Quick ride entry, maintenance entry, "Remplacer une pièce" and the edit sheets are sheets, not
 routes: they open from any screen and keep it underneath.
+
+## MCP server (D-90)
+
+Status: **Decided** and built on 2026-11-03 (V1: bikes and parts).
+
+An assistant on the owner's computer (Claude Code) reads and writes bikes and parts through
+`POST /api/mcp`. Registering it, once a token exists (Paramètres › "Accès pour un assistant"):
+
+```text
+claude mcp add --transport http --scope user bike-book http(s)://<your-hostname>/api/mcp \
+  --header "Authorization: Bearer <token>"
+```
+
+**Transport.** `src/app/api/mcp/route.ts` authenticates the token (`authenticateBearer`), then
+`src/server/mcp/http.ts` serves the request with a new MCP server whose tools are bound to that
+access context: no session, no SSE, one JSON answer per request. The SDK's `createMcpHandler`
+serves the 2026-07-28 revision (`responseMode: "json"`); a request of the 2025 revisions
+(`isLegacyRequest`) goes to a stateless `WebStandardStreamableHTTPServerTransport` with
+`enableJsonResponse` (the SDK's own fallback would answer it in SSE). Bodies over 1 MB answer 413.
+
+**A thin layer.** A tool maps its input to the form's input, validates it with the form's Zod
+schema (`src/server/actions/*-input.ts`), calls the data-access layer and the domain, and
+describes the result. Anything that computes or decides lives in `src/server/domain` or
+`src/server/db`, shared with the UI and the future Garmin sync.
+
+**Conventions for tools** (`src/server/mcp/tool.ts`):
+
+- One file per domain in `src/server/mcp/tools/` (`bikes.ts`, `components.ts`), listed in
+  `registry.ts`: the rides will be `rides.ts` and one line there.
+- Names are `verb_noun` in snake_case and stable: tools are added, never renamed.
+- Input in the app's raw units, recalled in each description (D-50): distances in metres,
+  durations in seconds, weights in grams, money in euro cents, dates `YYYY-MM-DD`, instants ISO
+  8601 UTC, enums with their values. Field names are the snake_case of the form's fields. Input
+  objects are strict (`z.strictObject`, nested ones too): an unknown or misspelt field is refused
+  by the SDK, never silently ignored.
+- Answers: structured JSON (`structuredContent`, also as a JSON text block) and a short text
+  summary in English. Never the frame number.
+- A refused input answers `isError` with `errors: [{ field, message }]`: the tool's field
+  (`components[2].suspension.max_clicks.low_speed_rebound`) and the form's French message, so
+  the assistant fixes it and tries again. A value of the wrong type is refused by the SDK before
+  the tool runs, with its own English message.
+- Writes take a **required `dry_run`**. A dry run runs the real write in a transaction that is
+  always rolled back (`previewWrite` in `src/server/db/transactions.ts`): the same checks (names
+  taken, slots taken, positions), the would-be result with its warnings, ids left out, nothing
+  kept. A write of several rows is one transaction (`atomically`), all or nothing, and answers the
+  ids created. Never a function that deletes files after its commit in a dry run (D-76).
+- Lists are paginated: `limit` (1–100, default 50) and an opaque `cursor` (`next_cursor`).
+- Each write logs one line (tool, workspace, token id, ids written); a dry run logs nothing.
+- No delete tool.
+
+**Tools of V1:** `list_bikes`, `get_bike`, `list_component_types` (read-only), `create_bike`
+(optionally with its `components`), `update_bike`, `add_component`, `update_component` (only the
+fields given change), `set_suspension_specs` (merged with the current specs).
+
+**Rules of a new part.** A part gets its type's rule templates (`rules` omitted), some of them
+(`rules: [{ template_id }]`) or none (`[]`). Each may carry `last_done_on`: the counter then starts
+at the end of that day, exactly as "Dernière fois" in the "Règles" sheet (`lastDoneOnSchema`,
+`ruleCounterStart` in `src/server/actions/rule-input.ts`). Without it, a rule counts from the
+part's fitting: an original part of a bike bought two years ago starts with its day-based rules
+overdue. `rules_created` gives each rule's `status`, `counts_from` and `due_on` from the rule
+engine, and the dry run warns when one would start overdue or due soon.
+
+**Later (D-90, not built):** `create_rides`, fed by the assistant from a spreadsheet it reads
+itself; FIT files read by the app (phase 2.1) and sent through `/api/uploads` with the token or in
+base64; duplicates checked by one domain function for every import.
 
 ## Running it
 
@@ -275,6 +346,14 @@ Backing up is the operator's job (D-12); the app makes it easy:
   no-cache`. Pages show only the copies made by sharp, without metadata (D-72); the original,
   GPS included, is served only as an explicit download. PDFs open in the browser's own viewer:
   the files are the user's own, on a private network (D-09).
+- **Personal tokens and the MCP endpoint (D-90).** `/api/mcp` accepts only a personal token
+  (`bb_` and 256 random bits), created in Paramètres, shown once, stored as its SHA-256, tied to a
+  user and a workspace, revocable; the session cookie does not open it, so a page on another
+  site cannot drive it through the browser. `authenticateBearer` rebuilds the same scoped
+  `AccessContext` as a session (membership checked on every request) and records the last use.
+  Tokens never appear in logs or in the export. The tools cannot delete anything and never read
+  the frame number. Whatever the assistant reads goes to its provider, outside the private network
+  (D-49 covers the app's own AI only): one token per assistant, revoked when no longer used.
 - Container: non-root user, read-only root filesystem, `no-new-privileges`.
 - **Public repository (D-22):** no secrets, no real data, no installation details. `.gitignore`
   covers `data/`, `.env*` and uploads; seed data is fictitious; GitHub secret scanning and push
@@ -286,6 +365,8 @@ Backing up is the operator's job (D-12); the app makes it easy:
 
 - Logs as JSON lines on stdout, for any log collector.
 - `/api/healthz` for the container health check and uptime monitoring.
+- Each write through the MCP logs one JSON line on stdout (`"event": "mcp_write"`, the tool,
+  `workspace_id`, `token_id` and the ids written), nothing typed by the owner (D-90).
 - Optional later: a Prometheus `/metrics` endpoint (rule counts, last Garmin sync).
 
 ## Pitfalls
@@ -330,6 +411,13 @@ Backing up is the operator's job (D-12); the app makes it easy:
     then answers 413 with a French message before the first byte, and the data directory
     backup (D-12) is the way to copy everything. ZIP64 (or a library) is the fix when it
     happens.
+11. **"Copier" over plain HTTP.** The Clipboard API exists in secure contexts only (HTTPS or
+    localhost), not on `http://bikes.lan` (D-15): "Copier" in Paramètres falls back to the older
+    copy command, and says to select the text when even that fails.
+12. **MCP SDK and SSE.** The SDK's default fallback for 2025-era clients answers in SSE even when
+    the modern path is set to JSON (**Verified 2026-11-03** in `@modelcontextprotocol/server`
+    2.4.0): the endpoint routes those requests itself (`src/server/mcp/http.ts`). Check it again
+    when upgrading the SDK.
 
 ## Local development
 

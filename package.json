@@ -1,6 +1,6 @@
 {
   "name": "bike-book",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "description": "Self-hosted web app to track bikes: rides, maintenance, components and upcoming service.",
   "license": "UNLICENSED",
@@ -24,6 +24,7 @@
     "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
+    "@modelcontextprotocol/server": "2.4.0",
     "better-auth": "1.7.12",
     "better-sqlite3": "13.0.3",
     "class-variance-authority": "^0.7.1",

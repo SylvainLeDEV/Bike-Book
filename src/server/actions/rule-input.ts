@@ -8,6 +8,26 @@ import type { RuleData } from "@/server/db";
 
 // Validation of the "Règles" sheet (D-50, feature 6).
 
+/** The day a rule's maintenance was last done ("Dernière fois"), not in the future. */
+export function lastDoneOnSchema(today: LocalDate) {
+  return z
+    .string()
+    .refine(isLocalDate, "Date invalide.")
+    .refine((date) => date <= today, "La date ne peut pas être dans le futur.");
+}
+
+/**
+ * Where a rule's counter starts: the end of the day it was last done (D-61), so that day's
+ * rides count before it; without a day, `otherwiseAt`.
+ */
+export function ruleCounterStart(
+  lastDoneOn: LocalDate | null,
+  otherwiseAt: number,
+  timeZone: string,
+): number {
+  return lastDoneOn ? endOfLocalDay(lastDoneOn, timeZone) : otherwiseAt;
+}
+
 const interval = (max: number, message: string) =>
   z.number({ error: message }).int(message).min(1, message).max(max, message).nullable();
 
@@ -37,11 +57,7 @@ export function ruleInputSchema(today: LocalDate) {
         .min(0.5, "Seuil entre 50 et 99 %.")
         .max(0.99, "Seuil entre 50 et 99 %."),
       resetOnReplacement: z.boolean(),
-      lastDoneOn: z
-        .string()
-        .refine(isLocalDate, "Date invalide.")
-        .refine((date) => date <= today, "La date ne peut pas être dans le futur.")
-        .nullable(),
+      lastDoneOn: lastDoneOnSchema(today).nullable(),
       active: z.boolean(),
       notes: z
         .string()
@@ -77,7 +93,7 @@ export function toRuleData(input: RuleInput, trackingStartAt: number, timeZone: 
     intervalDays: input.intervalDays,
     warnRatio: input.warnRatio,
     resetOnReplacement: type != null && input.resetOnReplacement,
-    counterStartAt: input.lastDoneOn ? endOfLocalDay(input.lastDoneOn, timeZone) : trackingStartAt,
+    counterStartAt: ruleCounterStart(input.lastDoneOn, trackingStartAt, timeZone),
     active: input.active,
     notes: input.notes,
     procedureId: input.procedureId,

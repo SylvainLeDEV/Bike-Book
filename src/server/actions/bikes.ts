@@ -6,7 +6,7 @@ import type { SaveBikeResult } from "@/lib/view-models";
 import { requireAccessContext } from "@/server/auth/context";
 import { createBike, getBike, updateBike } from "@/server/db";
 import { today } from "@/server/time";
-import { parseBikeInput, toBikeData } from "./bike-input";
+import { bikeNameTakenMessage, parseBikeInput, toBikeData } from "./bike-input";
 
 const bikeIdSchema = z.number().int().positive().nullable();
 
@@ -30,7 +30,7 @@ export async function saveBikeAction(bikeId: unknown, input: unknown): Promise<S
   const outcome = id.data == null ? createBike(ctx, data) : updateBike(ctx, id.data, data);
   if (!outcome.ok) {
     return outcome.reason === "name_taken"
-      ? { ok: false, fieldErrors: { name: `Tu as déjà un vélo nommé « ${outcome.takenBy} ».` } }
+      ? { ok: false, fieldErrors: { name: bikeNameTakenMessage(outcome.takenBy) } }
       : { ok: false, error: "Vélo introuvable." };
   }
   refresh();

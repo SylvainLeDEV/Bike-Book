@@ -92,6 +92,11 @@ export function parseBikeInput(input: unknown, today: LocalDate): ParsedBikeInpu
   return { success: false, fieldErrors };
 }
 
+/** "name_taken" (D-55), under the name field. */
+export function bikeNameTakenMessage(takenBy: string): string {
+  return `Tu as déjà un vélo nommé « ${takenBy} ».`;
+}
+
 /** What to write for a validated input: the fields, plus the status columns (D-43). */
 export function toBikeData(input: BikeInput, previous: Bike | null, today: LocalDate): BikeData {
   // The sale date and price become status columns; the shop is resolved by the data layer.

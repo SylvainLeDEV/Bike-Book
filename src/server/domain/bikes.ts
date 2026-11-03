@@ -1,6 +1,6 @@
 import "server-only";
 import type { BikeStatus, Discipline, RideType } from "@/lib/enums";
-import type { LocalDate } from "@/lib/format";
+import { localDateOf, type LocalDate } from "@/lib/format";
 
 export type BikeStatusFields = {
   status: BikeStatus;
@@ -64,4 +64,15 @@ const RIDE_TYPE_BY_DISCIPLINE: Record<Discipline, RideType> = {
 /** The ride type offered for a bike that has no ride yet. */
 export function defaultRideType(discipline: Discipline): RideType {
   return RIDE_TYPE_BY_DISCIPLINE[discipline];
+}
+
+/**
+ * The day a bike's tracking starts: its purchase day, else the day it was added. Original parts
+ * are fitted from it (D-61) and rules count from it.
+ */
+export function trackingStartOn(
+  bike: { purchasedOn: LocalDate | null; createdAt: Date },
+  timeZone: string,
+): LocalDate {
+  return bike.purchasedOn ?? localDateOf(bike.createdAt.getTime(), timeZone);
 }

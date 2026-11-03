@@ -84,9 +84,11 @@ weeks of real use.
 - [x] Maintenance procedures ("fiches"): list (the Atelier's "Fiches" filter), detail with the material read for a bike, editor, photos per step, PDF manuals, task or rule → procedure link, the bike page's section, archive or delete (done 2026-11-02, D-86, migration `0013_procedures`)
 - [x] Runs ("suivi"): stored in the database, one step at a time with comments and photos, started from a rule, a task or a procedure, "En cours" in "À prévoir", summary that writes the maintenance event, the parts and products used and the rule reset, "Annuler" (done 2026-11-02, D-87, migration `0014_runs`)
 - [ ] "Dupliquer" a procedure (left for later by D-86)
+- [x] MCP server V1 for an external assistant (D-90): bikes and parts dictated to Claude Code, written through the forms' validation; personal tokens in Paramètres (done 2026-11-03, migration `0016_api_tokens`)
+- [ ] Rides through the MCP (D-90): `create_rides` (batches, `dry_run`, one transaction) fed by the assistant from a spreadsheet it reads itself; goes with the CSV import below, and answers Q-14 to Q-16 first (`rides.source` value, undoing an import, initial counters against imported history)
 - [ ] Statistics: km and hours per bike per month, cost per bike per year, cost per 100 km over time (D-23, D-44)
 - [ ] Search and filters beyond the workshop (the bike history's year, month and kind filters exist, D-78; next: the same in Activité with a bike filter, text search, place, ride type, conditions, totals per period)
-- [ ] CSV import (only if H-06 turns out wrong)
+- [ ] CSV import (only if H-06 turns out wrong; through the MCP's `create_rides` first, D-90)
 - [ ] HTTPS + PWA (only if a domain is bought, see [04](04-architecture.md#behind-a-reverse-proxy))
 - [ ] Delete `docs/design/mockups.html` once every 1.5 screen is rebuilt in `/design` (D-53)
 
@@ -97,9 +99,9 @@ Details and sources: [06-integrations.md](06-integrations.md#garmin).
 | Step | Content | Exit |
 |------|---------|------|
 | 2.0 Spike (1–2 evenings, go/no-go) | Create a Personal API key. **First check whether the bike (gear) assigned in Garmin Connect is exposed** (D-17), in the JSON or in the FIT file. List activities, read one in detail, download one FIT file. Measure how far back history goes, the rate limits and the available fields (activity type, device, laps, gear?). Read the terms, especially on AI use. Write the results into 06 | Decide 2.2–2.5 or fall back |
-| 2.1 FIT/GPX upload | Drag and drop a file exported from Garmin Connect, parsed with `@garmin/fitsdk`. Works whatever happens to the API | A ride created from a file |
+| 2.1 FIT/GPX upload | Drag and drop a file exported from Garmin Connect, parsed with `@garmin/fitsdk`. Works whatever happens to the API. The same reader serves the MCP (D-90): the file through `/api/uploads` with a personal token (or in base64, decided then), then a tool taking the attachment | A ride created from a file |
 | 2.2 Activity inbox | `external_activities`, bike assignment rules, confirmation screen | Imported activities on the right bike after one click |
-| 2.3 Scheduled sync | Pull every few hours and on demand; duplicates detected against manual rides | No typing for Garmin rides |
+| 2.3 Scheduled sync | Pull every few hours and on demand; duplicates detected against manual rides (one domain function for every import, the MCP's too, D-90) | No typing for Garmin rides |
 | 2.4 Bike park metrics | The Edge 540/840 has no Downhill profile (D-16): runs from manual laps pressed at the top of each run, otherwise descent detection from altitude/speed streams (accuracy is an **Estimate**, check on my own rides) | Bike park fields filled automatically |
 | 2.5 History backfill | If the API allows it: import past activities and recompute the counters | Counters that reflect the bikes' real history |
 | 2.6 Key expiry | Show the key's expiry date, warn 30 days before | No silent sync stop |

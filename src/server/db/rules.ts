@@ -190,7 +190,8 @@ export function snoozeRule(
 
 /**
  * Inside a component's transaction: rules copied from the chosen templates (built-in or the
- * workspace's own) for the new part's slot, counting from its fitting.
+ * workspace's own) for the new part's slot, counting from its fitting, or from where
+ * `counterStarts` says for a template (the end of the day it was last done, D-90).
  */
 export function insertRulesFromTemplates(
   tx: Tx,
@@ -201,6 +202,7 @@ export function insertRulesFromTemplates(
     position: "front" | "rear" | "none";
     templateIds: number[];
     counterStartAt: number;
+    counterStarts?: ReadonlyMap<number, number>;
   },
 ): number {
   let count = 0;
@@ -227,7 +229,7 @@ export function insertRulesFromTemplates(
         intervalDistanceM: template.intervalDistanceM,
         intervalWearS: template.intervalWearS,
         intervalDays: template.intervalDays,
-        counterStartAt: new Date(input.counterStartAt),
+        counterStartAt: new Date(input.counterStarts?.get(template.id) ?? input.counterStartAt),
         notes: template.notes,
       })
       .run();

@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ChoiceCard } from "@/components/ui/choice-card";
 import { THEME_PREFERENCES, type ThemePreference } from "@/lib/theme";
+import { ApiTokensSection, type ApiTokensProps } from "./api-tokens-section";
 
 const THEME_CHOICES: Record<ThemePreference, { title: string; meta: string }> = {
   system: { title: "Comme l'appareil", meta: "Clair ou sombre selon le réglage du système" },
@@ -28,14 +29,19 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-/** "Paramètres" (feature 12, renamed by D-80): account, theme of this device, and the ZIP export (D-12). */
+/**
+ * "Paramètres" (feature 12, renamed by D-80): account, theme of this device, the ZIP export
+ * (D-12) and the personal tokens of an external assistant (D-90).
+ */
 export function SettingsScreen({
   exportHref,
   version,
+  tokens,
 }: {
   /** The Route Handler that streams the ZIP; a plain link, so the browser downloads it. */
   exportHref: string;
   version: string;
+  tokens: ApiTokensProps;
 }) {
   const { user, theme, setTheme, onSignOut } = useShell();
   const [signingOut, startSignOut] = React.useTransition();
@@ -92,9 +98,9 @@ export function SettingsScreen({
             jamais.
           </p>
           <p className="text-[13.5px] text-fg-muted">
-            Une copie lisible, à garder où tu veux. Elle ne remplace pas la sauvegarde du dossier de
-            données : l&apos;application ne sait pas la réimporter. Les photos et les documents
-            s&apos;y ajouteront avec les pièces jointes.
+            Les photos et les documents y sont, tels qu&apos;ils ont été envoyés. Une copie lisible,
+            à garder où tu veux. Elle ne remplace pas la sauvegarde du dossier de données :
+            l&apos;application ne sait pas la réimporter.
           </p>
           <div>
             <Button asChild>
@@ -105,6 +111,10 @@ export function SettingsScreen({
             </Button>
           </div>
         </Card>
+      </Section>
+
+      <Section title="Accès pour un assistant">
+        <ApiTokensSection {...tokens} />
       </Section>
 
       <p className="text-[13px] text-fg-muted">Bike-Book {version}</p>
