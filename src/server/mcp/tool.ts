@@ -28,8 +28,11 @@ type ToolDefinition<Shape extends z.ZodRawShape> = {
   description: string;
   /** Strict (`z.strictObject`), nested objects too: an unknown field is refused. */
   input: z.ZodObject<Shape>;
-  /** Writes are never destructive (no delete tool) and take `dry_run`. */
-  kind: "read" | "write";
+  /**
+   * Writes and deletes take `dry_run`. A delete is the exception (D-92: rides only), marked
+   * destructive for the client.
+   */
+  kind: "read" | "write" | "delete";
   run: (ctx: AccessContext, args: z.output<z.ZodObject<Shape>>) => CallToolResult;
 };
 
@@ -38,11 +41,17 @@ export type McpTool = {
   register: (server: McpServer, ctx: AccessContext) => void;
 };
 
-const ANNOTATIONS: Record<"read" | "write", ToolAnnotations> = {
+const ANNOTATIONS: Record<"read" | "write" | "delete", ToolAnnotations> = {
   read: { readOnlyHint: true, openWorldHint: false },
   write: {
     readOnlyHint: false,
     destructiveHint: false,
+    idempotentHint: false,
+    openWorldHint: false,
+  },
+  delete: {
+    readOnlyHint: false,
+    destructiveHint: true,
     idempotentHint: false,
     openWorldHint: false,
   },

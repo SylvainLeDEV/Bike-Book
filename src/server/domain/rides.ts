@@ -80,3 +80,22 @@ export function shownWearS(ride: RideUsage): number | null {
   const wear = rideWear(ride).wearS;
   return wear !== rideDurationS(ride) ? wear : null;
 }
+
+/** Two rides of a bike starting this close are probably the same ride (docs/03, duplicates). */
+export const DUPLICATE_WINDOW_MS = 30 * 60 * 1000;
+
+/**
+ * The rides of `bikeId` that start within ±30 minutes of `startedAt`, `exceptId` left out (the
+ * ride being edited): a warning before a ride is written twice, never a refusal (D-92).
+ */
+export function ridesNear<T extends { id: number; bikeId: number; startedAt: number }>(
+  rides: readonly T[],
+  ride: { bikeId: number; startedAt: number; exceptId?: number },
+): T[] {
+  return rides.filter(
+    (other) =>
+      other.bikeId === ride.bikeId &&
+      other.id !== ride.exceptId &&
+      Math.abs(other.startedAt - ride.startedAt) <= DUPLICATE_WINDOW_MS,
+  );
+}

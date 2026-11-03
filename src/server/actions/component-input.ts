@@ -1,13 +1,19 @@
 import "server-only";
 import { z } from "zod";
 import { COMPONENT_POSITIONS, COMPONENT_TYPE_CODES, SHOP_KINDS, SPRING_TYPES } from "@/lib/enums";
-import { isLocalDate, startOfLocalDay, type LocalDate } from "@/lib/format";
+import {
+  formatDate,
+  isLocalDate,
+  localDateOf,
+  startOfLocalDay,
+  type LocalDate,
+} from "@/lib/format";
 import { cleanName } from "@/lib/names";
 import { isSuspensionType } from "@/lib/setup";
 import type { ComponentInput, ReplacePartInput } from "@/lib/view-models";
 import { agreed, slotLabel } from "@/lib/display";
 import type { ComponentPosition, ComponentTypeCode } from "@/lib/enums";
-import type { ComponentData, SaveComponentOutcome } from "@/server/db";
+import type { ComponentData, ReplacementOutcome, SaveComponentOutcome } from "@/server/db";
 import { eventInstant } from "@/server/domain/time";
 
 // Validation of the component and replace sheets (D-50: clean on the way in).
@@ -178,4 +184,22 @@ export function replacePartSchema(today: LocalDate) {
       .max(80, "80 caractères au maximum."),
     priceCents: money,
   }) satisfies z.ZodType<ReplacePartInput, unknown>;
+}
+
+/** Why "Remplacer une pièce" was refused, as its sheet says it (shared with the MCP, D-93). */
+export function replacementError(
+  outcome: Extract<ReplacementOutcome, { ok: false }>,
+  timeZone: string,
+): string {
+  if (outcome.reason === "before_fitting") {
+    const fittedOn = formatDate(localDateOf(outcome.fittedAt, timeZone));
+    return `Cette pièce a été montée le ${fittedOn} : choisis une date postérieure.`;
+  }
+  return {
+    already_removed: "Cette pièce a déjà été retirée.",
+    event_not_found: "Cet entretien n'est pas du même jour.",
+    out_of_stock: "Plus rien en stock pour cet objet.",
+    item_not_found: "Objet de l'atelier introuvable.",
+    not_found: "Pièce introuvable.",
+  }[outcome.reason];
 }

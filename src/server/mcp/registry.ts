@@ -2,10 +2,24 @@ import "server-only";
 import type { McpTool } from "./tool";
 import { bikeTools } from "./tools/bikes";
 import { componentTools } from "./tools/components";
+import { maintenanceTools } from "./tools/maintenance";
+import { procedureTools } from "./tools/procedures";
+import { rideTools } from "./tools/rides";
 import { ruleTools } from "./tools/rules";
+import { todoTools } from "./tools/todo";
+import { workshopTools } from "./tools/workshop";
 
 /**
- * Every MCP tool, one file per domain in ./tools (D-90). A new domain (the rides: `rides.ts`)
- * adds its file and one line here; tool names are never renamed once released.
+ * Every MCP tool, one file per domain in ./tools (D-90, D-92, D-93). A new domain adds its file and
+ * one line here; tool names are never renamed once released.
  */
-export const MCP_TOOLS: readonly McpTool[] = [...bikeTools, ...componentTools, ...ruleTools];
+export const MCP_TOOLS: readonly McpTool[] = [
+  ...bikeTools,
+  ...componentTools,
+  ...ruleTools,
+  ...maintenanceTools,
+  ...rideTools,
+  ...todoTools,
+  ...workshopTools,
+  ...procedureTools,
+];

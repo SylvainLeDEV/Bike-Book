@@ -149,10 +149,11 @@ routes: they open from any screen and keep it underneath.
 
 ## MCP server (D-90)
 
-Status: **Decided** and built on 2026-11-03 (V1: bikes and parts).
+Status: **Decided** and built on 2026-11-03 (V1: bikes and parts; D-91: rules; D-92: rides, what
+is to do, the workshop, the procedures; D-93: maintenance done).
 
-An assistant on the owner's computer (Claude Code) reads and writes bikes and parts through
-`POST /api/mcp`. Registering it, once a token exists (Paramètres › "Accès pour un assistant"):
+An assistant on the owner's computer (Claude Code) reads and writes bikes, parts, rules, rides,
+tasks and the workshop, and reads the procedures, through `POST /api/mcp`. Registering it, once a token exists (Paramètres › "Accès pour un assistant"):
 
 ```text
 claude mcp add --transport http --scope user bike-book http(s)://<your-hostname>/api/mcp \
@@ -173,8 +174,8 @@ describes the result. Anything that computes or decides lives in `src/server/dom
 
 **Conventions for tools** (`src/server/mcp/tool.ts`):
 
-- One file per domain in `src/server/mcp/tools/` (`bikes.ts`, `components.ts`, `rules.ts`), listed in
-  `registry.ts`: the rides will be `rides.ts` and one line there.
+- One file per domain in `src/server/mcp/tools/` (`bikes.ts`, `components.ts`, `rules.ts`,
+  `rides.ts`, `maintenance.ts`, `todo.ts`, `workshop.ts`, `procedures.ts`), listed in `registry.ts`.
 - Names are `verb_noun` in snake_case and stable: tools are added, never renamed.
 - Input in the app's raw units, recalled in each description (D-50): distances in metres,
   durations in seconds, weights in grams, money in euro cents, dates `YYYY-MM-DD`, instants ISO
@@ -194,7 +195,9 @@ describes the result. Anything that computes or decides lives in `src/server/dom
   ids created. Never a function that deletes files after its commit in a dry run (D-76).
 - Lists are paginated: `limit` (1–100, default 50) and an opaque `cursor` (`next_cursor`).
 - Each write logs one line (tool, workspace, token id, ids written); a dry run logs nothing.
-- No delete tool.
+- One delete tool only, `delete_ride` (D-92): `kind: "delete"` (`destructiveHint`), a
+  `dry_run` that only describes what would go (never `previewWrite`, since deleting a ride
+  removes its files after the delete), and only rides typed by hand. Nothing else is deleted.
 
 **Tools of V1:** `list_bikes`, `get_bike`, `list_component_types` (read-only), `create_bike`
 (optionally with its `components`), `update_bike`, `add_component`, `update_component` (only the
@@ -216,8 +219,39 @@ part's fitting: an original part of a bike bought two years ago starts with its 
 overdue. `rules_created` gives each rule's `status`, `counts_from` and `due_on` from the rule
 engine, and the dry run warns when one would start overdue or due soon.
 
-**Later (D-90, not built):** `create_rides`, fed by the assistant from a spreadsheet it reads
-itself; FIT files read by the app (phase 2.1) and sent through `/api/uploads` with the token or in
+**Rides (D-92).** `list_rides` (newest first; `totals` over the whole filtered list),
+`create_ride` (the quick entry's `quickRideSchema` and `toRideData`), `update_ride` (the ride as
+"Modifier la sortie" edits it, `rideForm`, the fields given replacing its own), `delete_ride`.
+Writes answer `rules_made_due` (rules whose status the ride moves to due soon or overdue, from
+the rule engine before and after the write) and warn about a ride of the same bike starting
+within ±30 minutes (`ridesNear` in `src/server/domain/rides.ts`).
+
+**What is to do (D-92).** `list_due_work` is the dashboard's "À prévoir" (`loadGarage`): the
+overdue and due-soon rules, the open tasks and the runs in progress, each rule and task with its
+procedure's material read against the workshop for its bike (`procedureNeeds`, `readinessOf` in
+`src/lib/procedures.ts`); a summary, not paginated. `add_task` validates with `taskSchema`
+(`src/server/actions/task-input.ts`).
+
+**Workshop (D-92).** `list_workshop_items` describes the workshop's view models (`loadGarage`):
+stock computed from movements, `stock_text` in the app's French words, rebuy state, links, rules
+served. `add_workshop_item` validates with `itemInputSchema` and writes through `newItem` and
+`createItem`; a field of another kind is refused; `bike_ids` omitted means all bikes.
+`update_stock` writes one movement as the item's buttons do (`containersChange`, `levelChange`,
+`ownedChange`, then `addMovement` or `setToolOwned`).
+
+**Maintenance done (D-93).** `record_maintenance` is the maintenance sheet (`maintenanceSchema`,
+`createMaintenanceEvent`): a line with `rule_id` restarts that rule, and takes the app's own line
+when `component_id` and `action` are left out (`doneLine` in `src/server/views/rules.ts`, shared
+with "C'est fait"). `replace_component` is "Remplacer une pièce" (`replacePartSchema`,
+`replaceComponent`, its messages from `replacementError`), with a part from the workshop's stock
+(`from_item_id`) or typed. `set_task_done` marks a task done or open again (`setTaskStatus`).
+
+**Procedures (D-92), read-only.** `list_procedures` and `get_procedure`, from `procedureVMs`,
+with the material read for a bike.
+
+**Later (D-90, D-92, D-93, not built):** changing or deleting a maintenance event, runs, writing procedures,
+"À commander"; the assistant on the phone (internet exposure and OAuth); `create_rides`, fed by
+the assistant from a spreadsheet it reads itself; FIT files read by the app (phase 2.1) and sent through `/api/uploads` with the token or in
 base64; duplicates checked by one domain function for every import.
 
 ## Running it

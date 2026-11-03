@@ -16,6 +16,20 @@ const TOOLS = [
   "set_suspension_specs",
   "list_rules",
   "add_rule",
+  "list_rides",
+  "create_ride",
+  "update_ride",
+  "delete_ride",
+  "list_due_work",
+  "add_task",
+  "set_task_done",
+  "record_maintenance",
+  "replace_component",
+  "list_workshop_items",
+  "add_workshop_item",
+  "update_stock",
+  "list_procedures",
+  "get_procedure",
 ];
 
 describe("POST /api/mcp (D-90)", () => {
@@ -62,7 +76,8 @@ describe("POST /api/mcp (D-90)", () => {
       const reads = tool.name.startsWith("list_") || tool.name.startsWith("get_");
       expect(tool.annotations.readOnlyHint).toBe(reads);
       if (!reads) {
-        expect(tool.annotations.destructiveHint).toBe(false);
+        // The one delete (D-92) is marked destructive; every other write is not.
+        expect(tool.annotations.destructiveHint).toBe(tool.name.startsWith("delete_"));
         expect(tool.inputSchema.properties).toHaveProperty("dry_run");
       }
       // An unknown field is refused, not ignored.

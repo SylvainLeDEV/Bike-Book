@@ -2,7 +2,6 @@
 
 import { refresh } from "next/cache";
 import { z } from "zod";
-import { formatDate, localDateOf } from "@/lib/format";
 import { agreed, replacedTitle, slotLabel } from "@/lib/display";
 import type { ReplacePartResult, SaveComponentResult } from "@/lib/view-models";
 import { requireAccessContext } from "@/server/auth/context";
@@ -20,6 +19,7 @@ import { today } from "@/server/time";
 import {
   componentSaveErrors,
   parseComponentInput,
+  replacementError,
   replacePartSchema,
   toComponentData,
 } from "./component-input";
@@ -109,23 +109,7 @@ export async function replacePartAction(input: unknown): Promise<ReplacePartResu
     eventTitle: replacedTitle(old.typeCode, old.position),
     eventId: data.eventId,
   });
-  if (!outcome.ok) {
-    if (outcome.reason === "before_fitting") {
-      const fittedOn = formatDate(localDateOf(outcome.fittedAt, timeZone));
-      return {
-        ok: false,
-        error: `Cette pièce a été montée le ${fittedOn} : choisis une date postérieure.`,
-      };
-    }
-    const errors = {
-      already_removed: "Cette pièce a déjà été retirée.",
-      event_not_found: "Cet entretien n'est pas du même jour.",
-      out_of_stock: "Plus rien en stock pour cet objet.",
-      item_not_found: "Objet de l'atelier introuvable.",
-      not_found: "Pièce introuvable.",
-    };
-    return { ok: false, error: errors[outcome.reason] };
-  }
+  if (!outcome.ok) return { ok: false, error: replacementError(outcome, timeZone) };
   refresh();
   return {
     ok: true,

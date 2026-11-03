@@ -124,33 +124,38 @@ export function partStatuses(evaluated: EvaluatedRule[], components: Component[]
   return statuses;
 }
 
+/**
+ * The maintenance line that fulfils a rule (D-63): on the slot's first fitted part (none for a
+ * bike-level rule), "Purgé" for a brake, else "Entretenu". Shared with the MCP (D-93).
+ */
+export function doneLine(
+  rule: Pick<Rule, "id" | "componentTypeCode" | "position">,
+  components: Component[],
+): MaintenanceLineInput {
+  const part = components.find(
+    (component) => component.removedAt == null && inSlot(rule, component),
+  );
+  return {
+    action: rule.componentTypeCode === "brake" ? "bled" : "serviced",
+    componentId: part?.id ?? null,
+    ruleId: rule.id,
+    description: null,
+    costCents: null,
+    measurementValue: null,
+    measurementUnit: null,
+  };
+}
+
 /** "C'est fait" (D-63): the maintenance sheet with one line fulfilling the rule. */
 export function donePrefill(
   evaluated: EvaluatedRule[],
   components: Component[],
 ): Record<number, { title: string; lines: MaintenanceLineInput[] }> {
-  const fitted = components.filter((component) => component.removedAt == null);
   return Object.fromEntries(
-    evaluated.map(({ rule }) => {
-      const part = fitted.find((component) => inSlot(rule, component));
-      return [
-        rule.id,
-        {
-          title: rule.title,
-          lines: [
-            {
-              action: rule.componentTypeCode === "brake" ? "bled" : "serviced",
-              componentId: part?.id ?? null,
-              ruleId: rule.id,
-              description: null,
-              costCents: null,
-              measurementValue: null,
-              measurementUnit: null,
-            },
-          ],
-        },
-      ];
-    }),
+    evaluated.map(({ rule }) => [
+      rule.id,
+      { title: rule.title, lines: [doneLine(rule, components)] },
+    ]),
   );
 }
 

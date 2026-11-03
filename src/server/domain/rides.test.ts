@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { quickRideDefaults, ridingSince, shownWearS } from "./rides";
+import { quickRideDefaults, ridesNear, ridingSince, shownWearS } from "./rides";
 import type { RideUsage } from "./wear";
 
 const day = (n: number) => Date.UTC(2026, 9, n, 10);
@@ -61,5 +61,25 @@ describe("ride figures", () => {
     );
     expect(shownWearS(ride({ liftAssisted: true, totalTimeS: 21_600 }))).toBeNull();
     expect(shownWearS(ride({ descentTimeS: 3600 }))).toBeNull();
+  });
+});
+
+describe("ridesNear", () => {
+  const at = Date.UTC(2026, 9, 10, 10);
+  const rides = [
+    { id: 1, bikeId: 1, startedAt: at - 30 * 60 * 1000 },
+    { id: 2, bikeId: 1, startedAt: at + 31 * 60 * 1000 },
+    { id: 3, bikeId: 2, startedAt: at },
+    { id: 4, bikeId: 1, startedAt: at + 5 * 60 * 1000 },
+  ];
+
+  it("finds the same bike's rides starting within 30 minutes, either side", () => {
+    expect(ridesNear(rides, { bikeId: 1, startedAt: at }).map((r) => r.id)).toEqual([1, 4]);
+  });
+
+  it("leaves out the ride being edited", () => {
+    expect(ridesNear(rides, { bikeId: 1, startedAt: at, exceptId: 4 }).map((r) => r.id)).toEqual([
+      1,
+    ]);
   });
 });

@@ -14,7 +14,8 @@ exit criteria come from real use. Phase 1.5 started on
 is now "Paramètres" (D-80); then the workshop's products and tools (D-85) and the maintenance
 procedures ("fiches", D-86) and the runs ("suivi", D-87) on 2026-11-02, the three steps of D-82,
 and the "Réparé" action (D-88). On 2026-11-03, an MCP server for an external assistant (D-90):
-bikes and parts dictated to Claude Code, personal tokens in Paramètres; rides through it later.
+bikes and parts dictated to Claude Code, personal tokens in Paramètres; the same day, rides,
+what is to do, the workshop and the procedures through it (D-92), then maintenance done (D-93).
 
 ## Read first
 
@@ -69,10 +70,16 @@ bikes and parts dictated to Claude Code, personal tokens in Paramètres; rides t
   A thin layer: the forms' Zod schemas and the data-access layer, no business rule in a tool.
   Tools `verb_noun`, one file per domain plus a registry, raw units, `{ field, message }` errors in
   French, a required `dry_run` (a rolled-back transaction), paginated lists, one log line per
-  write, no delete, never the frame number. V1: bikes and parts; rides later. A new part's rules
-  can take the day each was last done (`rules[].last_done_on`, as the "Règles" sheet), so an old
-  bike's day-based rules do not start overdue. Since 0.3.1 (D-91), `list_rules` and `add_rule`
-  (the "Règles" sheet's schema and slots) add any rule to a bike or a fitted part type.
+  write, never the frame number; the only delete is `delete_ride` (D-92: rides typed by hand,
+  its dry run only describes). V1: bikes and parts. A new part's rules can take the day each
+  was last done (`rules[].last_done_on`, as the "Règles" sheet), so an old bike's day-based
+  rules do not start overdue. Since 0.3.1 (D-91), `list_rules` and `add_rule` (the "Règles"
+  sheet's schema and slots) add any rule to a bike or a fitted part type. Since D-92: rides
+  (list, create, update, delete), `list_due_work` ("À prévoir" with each procedure's material
+  read against the workshop), `add_task`, the workshop (`list_workshop_items`,
+  `add_workshop_item`, `update_stock`) and the procedures (read-only). Since D-93:
+  `record_maintenance` (lines with `rule_id` are "C'est fait"), `replace_component` (a part from
+  the workshop's stock or typed), `set_task_done`.
 - **Setup (D-79, D-81):** a fork's or shock's spring, travel and adjusters (clicks from fully
   closed) live on the part (`suspension_specs`); each setup is a dated full copy whose values belong
   to the part measured. Advice only from manufacturers' documents, each with its source and date.
@@ -134,7 +141,8 @@ src/
 │   │               # attachments' originals under uploads/
 │   ├── files/      # uploads on disk: streaming to a temp file, atomic rename, sharp copies in
 │   │               # cache/ (upright, no metadata), generated demo photos and PDFs (D-76)
-│   ├── mcp/        # MCP server (D-90): tools/ (bikes.ts, components.ts, rules.ts: one per domain),
+│   ├── mcp/        # MCP server (D-90, D-92, D-93): tools/ (bikes, components, rules, rides,
+│   │               # maintenance, todo, workshop, procedures: one file per domain),
 │   │               # registry.ts, server.ts, http.ts (stateless JSON transport), tool.ts
 │   │               # (results, errors, pagination, dry_run, logs), describe.ts (answers)
 │   ├── env.ts      # configuration, validated with Zod (TZ included); time.ts: today in TZ
