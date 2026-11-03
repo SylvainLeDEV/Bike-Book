@@ -104,7 +104,7 @@ weeks of real use.
 
 ## Phase 2 — Garmin (≈ 8–12 evenings, after the spike)
 
-**Started 2026-11-03 (D-101), ahead of phase 1's exit at the owner's request:** spike 2.0 done
+**Started 2026-11-03 (D-101, release 0.5.0), ahead of phase 1's exit at the owner's request:** spike 2.0 done
 ([results](06-integrations.md#spike-results-2026-11-03)); the import through the Personal API
 built (2.2, 2.3, 2.6): key in Paramètres, activity type → bike, "À classer", every 6 hours and on
 demand, expiry warnings. Left: 2.1 (FIT upload), 2.4 (bike park values), 2.5 (the API returns the
