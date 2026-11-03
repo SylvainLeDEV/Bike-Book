@@ -122,8 +122,11 @@ export function bikeForm(bike: Bike): BikeFormVM {
   };
 }
 
-/** The total cost (D-44) over the bike's maintenance events and the distance of its rides. */
-function totalCost(
+/**
+ * The total cost (D-44) over the bike's maintenance events and the distance of its rides; shared
+ * with the MCP's get_bike_usage (D-96).
+ */
+export function totalCost(
   bike: Bike,
   events: MaintenanceEvent[],
   rides: { distanceM: number | null }[],

@@ -90,11 +90,12 @@ weeks of real use.
 - [x] Maintenance done through the MCP (D-93): `record_maintenance` (its lines fulfil rules, as "C'est fait"), `replace_component` (a part from the workshop's stock or typed), `set_task_done` (done 2026-11-03, not released yet)
 - [x] Restocking and edits through the MCP (D-94): `set_restock`, `receive_item`, `update_workshop_item`, `update_task`, `update_rule`, `snooze_rule` (done 2026-11-03, not released yet)
 - [x] Maintenance history, setups and archiving through the MCP (D-95): `list_maintenance`, `update_maintenance`, `list_setups`, `add_setup`, `archive_workshop_item` (done 2026-11-03, not released yet)
+- [x] Usage, cost and procedures through the MCP (D-96): `get_bike_usage`, `create_procedure`, `update_procedure`, `archive_procedure` (done 2026-11-03, not released yet)
 - [ ] Next through the MCP: runs, if dictating a run turns out useful; then the assistant on the phone (internet exposure, OAuth)
-- [ ] Rides imported through the MCP (D-90): `create_rides` (batches, `dry_run`, one transaction) fed by the assistant from a spreadsheet it reads itself; goes with the CSV import below, and answers Q-14 to Q-16 first (`rides.source` value, undoing an import, initial counters against imported history)
+- [x] Rides imported through the MCP (D-97, answers Q-14 to Q-16): `create_rides` (up to 500, one transaction, source `manual`, duplicates and initial counters warned) and `delete_rides` as its undo (done 2026-11-03, not released yet)
 - [ ] Statistics: km and hours per bike per month, cost per bike per year, cost per 100 km over time (D-23, D-44)
 - [ ] Search and filters beyond the workshop (the bike history's year, month and kind filters exist, D-78; next: the same in Activité with a bike filter, text search, place, ride type, conditions, totals per period)
-- [ ] CSV import (only if H-06 turns out wrong; through the MCP's `create_rides` first, D-90)
+- [x] CSV import: through the MCP's `create_rides` (D-97); the app itself reads no spreadsheet
 - [ ] HTTPS + PWA (only if a domain is bought, see [04](04-architecture.md#behind-a-reverse-proxy))
 - [ ] Delete `docs/design/mockups.html` once every 1.5 screen is rebuilt in `/design` (D-53)
 

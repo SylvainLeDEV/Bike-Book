@@ -39,6 +39,12 @@ const TOOLS = [
   "list_setups",
   "add_setup",
   "archive_workshop_item",
+  "get_bike_usage",
+  "create_procedure",
+  "update_procedure",
+  "archive_procedure",
+  "create_rides",
+  "delete_rides",
   "list_procedures",
   "get_procedure",
 ];

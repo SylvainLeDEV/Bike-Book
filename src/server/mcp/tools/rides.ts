@@ -1,7 +1,7 @@
 import "server-only";
 import { z } from "zod";
 import { RIDE_CONDITIONS, RIDE_TYPES } from "@/lib/enums";
-import { isLocalDate, localDateOf, localTimeOf, startOfLocalDay } from "@/lib/format";
+import { formatDate, isLocalDate, localDateOf, localTimeOf, startOfLocalDay } from "@/lib/format";
 import { RIDE_TYPE_LABELS } from "@/lib/labels";
 import type { QuickRideInput } from "@/lib/view-models";
 import { quickRideSchema, toRideData } from "@/server/actions/ride-input";
@@ -12,6 +12,7 @@ import {
   getBike,
   listAttachments,
   listBikes,
+  listComponents,
   listRides,
   listRules,
   previewWrite,
@@ -199,15 +200,35 @@ function formInput(base: QuickRideInput, args: RideArgs & { bike_id?: number }):
   };
 }
 
-function parseRide(input: QuickRideInput) {
+function parseRide(input: QuickRideInput, prefix = "") {
   const parsed = quickRideSchema(today()).safeParse(input);
   if (!parsed.success) {
     throw new ToolRefusal(
-      fieldErrorsOf(parsed.error.issues),
+      fieldErrorsOf(parsed.error.issues, prefix),
       "The ride was refused; nothing was written.",
     );
   }
   return toRideData(parsed.data, getEnv().timeZone);
+}
+
+/** A new ride's form input: the quick entry's empty sheet, with the fields given. */
+function newRideInput(bikeId: number, args: RideArgs) {
+  const empty: QuickRideInput = {
+    bikeId,
+    on: args.on ?? "",
+    rideType: args.ride_type ?? "other",
+    durationS: null,
+    totalTimeS: null,
+    descentTimeS: null,
+    runsCount: null,
+    distanceM: null,
+    elevationGainM: null,
+    conditions: null,
+    location: null,
+    notes: null,
+    startTime: null,
+  };
+  return formInput(empty, args);
 }
 
 function duplicateWarnings(
@@ -305,22 +326,7 @@ const createRideTool = defineTool({
       return refused([{ field: "bike_id", message: "Vélo introuvable." }], "Unknown bike.");
     const misplaced = misplacedFields(args.ride_type, args);
     if (misplaced.length) return refused(misplaced, "The ride was refused; nothing was written.");
-    const empty: QuickRideInput = {
-      bikeId,
-      on: args.on,
-      rideType: args.ride_type,
-      durationS: null,
-      totalTimeS: null,
-      descentTimeS: null,
-      runsCount: null,
-      distanceM: null,
-      elevationGainM: null,
-      conditions: null,
-      location: null,
-      notes: null,
-      startTime: null,
-    };
-    const data = parseRide(formInput(empty, args));
+    const data = parseRide(newRideInput(bikeId, args));
     const warnings = duplicateWarnings(ctx, bikeId, data.startedAt);
     const before = statusesOf(ctx, [bikeId]);
     const ids: Ids = dryRun ? "none" : "real";
@@ -464,4 +470,248 @@ const deleteRideTool = defineTool({
   },
 });
 
-export const rideTools = [listRidesTool, createRideTool, updateRideTool, deleteRideTool];
+// --- create_rides and delete_rides: an import in batches (D-97) ----------------------------------
+
+const MAX_BATCH = 500;
+
+const createRidesTool = defineTool({
+  name: "create_rides",
+  title: "Importer des sorties",
+  kind: "write",
+  description: `Adds up to ${MAX_BATCH} rides at once (a spreadsheet or a log read by the assistant), each as create_ride's fields with its bike_id, in one transaction: one ride refused refuses them all, its errors named rides[3].duration_s. They are rides like the ones typed (source manual). A ride before the bike's purchase day is refused. The dry run warns about rides within 30 minutes of another of the same bike (in the app or in the batch; skip_duplicates true leaves out those matching a ride already in the app) and about bikes or parts with counters from before tracking: they may already hold this history's wear, so ask the owner whether to lower them (update_bike, update_component) before writing. The answer gives the ids created (undo: delete_rides), each bike's totals before and after, and the rules made due. Call with dry_run true first.`,
+  input: z.strictObject({
+    rides: z
+      .array(
+        z.strictObject({
+          bike_id: z.number().describe("The bike (list_bikes)."),
+          ...rideFields,
+        }),
+      )
+      .min(1)
+      .max(MAX_BATCH),
+    skip_duplicates: z
+      .boolean()
+      .optional()
+      .describe("true: leave out the rides within 30 minutes of a ride already in the app."),
+    dry_run: dryRunInput,
+  }),
+  run: (ctx, { rides: given, skip_duplicates: skipDuplicates = false, dry_run: dryRun }) => {
+    const REFUSED = "The import was refused; nothing was written.";
+    const bikes = new Map(listBikes(ctx).map((bike) => [bike.id, bike]));
+    const errors: FieldError[] = [];
+    const prepared: { index: number; data: ReturnType<typeof parseRide> }[] = [];
+    given.forEach((ride, index) => {
+      const prefix = `rides[${index}]`;
+      const bike = bikes.get(ride.bike_id);
+      if (!bike) {
+        errors.push({ field: `${prefix}.bike_id`, message: "Vélo introuvable." });
+        return;
+      }
+      const misplaced = misplacedFields(ride.ride_type, ride);
+      if (misplaced.length) {
+        errors.push(...misplaced.map((e) => ({ ...e, field: `${prefix}.${e.field}` })));
+        return;
+      }
+      if (bike.purchasedOn && ride.on < bike.purchasedOn) {
+        errors.push({
+          field: `${prefix}.on`,
+          message: `Avant l'achat du vélo (${formatDate(bike.purchasedOn)}).`,
+        });
+        return;
+      }
+      try {
+        prepared.push({ index, data: parseRide(newRideInput(ride.bike_id, ride), prefix) });
+      } catch (error) {
+        if (error instanceof ToolRefusal) errors.push(...error.errors);
+        else throw error;
+      }
+    });
+    if (errors.length) return refused(errors.slice(0, 50), REFUSED);
+
+    // Duplicates: against the app's rides (skipped on request), then inside the batch.
+    const bikeIds = [...new Set(prepared.map((p) => p.data.bikeId))];
+    const existing = new Map(bikeIds.map((id) => [id, listRides(ctx, { bikeId: id })]));
+    const skipped: number[] = [];
+    const duplicates: number[] = [];
+    const kept = prepared.filter(({ index, data }) => {
+      const near = ridesNear(existing.get(data.bikeId) ?? [], {
+        bikeId: data.bikeId,
+        startedAt: data.startedAt,
+      });
+      if (near.length && skipDuplicates) {
+        skipped.push(index);
+        return false;
+      }
+      if (near.length) duplicates.push(index);
+      return true;
+    });
+    const inBatch = kept.filter(({ index, data }) =>
+      kept.some(
+        (other) =>
+          other.index < index &&
+          ridesNear(
+            [{ id: other.index, bikeId: other.data.bikeId, startedAt: other.data.startedAt }],
+            {
+              bikeId: data.bikeId,
+              startedAt: data.startedAt,
+            },
+          ).length,
+      ),
+    );
+
+    const warnings: string[] = [];
+    if (duplicates.length) {
+      warnings.push(
+        `${duplicates.length} ride(s) start within 30 minutes of a ride already in the app (rides[${duplicates.slice(0, 10).join("], rides[")}]${duplicates.length > 10 ? ", …" : ""}): the same rides? skip_duplicates true leaves them out.`,
+      );
+    }
+    if (inBatch.length) {
+      warnings.push(
+        `${inBatch.length} ride(s) start within 30 minutes of another ride of the batch on the same bike (rides[${inBatch
+          .slice(0, 10)
+          .map((r) => r.index)
+          .join("], rides[")}]): check the spreadsheet.`,
+      );
+    }
+    const withCounters = bikeIds.flatMap((id) => {
+      const bike = bikes.get(id)!;
+      const parts = listComponents(ctx, id).filter(
+        (part) => part.removedAt == null && (part.initialDistanceM > 0 || part.initialWearS > 0),
+      );
+      return bike.initialDistanceM > 0 || bike.initialWearS > 0 || parts.length
+        ? [
+            `${bike.name} (${bike.initialDistanceM > 0 ? `${Math.round(bike.initialDistanceM / 1000)} km before tracking` : "counters"}${parts.length ? `, ${parts.length} part(s) with initial counters` : ""})`,
+          ]
+        : [];
+    });
+    if (withCounters.length) {
+      warnings.push(
+        `Initial counters on ${withCounters.join("; ")}: if they already hold this history's wear, it would count twice. Ask the owner whether to lower them (update_bike, update_component) before writing.`,
+      );
+    }
+
+    const totalsOf = () =>
+      bikeIds.map((id) => {
+        const rides = listRides(ctx, { bikeId: id });
+        const bike = bikes.get(id)!;
+        return {
+          bike_id: id,
+          name: bike.name,
+          ride_count: rides.length,
+          distance_m: bike.initialDistanceM + rides.reduce((sum, r) => sum + (r.distanceM ?? 0), 0),
+          wear_time_s: bike.initialWearS + rides.reduce((sum, r) => sum + rideWear(r).wearS, 0),
+        };
+      });
+    const before = totalsOf();
+    const statuses = statusesOf(ctx, bikeIds);
+    const write = () => {
+      const ids = kept.map(({ data }) => {
+        const outcome = createRide(ctx, data);
+        if (!outcome.ok) throw new ToolRefusal([{ field: "rides", message: "Vélo introuvable." }]);
+        return outcome.rideId;
+      });
+      return { ids, after: totalsOf(), madeDue: rulesMadeDue(ctx, bikeIds, statuses) };
+    };
+    const result = dryRun ? previewWrite(write) : atomically(write);
+    if (!dryRun) logWrite(ctx, "create_rides", { ride_ids: result.ids });
+    return answer(
+      dryRun
+        ? `Dry run: would add ${kept.length} ride(s)${skipped.length ? `, ${skipped.length} skipped as duplicates` : ""}. Nothing was written.`
+        : `Added ${result.ids.length} ride(s)${skipped.length ? `, ${skipped.length} skipped as duplicates` : ""}.`,
+      {
+        dry_run: dryRun,
+        created_count: kept.length,
+        ride_ids: dryRun ? null : result.ids,
+        skipped: skipped.map((index) => ({ index, reason: "duplicate" })),
+        bikes: before.map((b) => ({
+          bike_id: b.bike_id,
+          name: b.name,
+          before: {
+            ride_count: b.ride_count,
+            distance_m: b.distance_m,
+            wear_time_s: b.wear_time_s,
+          },
+          after: result.after.find((a) => a.bike_id === b.bike_id),
+        })),
+        rules_made_due: result.madeDue,
+        warnings: [...warnings, ...dueWarnings(result.madeDue, dryRun)],
+      },
+    );
+  },
+});
+
+const deleteRidesTool = defineTool({
+  name: "delete_rides",
+  title: "Supprimer des sorties",
+  kind: "delete",
+  description: `Deletes up to ${MAX_BATCH} rides typed by hand or imported (create_rides gives their ids): the undo of an import gone wrong. For good, with their attachments; the parts' counters lose their wear. Every id must be a ride of the workspace that can be deleted, or nothing is. The dry run says what would go; delete only once the owner has confirmed.`,
+  input: z.strictObject({
+    ride_ids: z.array(z.number()).min(1).max(MAX_BATCH),
+    dry_run: dryRunInput,
+  }),
+  run: (ctx, { ride_ids: rideIds, dry_run: dryRun }) => {
+    const rides = new Map(listRides(ctx).map((ride) => [ride.id, ride]));
+    const errors: FieldError[] = rideIds.flatMap((id, index) => {
+      const ride = rides.get(id);
+      if (!ride) return [{ field: `ride_ids[${index}]`, message: "Sortie introuvable." }];
+      if (ride.source !== "manual") {
+        return [
+          {
+            field: `ride_ids[${index}]`,
+            message: "Une sortie importée de Garmin ne peut pas être supprimée.",
+          },
+        ];
+      }
+      return [];
+    });
+    if (errors.length) return refused(errors.slice(0, 50), "Nothing was deleted.");
+    const unique = [...new Set(rideIds)];
+    const chosen = unique.map((id) => rides.get(id)!);
+    const names = bikeNamesOf(ctx);
+    const summary = {
+      ride_count: chosen.length,
+      distance_m: chosen.reduce((sum, r) => sum + (r.distanceM ?? 0), 0),
+      first_on: chosen.map((r) => localDateOf(r.startedAt, getEnv().timeZone)).sort()[0],
+      last_on: chosen
+        .map((r) => localDateOf(r.startedAt, getEnv().timeZone))
+        .sort()
+        .at(-1),
+      bikes: [...new Set(chosen.map((r) => r.bikeId))].map((id) => ({
+        id,
+        name: names.get(id) ?? "",
+      })),
+      attachment_count: chosen.reduce(
+        (sum, r) => sum + (listAttachments(ctx, { kind: "ride", id: r.id })?.length ?? 0),
+        0,
+      ),
+    };
+    // Never through previewWrite: deleting a ride removes its files after the delete (D-76).
+    if (dryRun) {
+      return answer(`Dry run: would delete ${chosen.length} ride(s). Nothing was deleted.`, {
+        dry_run: true,
+        ...summary,
+        warnings: [],
+      });
+    }
+    for (const ride of chosen) {
+      if (!deleteRide(ctx, ride.id).ok) {
+        throw new Error(`deleteRide refused ride ${ride.id}, checked above`);
+      }
+    }
+    logWrite(ctx, "delete_rides", { ride_ids: unique });
+    return answer(`Deleted ${chosen.length} ride(s).`, {
+      dry_run: false,
+      ...summary,
+      warnings: [],
+    });
+  },
+});
+
+export const rideTools = [
+  listRidesTool,
+  createRideTool,
+  updateRideTool,
+  deleteRideTool,
+  createRidesTool,
+  deleteRidesTool,
+];

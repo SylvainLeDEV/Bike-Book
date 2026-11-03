@@ -151,7 +151,8 @@ routes: they open from any screen and keep it underneath.
 
 Status: **Decided** and built on 2026-11-03 (V1: bikes and parts; D-91: rules; D-92: rides, what
 is to do, the workshop, the procedures; D-93: maintenance done; D-94: restocking and edits;
-D-95: maintenance history, setups, archiving).
+D-95: maintenance history, setups, archiving; D-96: usage and cost, writing procedures;
+D-97: rides imported in batches).
 
 An assistant on the owner's computer (Claude Code) reads and writes bikes, parts, rules, rides,
 tasks and the workshop, and reads the procedures, through `POST /api/mcp`. Registering it, once a token exists (Paramètres › "Accès pour un assistant"):
@@ -176,7 +177,7 @@ describes the result. Anything that computes or decides lives in `src/server/dom
 **Conventions for tools** (`src/server/mcp/tool.ts`):
 
 - One file per domain in `src/server/mcp/tools/` (`bikes.ts`, `components.ts`, `rules.ts`,
-  `rides.ts`, `maintenance.ts`, `setups.ts`, `todo.ts`, `workshop.ts`, `procedures.ts`), listed in `registry.ts`.
+  `rides.ts`, `maintenance.ts`, `setups.ts`, `usage.ts`, `todo.ts`, `workshop.ts`, `procedures.ts`), listed in `registry.ts`.
 - Names are `verb_noun` in snake_case and stable: tools are added, never renamed.
 - Input in the app's raw units, recalled in each description (D-50): distances in metres,
   durations in seconds, weights in grams, money in euro cents, dates `YYYY-MM-DD`, instants ISO
@@ -196,7 +197,7 @@ describes the result. Anything that computes or decides lives in `src/server/dom
   ids created. Never a function that deletes files after its commit in a dry run (D-76).
 - Lists are paginated: `limit` (1–100, default 50) and an opaque `cursor` (`next_cursor`).
 - Each write logs one line (tool, workspace, token id, ids written); a dry run logs nothing.
-- One delete tool only, `delete_ride` (D-92): `kind: "delete"` (`destructiveHint`), a
+- Two delete tools only, `delete_ride` (D-92) and `delete_rides` (D-97, an import's undo): `kind: "delete"` (`destructiveHint`), a
   `dry_run` that only describes what would go (never `previewWrite`, since deleting a ride
   removes its files after the delete), and only rides typed by hand. Nothing else is deleted.
 
@@ -226,6 +227,12 @@ engine, and the dry run warns when one would start overdue or due soon.
 Writes answer `rules_made_due` (rules whose status the ride moves to due soon or overdue, from
 the rule engine before and after the write) and warn about a ride of the same bike starting
 within ±30 minutes (`ridesNear` in `src/server/domain/rides.ts`).
+
+**Rides in batches (D-97).** `create_rides`: up to 500 rides, each checked as `create_ride`
+does, written in one transaction (all or nothing, errors named `rides[3].duration_s`), source
+`manual`; a ride before the bike's purchase is refused; duplicates (`ridesNear`) warned, or left
+out with `skip_duplicates`; initial counters warned with each bike's totals before and after.
+`delete_rides` undoes it from the ids it answers.
 
 **What is to do (D-92).** `list_due_work` is the dashboard's "À prévoir" (`loadGarage`): the
 overdue and due-soon rules, the open tasks and the runs in progress, each rule and task with its
@@ -259,13 +266,19 @@ its replacements stay). `list_setups` and `add_setup` (`setupPrefill` from the c
 values given merged in, `parseSetupInput` against the part's specs, `createSetup`).
 `archive_workshop_item` (`setItemArchived`, reversible).
 
-**Procedures (D-92), read-only.** `list_procedures` and `get_procedure`, from `procedureVMs`,
-with the material read for a bike.
+**Usage and cost (D-96).** `get_bike_usage`: the bike page's totals, `totalCost` and each fitted
+part's wear with the parts before it (`fittedSlots`), read-only.
 
-**Later (D-90, D-92 to D-95, not built):** deleting a maintenance event, changing a setup, runs, writing procedures,
-"À commander"; the assistant on the phone (internet exposure and OAuth); `create_rides`, fed by
-the assistant from a spreadsheet it reads itself; FIT files read by the app (phase 2.1) and sent through `/api/uploads` with the token or in
-base64; duplicates checked by one domain function for every import.
+**Procedures (D-92, D-96).** `list_procedures` and `get_procedure`, from `procedureVMs`, with the
+material read for a bike. `create_procedure`, `update_procedure` (lists replaced whole; a step
+kept passes back its id) and `archive_procedure`, through `procedureInputSchema` and
+`parseProcedureInput`. A dry run that would remove a step's photos describes the change instead
+of running it: `updateProcedure` deletes those files after its write.
+
+**Later (not built):** deleting a maintenance event, a setup, a task or a procedure; changing a
+setup; runs (D-87); attachments; the assistant on the phone (internet exposure and OAuth); FIT
+files read by the app (phase 2.1), sent through `/api/uploads` with the token or in base64, their
+duplicates checked by the same `ridesNear` as every import.
 
 ## Running it
 
