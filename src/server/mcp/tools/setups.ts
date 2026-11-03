@@ -7,11 +7,14 @@ import { parseSetupInput } from "@/server/actions/setup-input";
 import {
   atomically,
   createSetup,
+  deleteSetup,
+  getSetupBikeId,
   getBike,
   listComponents,
   listSetups,
   listSuspensionSpecs,
   previewWrite,
+  updateSetup,
   type AccessContext,
   type Component,
   type Setup,
@@ -167,6 +170,23 @@ const suspensionInput = z
 
 type SuspensionArgs = z.output<typeof suspensionInput>;
 
+/** The sheet's errors (`<componentId>.<field>`) as the tool's fields (`fork.clicks.…`). */
+function setupErrors(
+  fieldErrors: Partial<Record<string, string>>,
+  fieldOf: Map<number, "fork" | "rear_shock">,
+): FieldError[] {
+  return Object.entries(fieldErrors).flatMap(([key, message]) => {
+    if (!message) return [];
+    const [first, field] = key.split(".");
+    const unit = fieldOf.get(Number(first));
+    if (!unit || !field) return [{ field: snakeCase(first!), message }];
+    const name = (DAMPER_ADJUSTERS as readonly string[]).includes(field)
+      ? `clicks.${field}`
+      : snakeCase(field);
+    return [{ field: `${unit}.${name}`, message }];
+  });
+}
+
 function merged(base: SuspensionValuesInput, args: SuspensionArgs): SuspensionValuesInput {
   const pick = <T>(value: T | undefined, current: T) => (value === undefined ? current : value);
   return {
@@ -240,21 +260,7 @@ const addSetupTool = defineTool({
 
     const specsById = new Map(specs.map((s) => [s.componentId, s]));
     const parsed = parseSetupInput(input, today(), (id) => toSpecsInput(specsById.get(id)));
-    if (!parsed.success) {
-      return refused(
-        Object.entries(parsed.fieldErrors).flatMap(([key, message]) => {
-          if (!message) return [];
-          const [first, field] = key.split(".");
-          const unit = fieldOf.get(Number(first));
-          if (!unit || !field) return [{ field: snakeCase(first!), message }];
-          const name = (DAMPER_ADJUSTERS as readonly string[]).includes(field)
-            ? `clicks.${field}`
-            : snakeCase(field);
-          return [{ field: `${unit}.${name}`, message }];
-        }),
-        REFUSED,
-      );
-    }
+    if (!parsed.success) return refused(setupErrors(parsed.fieldErrors, fieldOf), REFUSED);
     const data = parsed.data;
     const ids: Ids = dryRun ? "none" : "real";
     const write = () => {
@@ -296,4 +302,155 @@ const addSetupTool = defineTool({
   },
 });
 
-export const setupTools = [listSetupsTool, addSetupTool];
+// --- update_setup and delete_setup ---------------------------------------------------------------
+
+function findSetup(ctx: AccessContext, setupId: number) {
+  const bikeId = getSetupBikeId(ctx, setupId);
+  if (bikeId == null) return null;
+  const loaded = loadSetups(ctx, bikeId)!;
+  const index = loaded.setups.findIndex((s) => s.id === setupId);
+  return { ...loaded, setup: loaded.setups[index]!, previous: loaded.setups[index + 1] ?? null };
+}
+
+const updateSetupTool = defineTool({
+  name: "update_setup",
+  title: "Modifier un réglage",
+  kind: "write",
+  description:
+    'Corrects a setup of the log, as "Modifier le réglage": only the values given change (null clears one), on the parts that setup holds. To record a new state of the bike, add_setup instead. Call with dry_run true first.',
+  input: z.strictObject({
+    setup_id: z.number().describe("The setup (list_setups)."),
+    set_on: z.string().optional(),
+    label: z.string().nullable().optional(),
+    notes: z.string().nullable().optional(),
+    tire_front_pressure_bar: z.number().nullable().optional(),
+    tire_rear_pressure_bar: z.number().nullable().optional(),
+    fork: suspensionInput.optional(),
+    rear_shock: suspensionInput.optional(),
+    dry_run: dryRunInput,
+  }),
+  run: (ctx, { setup_id: setupId, dry_run: dryRun, ...args }) => {
+    const found = findSetup(ctx, setupId);
+    if (!found) {
+      return refused([{ field: "setup_id", message: "Réglage introuvable." }], "Unknown setup.");
+    }
+    const { setup, previous, specs, context, bike } = found;
+    const values = toInput(setup);
+    const fieldOf = new Map<number, "fork" | "rear_shock">();
+    const errors: FieldError[] = [];
+    for (const type of ["fork", "rear_shock"] as const) {
+      const index = values.suspensions.findIndex(
+        (v) => context.components.get(v.componentId)?.typeCode === type,
+      );
+      if (index >= 0) fieldOf.set(values.suspensions[index]!.componentId, type);
+      const given = args[type];
+      if (!given) continue;
+      if (index < 0) {
+        errors.push({
+          field: type,
+          message:
+            type === "fork"
+              ? "Ce réglage n'a pas de fourche."
+              : "Ce réglage n'a pas d'amortisseur.",
+        });
+        continue;
+      }
+      values.suspensions[index] = merged(values.suspensions[index]!, given);
+    }
+    if (errors.length) return refused(errors, REFUSED);
+    const pick = <T>(value: T | undefined, base: T) => (value === undefined ? base : value);
+    const input: SetupInput = {
+      ...values,
+      setOn: args.set_on ?? values.setOn,
+      label: pick(args.label, values.label),
+      notes: pick(args.notes, values.notes),
+      tireFrontPressureBar: pick(args.tire_front_pressure_bar, values.tireFrontPressureBar),
+      tireRearPressureBar: pick(args.tire_rear_pressure_bar, values.tireRearPressureBar),
+    };
+    const specsById = new Map(specs.map((s) => [s.componentId, s]));
+    const parsed = parseSetupInput(input, today(), (id) => toSpecsInput(specsById.get(id)));
+    if (!parsed.success) return refused(setupErrors(parsed.fieldErrors, fieldOf), REFUSED);
+    const data = parsed.data;
+    const write = () => {
+      if (!updateSetup(ctx, setupId, data).ok) {
+        throw new ToolRefusal([{ field: "setup_id", message: "Réglage introuvable." }], REFUSED);
+      }
+    };
+    if (dryRun) previewWrite(write);
+    else {
+      atomically(write);
+      logWrite(ctx, "update_setup", { setup_id: setupId });
+    }
+    return answer(
+      dryRun
+        ? `Dry run: would correct the setup of ${data.setOn}. Nothing was written.`
+        : `Corrected the setup of ${data.setOn}.`,
+      {
+        dry_run: dryRun,
+        setup: describeSetup(data, previous ? toInput(previous) : null, context, setupId),
+        before: describeSetup(
+          toInput(setup),
+          previous ? toInput(previous) : null,
+          context,
+          setupId,
+        ),
+        warnings: [],
+        bike_url: `${bikeUrl(bike.id)}?tab=setup`,
+      },
+    );
+  },
+});
+
+const deleteSetupTool = defineTool({
+  name: "delete_setup",
+  title: "Supprimer un réglage",
+  kind: "delete",
+  description:
+    'Deletes a setup of the log, as "Supprimer ce réglage": a mistake, for good. If it was the current one, the one before becomes current. The dry run says what would go; delete only once the owner has confirmed.',
+  input: z.strictObject({
+    setup_id: z.number().describe("The setup (list_setups)."),
+    dry_run: dryRunInput,
+  }),
+  run: (ctx, { setup_id: setupId, dry_run: dryRun }) => {
+    const found = findSetup(ctx, setupId);
+    if (!found) {
+      return refused([{ field: "setup_id", message: "Réglage introuvable." }], "Unknown setup.");
+    }
+    const { setup, previous, context, setups } = found;
+    const described = describeSetup(
+      toInput(setup),
+      previous ? toInput(previous) : null,
+      context,
+      setupId,
+    );
+    const wasCurrent = setups[0]?.id === setupId;
+    const write = () => {
+      if (!deleteSetup(ctx, setupId)) {
+        throw new ToolRefusal([{ field: "setup_id", message: "Réglage introuvable." }]);
+      }
+    };
+    if (dryRun) previewWrite(write);
+    else {
+      atomically(write);
+      logWrite(ctx, "delete_setup", { setup_id: setupId });
+    }
+    return answer(
+      dryRun
+        ? `Dry run: would delete the setup of ${setup.setOn}. Nothing was deleted.`
+        : `Deleted the setup of ${setup.setOn}.`,
+      {
+        dry_run: dryRun,
+        deleted: described,
+        warnings: wasCurrent
+          ? [
+              previous
+                ? `It is the current setup: the one of ${previous.setOn} becomes current.`
+                : "It is the bike's only setup.",
+            ]
+          : [],
+      },
+    );
+  },
+});
+
+export const setupTools = [listSetupsTool, addSetupTool, updateSetupTool, deleteSetupTool];

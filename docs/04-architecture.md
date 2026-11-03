@@ -152,7 +152,7 @@ routes: they open from any screen and keep it underneath.
 Status: **Decided** and built on 2026-11-03 (V1: bikes and parts; D-91: rules; D-92: rides, what
 is to do, the workshop, the procedures; D-93: maintenance done; D-94: restocking and edits;
 D-95: maintenance history, setups, archiving; D-96: usage and cost, writing procedures;
-D-97: rides imported in batches).
+D-97: rides imported in batches; D-98: runs, deletes for mistakes).
 
 An assistant on the owner's computer (Claude Code) reads and writes bikes, parts, rules, rides,
 tasks and the workshop, and reads the procedures, through `POST /api/mcp`. Registering it, once a token exists (Paramètres › "Accès pour un assistant"):
@@ -177,7 +177,7 @@ describes the result. Anything that computes or decides lives in `src/server/dom
 **Conventions for tools** (`src/server/mcp/tool.ts`):
 
 - One file per domain in `src/server/mcp/tools/` (`bikes.ts`, `components.ts`, `rules.ts`,
-  `rides.ts`, `maintenance.ts`, `setups.ts`, `usage.ts`, `todo.ts`, `workshop.ts`, `procedures.ts`), listed in `registry.ts`.
+  `rides.ts`, `maintenance.ts`, `setups.ts`, `usage.ts`, `runs.ts`, `todo.ts`, `workshop.ts`, `procedures.ts`), listed in `registry.ts`.
 - Names are `verb_noun` in snake_case and stable: tools are added, never renamed.
 - Input in the app's raw units, recalled in each description (D-50): distances in metres,
   durations in seconds, weights in grams, money in euro cents, dates `YYYY-MM-DD`, instants ISO
@@ -197,7 +197,8 @@ describes the result. Anything that computes or decides lives in `src/server/dom
   ids created. Never a function that deletes files after its commit in a dry run (D-76).
 - Lists are paginated: `limit` (1–100, default 50) and an opaque `cursor` (`next_cursor`).
 - Each write logs one line (tool, workspace, token id, ids written); a dry run logs nothing.
-- Two delete tools only, `delete_ride` (D-92) and `delete_rides` (D-97, an import's undo): `kind: "delete"` (`destructiveHint`), a
+- Deletes only for what the app's sheets delete to fix a mistake (D-98): `delete_ride` (D-92),
+  `delete_rides` (D-97, an import's undo), `delete_maintenance`, `delete_setup`, `abandon_run`: `kind: "delete"` (`destructiveHint`), a
   `dry_run` that only describes what would go (never `previewWrite`, since deleting a ride
   removes its files after the delete), and only rides typed by hand. Nothing else is deleted.
 
@@ -266,6 +267,13 @@ its replacements stay). `list_setups` and `add_setup` (`setupPrefill` from the c
 values given merged in, `parseSetupInput` against the part's specs, `createSetup`).
 `archive_workshop_item` (`setItemArchived`, reversible).
 
+**Runs (D-98).** `start_run`, `get_run` (`getRunPage`: the summary the screen proposes),
+`update_run_steps`, `finish_run` (`finishRunSchema`, `parseFinishRun`, `finishRun`; every field
+left out takes the summary's proposal) and `abandon_run`. A finished run's undo is
+`delete_maintenance` on its event, which gives the stock back. `delete_maintenance` previews in
+`previewWrite` only when no attachment is involved; `update_setup` and `delete_setup` correct the
+setup log.
+
 **Usage and cost (D-96).** `get_bike_usage`: the bike page's totals, `totalCost` and each fitted
 part's wear with the parts before it (`fittedSlots`), read-only.
 
@@ -275,8 +283,7 @@ kept passes back its id) and `archive_procedure`, through `procedureInputSchema`
 `parseProcedureInput`. A dry run that would remove a step's photos describes the change instead
 of running it: `updateProcedure` deletes those files after its write.
 
-**Later (not built):** deleting a maintenance event, a setup, a task or a procedure; changing a
-setup; runs (D-87); attachments; the assistant on the phone (internet exposure and OAuth); FIT
+**Later (not built):** adding or removing a run's steps along the way; attachments; the assistant on the phone (internet exposure and OAuth); FIT
 files read by the app (phase 2.1), sent through `/api/uploads` with the token or in base64, their
 duplicates checked by the same `ridesNear` as every import.
 

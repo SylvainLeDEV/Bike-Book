@@ -17,7 +17,7 @@ and the "Réparé" action (D-88). On 2026-11-03, an MCP server for an external a
 bikes and parts dictated to Claude Code, personal tokens in Paramètres; the same day, rides,
 what is to do, the workshop and the procedures through it (D-92), then maintenance done (D-93),
 restocking and edits (D-94), history and setups (D-95), usage and procedures (D-96), rides imported
-in batches (D-97).
+in batches (D-97), runs and deletes for mistakes (D-98).
 
 ## Read first
 
@@ -72,8 +72,8 @@ in batches (D-97).
   A thin layer: the forms' Zod schemas and the data-access layer, no business rule in a tool.
   Tools `verb_noun`, one file per domain plus a registry, raw units, `{ field, message }` errors in
   French, a required `dry_run` (a rolled-back transaction), paginated lists, one log line per
-  write, never the frame number; the only deletes are `delete_ride` and `delete_rides` (D-92,
-  D-97: rides typed by hand; their dry run only describes). V1: bikes and parts. A new part's rules can take the day each
+  write, never the frame number; deletes only to fix a mistake, as the app's sheets (D-98:
+  rides, maintenance events, setups, an abandoned run; never a file removed by a dry run). V1: bikes and parts. A new part's rules can take the day each
   was last done (`rules[].last_done_on`, as the "Règles" sheet), so an old bike's day-based
   rules do not start overdue. Since 0.3.1 (D-91), `list_rules` and `add_rule` (the "Règles"
   sheet's schema and slots) add any rule to a bike or a fitted part type. Since D-92: rides
@@ -86,7 +86,9 @@ in batches (D-97).
   `list_maintenance`, `update_maintenance`, `list_setups`, `add_setup`, `archive_workshop_item`.
   Since D-96: `get_bike_usage` (parts' wear, total cost), `create_procedure`,
   `update_procedure`, `archive_procedure`. Since D-97: `create_rides` (an import, up to 500, one
-  transaction) and `delete_rides` (its undo).
+  transaction) and `delete_rides` (its undo). Since D-98: runs (`start_run`, `get_run`,
+  `update_run_steps`, `finish_run`, `abandon_run`), `delete_maintenance`, `update_setup`,
+  `delete_setup`.
 - **Setup (D-79, D-81):** a fork's or shock's spring, travel and adjusters (clicks from fully
   closed) live on the part (`suspension_specs`); each setup is a dated full copy whose values belong
   to the part measured. Advice only from manufacturers' documents, each with its source and date.
@@ -148,9 +150,9 @@ src/
 │   │               # attachments' originals under uploads/
 │   ├── files/      # uploads on disk: streaming to a temp file, atomic rename, sharp copies in
 │   │               # cache/ (upright, no metadata), generated demo photos and PDFs (D-76)
-│   ├── mcp/        # MCP server (D-90, D-92 to D-97): tools/ (bikes, components, rules,
-│   │               # rides, maintenance, setups, usage, todo, workshop, procedures: one file
-│   │               # per domain),
+│   ├── mcp/        # MCP server (D-90, D-92 to D-98): tools/ (bikes, components, rules,
+│   │               # rides, maintenance, setups, usage, runs, todo, workshop, procedures:
+│   │               # one file per domain),
 │   │               # registry.ts, server.ts, http.ts (stateless JSON transport), tool.ts
 │   │               # (results, errors, pagination, dry_run, logs), describe.ts (answers)
 │   ├── env.ts      # configuration, validated with Zod (TZ included); time.ts: today in TZ

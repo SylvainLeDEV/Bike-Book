@@ -11,6 +11,10 @@ import { maintenanceSchema } from "@/server/actions/maintenance-input";
 import {
   atomically,
   createMaintenanceEvent,
+  deleteMaintenanceEvent,
+  getRun,
+  listAttachments,
+  listRunsOfEvents,
   getBike,
   getComponent,
   listBikes,
@@ -629,9 +633,107 @@ const updateMaintenanceTool = defineTool({
   },
 });
 
+// --- delete_maintenance --------------------------------------------------------------------------
+
+const deleteMaintenanceTool = defineTool({
+  name: "delete_maintenance",
+  title: "Supprimer un entretien",
+  kind: "delete",
+  description:
+    'Deletes a maintenance event recorded by mistake, as "Supprimer l\'entretien": for good, with its attachments. Its replacements are undone (the old part is fitted again, the new one removed), the parts and product levels a run took are given back to the workshop, and its run goes with it; the rules it fulfilled count again from before. Refused when a part it fitted was replaced or serviced since: correct those events first. The dry run says what would go; delete only once the owner has confirmed.',
+  input: z.strictObject({
+    event_id: z.number().describe("The maintenance event (list_maintenance)."),
+    dry_run: dryRunInput,
+  }),
+  run: (ctx, { event_id: eventId, dry_run: dryRun }) => {
+    const event = listMaintenanceEvents(ctx, null).find((e) => e.id === eventId);
+    if (!event) {
+      return refused([{ field: "event_id", message: "Entretien introuvable." }], "Unknown event.");
+    }
+    const bikeId = event.bikeId;
+    const components = listComponents(ctx, bikeId);
+    const rules = new Map(listRules(ctx, bikeId).map((rule) => [rule.id, rule]));
+    const titles = new Map([...rules].map(([id, rule]) => [id, rule.title]));
+    const runs = listRunsOfEvents(ctx, [eventId]);
+    // Every file the delete would take: the event's, the parts its replacements fitted, its run's.
+    const files =
+      (listAttachments(ctx, { kind: "maintenance_event", id: eventId })?.length ?? 0) +
+      event.items.reduce(
+        (sum, item) =>
+          sum +
+          (item.newComponentId == null
+            ? 0
+            : (listAttachments(ctx, { kind: "component", id: item.newComponentId })?.length ?? 0)),
+        0,
+      ) +
+      runs.reduce(
+        (sum, run) =>
+          sum +
+          (getRun(ctx, run.id)?.steps.reduce(
+            (n, step) =>
+              n + (listAttachments(ctx, { kind: "procedure_run_step", id: step.id })?.length ?? 0),
+            0,
+          ) ?? 0),
+        0,
+      );
+    const described = describeEvent(event, components, titles, "real");
+    const fulfilled = [
+      ...new Set(event.items.flatMap((i) => (i.ruleId == null ? [] : [i.ruleId]))),
+    ];
+    const summary = {
+      event: described,
+      replacements_undone: event.items.filter((i) => i.action === "replaced").length,
+      run_deleted: runs.length > 0,
+      attachment_count: files,
+    };
+    const remove = () => {
+      const outcome = deleteMaintenanceEvent(ctx, eventId);
+      if (!outcome.ok) {
+        throw new ToolRefusal(
+          [
+            {
+              field: "event_id",
+              message:
+                outcome.reason === "too_late"
+                  ? "La pièce montée par cet entretien a été remplacée ou entretenue depuis : modifie d'abord ces entretiens-là."
+                  : "Entretien introuvable.",
+            },
+          ],
+          "Nothing was deleted.",
+        );
+      }
+      const evaluations = evaluateRules(ctx, bikeId);
+      return fulfilled.flatMap((ruleId) =>
+        rules.has(ruleId)
+          ? [describeRule(rules.get(ruleId)!, "real", evaluations.get(ruleId))]
+          : [],
+      );
+    };
+    // The delete removes files after it is done (D-76): a dry run runs it only when no file is
+    // involved, which also checks that it is allowed; otherwise it describes it.
+    if (dryRun && files > 0) {
+      return answer(`Dry run: would delete "${event.title}". Nothing was deleted.`, {
+        dry_run: true,
+        ...summary,
+        rules_after: null,
+        warnings: [`${files} attachment(s) would be deleted with it, files included.`],
+      });
+    }
+    const rulesAfter = dryRun ? previewWrite(remove) : remove();
+    if (!dryRun) logWrite(ctx, "delete_maintenance", { event_id: eventId });
+    return answer(
+      dryRun
+        ? `Dry run: would delete "${event.title}". Nothing was deleted.`
+        : `Deleted "${event.title}" (event ${eventId}).`,
+      { dry_run: dryRun, ...summary, rules_after: rulesAfter, warnings: [] },
+    );
+  },
+});
+
 export const maintenanceTools = [
   listMaintenanceTool,
   recordMaintenanceTool,
   updateMaintenanceTool,
+  deleteMaintenanceTool,
   replaceComponentTool,
 ];

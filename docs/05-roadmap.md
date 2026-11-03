@@ -91,7 +91,8 @@ weeks of real use.
 - [x] Restocking and edits through the MCP (D-94): `set_restock`, `receive_item`, `update_workshop_item`, `update_task`, `update_rule`, `snooze_rule` (done 2026-11-03, not released yet)
 - [x] Maintenance history, setups and archiving through the MCP (D-95): `list_maintenance`, `update_maintenance`, `list_setups`, `add_setup`, `archive_workshop_item` (done 2026-11-03, not released yet)
 - [x] Usage, cost and procedures through the MCP (D-96): `get_bike_usage`, `create_procedure`, `update_procedure`, `archive_procedure` (done 2026-11-03, not released yet)
-- [ ] Next through the MCP: runs, if dictating a run turns out useful; then the assistant on the phone (internet exposure, OAuth)
+- [x] Runs and deletes for mistakes through the MCP (D-98): `start_run`, `get_run`, `update_run_steps`, `finish_run`, `abandon_run`, `delete_maintenance`, `update_setup`, `delete_setup` (done 2026-11-03, not released yet)
+- [ ] Next through the MCP: the assistant on the phone (internet exposure, OAuth, or Claude Code's remote control); attachments
 - [x] Rides imported through the MCP (D-97, answers Q-14 to Q-16): `create_rides` (up to 500, one transaction, source `manual`, duplicates and initial counters warned) and `delete_rides` as its undo (done 2026-11-03, not released yet)
 - [ ] Statistics: km and hours per bike per month, cost per bike per year, cost per 100 km over time (D-23, D-44)
 - [ ] Search and filters beyond the workshop (the bike history's year, month and kind filters exist, D-78; next: the same in Activité with a bike filter, text search, place, ride type, conditions, totals per period)

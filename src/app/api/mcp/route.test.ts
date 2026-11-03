@@ -45,6 +45,14 @@ const TOOLS = [
   "archive_procedure",
   "create_rides",
   "delete_rides",
+  "start_run",
+  "get_run",
+  "update_run_steps",
+  "finish_run",
+  "abandon_run",
+  "update_setup",
+  "delete_setup",
+  "delete_maintenance",
   "list_procedures",
   "get_procedure",
 ];
@@ -93,8 +101,9 @@ describe("POST /api/mcp (D-90)", () => {
       const reads = tool.name.startsWith("list_") || tool.name.startsWith("get_");
       expect(tool.annotations.readOnlyHint).toBe(reads);
       if (!reads) {
-        // The one delete (D-92) is marked destructive; every other write is not.
-        expect(tool.annotations.destructiveHint).toBe(tool.name.startsWith("delete_"));
+        // The deletes (D-92, D-97, D-98) are marked destructive; every other write is not.
+        const deletes = tool.name.startsWith("delete_") || tool.name === "abandon_run";
+        expect(tool.annotations.destructiveHint).toBe(deletes);
         expect(tool.inputSchema.properties).toHaveProperty("dry_run");
       }
       // An unknown field is refused, not ignored.

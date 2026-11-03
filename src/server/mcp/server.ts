@@ -8,7 +8,7 @@ const INSTRUCTIONS = `Bike-Book tracks the owner's bikes, their parts, rides and
 - Units are the app's raw units: distances in metres, durations in seconds, weights in grams, money in euro cents (integers); calendar dates YYYY-MM-DD; instants ISO 8601 UTC. Enum values are English codes.
 - Every write takes dry_run. Call it with dry_run true first, show the owner what would be written (a table), and write (dry_run false) only once they agree.
 - A refused input answers isError with errors: [{ field, message }], the message in French as the app shows it: fix those fields and try again.
-- Nothing can be deleted through these tools but rides (delete_ride, delete_rides: dry run first, then delete only once the owner has confirmed); the frame number is never read nor written.
+- Deletes (delete_ride, delete_rides, delete_maintenance, delete_setup, abandon_run) are for mistakes: dry run first, then delete only once the owner has confirmed. Nothing else is deleted; the frame number is never read nor written.
 - Read list_component_types before adding parts. Answer with the bike page's link (url) once written.
 - Parts fitted to a bike are components (add_component); spare parts, products (oil, grease, sealant…) and tools are the workshop's items (add_workshop_item, update_stock). Read list_workshop_items before adding one, to avoid a duplicate. To buy: set_restock ("À commander", "En commande"), then receive_item when it arrives.
 - "What do I have to do?": list_due_work gives the overdue and due-soon rules, the open tasks and the runs in progress, each with its procedure's material read against the workshop (ok, low, missing). get_procedure gives the steps and the material for a bike. Say what to do first and what the owner lacks.
@@ -16,6 +16,7 @@ const INSTRUCTIONS = `Bike-Book tracks the owner's bikes, their parts, rides and
 - "When did I last…?": list_maintenance (filters bike, part, rule, days, words). A mistake in an event: update_maintenance.
 - "How many km on my chain?", "what has this bike cost?": get_bike_usage (each part's wear, the parts before it, the total cost).
 - A procedure written for the owner (create_procedure): steps from the manufacturer's documents, their source as a link resource; never invent a torque. update_procedure replaces whole lists: pass back each step's id to keep it and its photos.
+- Doing a procedure with the owner: start_run (from a task, a rule with a procedure, or a procedure and a bike), guide them one step at a time and check each with update_run_steps, then finish_run: one event, the parts and products taken from the workshop, the rule restarted. get_run shows what finish_run will propose; ask about the parts and products actually used.
 - Suspension and tyre setup (the "Réglages" tab): list_setups gives the current one first; add_setup starts from it and changes only the values given.
 - A history of rides (a spreadsheet, a log): create_rides, up to 500 at a time, dry run first; tell the owner about its warnings (duplicates, initial counters that may already hold that wear) and keep the ride_ids it answers: delete_rides undoes it.
 - A ride's wear counts on its bike's parts (on a bike park day, the descent time): create_ride and update_ride answer the rules they make due; tell the owner.
