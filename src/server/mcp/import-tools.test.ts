@@ -80,14 +80,19 @@ describe("create_rides", () => {
       bikes: [
         {
           bike_id: gravel,
+          name: "Gravel",
           before: { ride_count: 0 },
           after: { ride_count: 2, distance_m: 50_000 },
         },
-        { bike_id: road, after: { ride_count: 1, distance_m: 80_000 } },
+        { bike_id: road, name: "Route", after: { ride_count: 1, distance_m: 80_000 } },
       ],
       rules_made_due: [expect.objectContaining({ title: "Révision", status: "due_soon" })],
       warnings: [expect.stringMatching(/became|would become/)],
     });
+    // before and after have the same shape (D-100): the bike is named once.
+    const [first] = preview.structuredContent.bikes;
+    expect(first.after).toEqual({ ride_count: 2, distance_m: 50_000, wear_time_s: 7200 });
+    expect(Object.keys(first.after)).toEqual(Object.keys(first.before));
     expect(listRides(ctx)).toEqual([]);
 
     const written = await callTool(token, "create_rides", { rides, dry_run: false });
@@ -120,7 +125,7 @@ describe("create_rides", () => {
   it("warns about duplicates, and skips those already in the app on request", async () => {
     const { ctx, token } = garage("Duplicates");
     const gravel = addBike(ctx);
-    await callTool(token, "create_ride", { ...ride(gravel, 4), dry_run: false });
+    const existing = await callTool(token, "create_ride", { ...ride(gravel, 4), dry_run: false });
     const rides = [ride(gravel, 4), ride(gravel, 2), ride(gravel, 2, { distance_m: 10_000 })];
 
     const warned = await callTool(token, "create_rides", { rides, dry_run: true });
@@ -138,7 +143,9 @@ describe("create_rides", () => {
     });
     expect(skipped.structuredContent).toMatchObject({
       created_count: 2,
-      skipped: [{ index: 0, reason: "duplicate" }],
+      skipped: [
+        { index: 0, reason: "duplicate", matching_ride_id: existing.structuredContent.ride.id },
+      ],
     });
     expect(listRides(ctx, { bikeId: gravel })).toHaveLength(3);
   });

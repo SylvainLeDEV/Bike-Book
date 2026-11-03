@@ -96,6 +96,9 @@ describe("list_maintenance and update_maintenance", () => {
       "Purge arrière",
     ]);
     const bled = await callTool(token, "list_maintenance", { rule_id: ruleId });
+    // The bike once, as `bike` (D-100); the time spent is there (null outside a run).
+    expect(bled.structuredContent.events[0]).not.toHaveProperty("bike_id");
+    expect(bled.structuredContent.events[0]).toMatchObject({ labor_time_s: null });
     expect(bled.structuredContent.events).toEqual([
       expect.objectContaining({
         bike: { id: enduro, name: "Enduro" },
@@ -298,16 +301,38 @@ describe("archive_workshop_item", () => {
     expect(preview.structuredContent).toMatchObject({ changed: true, item: { archived: true } });
     expect(listInventory(ctx)[0]?.archivedAt).toBeNull();
 
-    await callTool(token, "archive_workshop_item", { item_id: itemId, dry_run: false });
+    const archived = await callTool(token, "archive_workshop_item", {
+      item_id: itemId,
+      dry_run: false,
+    });
+    // Archived, the app has no page for it: the workshop's page.
+    expect(archived.structuredContent.url).toMatch(/\/workshop$/);
     expect((await callTool(token, "list_workshop_items", {})).structuredContent.items).toEqual([]);
-    await callTool(token, "archive_workshop_item", {
+    const withArchived = await callTool(token, "list_workshop_items", { include_archived: true });
+    expect(withArchived.structuredContent.items).toEqual([
+      expect.objectContaining({ id: itemId, name: "Vieille pompe", archived: true }),
+    ]);
+    // Never in "À racheter", even marked to order.
+    const rebuy = await callTool(token, "list_workshop_items", {
+      to_rebuy: true,
+      include_archived: true,
+    });
+    expect(rebuy.structuredContent.items).toEqual([]);
+    const again = await callTool(token, "archive_workshop_item", {
+      item_id: itemId,
+      dry_run: true,
+    });
+    expect(again.structuredContent).toMatchObject({ changed: false, url: expect.any(String) });
+
+    const back = await callTool(token, "archive_workshop_item", {
       item_id: itemId,
       archived: false,
       dry_run: false,
     });
-    expect((await callTool(token, "list_workshop_items", {})).structuredContent.items).toHaveLength(
-      1,
-    );
+    expect(back.structuredContent.url).toMatch(new RegExp(`/workshop\\?item=${itemId}$`));
+    expect((await callTool(token, "list_workshop_items", {})).structuredContent.items).toEqual([
+      expect.objectContaining({ id: itemId, archived: false }),
+    ]);
   });
 });
 

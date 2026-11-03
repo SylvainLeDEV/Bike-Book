@@ -10,7 +10,7 @@ import {
 } from "@/lib/enums";
 import { COMPONENT_TYPE_LABELS, INVENTORY_CATEGORY_LABELS, REBUY_STATE_LABELS } from "@/lib/labels";
 import { nameKey } from "@/lib/names";
-import type { InventoryItemVM } from "@/lib/view-models";
+import type { InventoryItemVM, RebuyRowVM } from "@/lib/view-models";
 import {
   itemData,
   itemInputSchema,
@@ -42,7 +42,7 @@ import {
 } from "@/server/domain/inventory";
 import { getEnv } from "@/server/env";
 import { today } from "@/server/time";
-import { loadGarage, rebuyRows } from "@/server/views/workshop";
+import { archivedItems, loadGarage, rebuyRows } from "@/server/views/workshop";
 import type { Ids } from "../describe";
 import {
   answer,
@@ -59,10 +59,34 @@ import {
 
 // The workshop (feature 8, D-33, D-85) through the MCP (D-92): parts, products and tools with
 // their stock computed from movements (D-39), the restocking state, and the same writes as the
-// item sheet ("Ajouter un objet") and its stock buttons. Never an archive nor a delete.
+// item sheet ("Ajouter un objet") and its stock buttons. Archived (D-95), never deleted.
+
+const workshopUrl = () => `${getEnv().publicUrl}/workshop`;
 
 export function workshopItemUrl(itemId: number): string {
-  return `${getEnv().publicUrl}/workshop?item=${itemId}`;
+  return `${workshopUrl()}?item=${itemId}`;
+}
+
+/**
+ * Why an item is in "À racheter" (D-41), in snake_case (D-100): a rule late or due soon needs it;
+ * marked to order (a tool not owned, an item put on the list; at its cheapest link's price);
+ * ordered; or at its low-stock threshold.
+ */
+function rebuyReasonOf(reason: RebuyRowVM["reason"]) {
+  switch (reason.kind) {
+    case "rule":
+      return { kind: "rule", status: reason.status, needed_on: reason.neededOn };
+    case "ordered":
+      return {
+        kind: "ordered",
+        ordered_on: reason.orderedOn || null,
+        price_cents: reason.priceCents,
+      };
+    case "low_stock":
+      return { kind: "low_stock" };
+    case "price":
+      return { kind: "to_order", price_cents: reason.priceCents };
+  }
 }
 
 /** The item's stock in the app's terms, by kind. */
@@ -137,7 +161,7 @@ const listWorkshopItemsTool = defineTool({
   title: "Objets de l'atelier",
   kind: "read",
   description:
-    "The workshop's parts (units in stock), products (containers, the open one's level) and tools (owned or not), archived ones left out. Each with its stock (stock_text in French), the bikes it serves (\"all\" or a list), its rebuy state (to_order, ordered, low_stock or null), purchase links and the maintenance rules it serves. Filters combine: kind, category, bike_id (items serving that bike), query (name, brand or reference, ignoring case and accents), to_rebuy (only what is to rebuy, most urgent first, with the reason). Read it before add_workshop_item to avoid a duplicate, and to answer whether the owner has a part, product or tool.",
+    "The workshop's parts (units in stock), products (containers, the open one's level) and tools (owned or not), archived ones left out unless include_archived (then archived true; they serve no rule). Each with its stock (stock_text in French), the bikes it serves (\"all\" or a list), its rebuy state (to_order, ordered, low_stock or null), purchase links and the maintenance rules it serves. Filters combine: kind, category, bike_id (items serving that bike), query (name, brand or reference, ignoring case and accents), to_rebuy (only what is to rebuy, most urgent first, never archived ones, with rebuy_reason: kind rule (status, needed_on: a late or due-soon rule needs it), to_order (price_cents: its cheapest link), ordered (ordered_on, price_cents) or low_stock). Read it before add_workshop_item to avoid a duplicate (with include_archived: an archived one comes back with archive_workshop_item archived false), and to answer whether the owner has a part, product or tool.",
   input: z.strictObject({
     kind: z.enum(INVENTORY_KINDS).optional().describe("part, product or tool."),
     category: z.enum(INVENTORY_CATEGORIES).optional(),
@@ -147,15 +171,32 @@ const listWorkshopItemsTool = defineTool({
       .boolean()
       .optional()
       .describe('true: only "À racheter" (to order, ordered, low stock), most urgent first.'),
+    include_archived: z
+      .boolean()
+      .optional()
+      .describe("true: the archived items too, after the others (default false)."),
     ...pageInput,
   }),
-  run: (ctx, { kind, category, bike_id: bikeId, query, to_rebuy: toRebuy, ...page }) => {
+  run: (
+    ctx,
+    {
+      kind,
+      category,
+      bike_id: bikeId,
+      query,
+      to_rebuy: toRebuy,
+      include_archived: withArchived,
+      ...page
+    },
+  ) => {
     if (bikeId != null && !getBike(ctx, bikeId)) {
       return refused([{ field: "bike_id", message: "Vélo introuvable." }], "Unknown bike.");
     }
     const garage = loadGarage(ctx);
+    const archived = withArchived && !toRebuy ? archivedItems(ctx, garage) : [];
+    const archivedIds = new Set(archived.map((item) => item.id));
     const words = query ? nameKey(query) : "";
-    let items = garage.items.filter(
+    let items = [...garage.items, ...archived].filter(
       (item) =>
         (kind == null || item.kind === kind) &&
         (category == null || item.category === category) &&
@@ -165,28 +206,29 @@ const listWorkshopItemsTool = defineTool({
             words,
           )),
     );
-    const reasons = new Map<number, unknown>();
+    const reasons = new Map<number, ReturnType<typeof rebuyReasonOf>>();
     if (toRebuy) {
       const rows = rebuyRows(items);
       const byId = new Map(items.map((item) => [item.id, item]));
       items = rows.map((row) => byId.get(row.itemId)!);
-      for (const row of rows) reasons.set(row.itemId, row.reason);
+      for (const row of rows) reasons.set(row.itemId, rebuyReasonOf(row.reason));
     } else {
       items = [...items].sort(
         (a, b) =>
+          Number(archivedIds.has(a.id)) - Number(archivedIds.has(b.id)) ||
           INVENTORY_KINDS.indexOf(a.kind) - INVENTORY_KINDS.indexOf(b.kind) ||
           a.name.localeCompare(b.name, "fr"),
       );
     }
     const { items: slice, next_cursor } = paginate(items, (item) => String(item.id), page);
     return answer(`${slice.length} of ${items.length} workshop items.`, {
-      items: slice.map((item) =>
-        toRebuy
-          ? { ...describeItem(item), rebuy_reason: reasons.get(item.id) }
-          : describeItem(item),
-      ),
+      items: slice.map((item) => ({
+        ...describeItem(item),
+        archived: archivedIds.has(item.id),
+        ...(toRebuy ? { rebuy_reason: reasons.get(item.id) } : {}),
+      })),
       next_cursor,
-      workshop_url: `${getEnv().publicUrl}/workshop`,
+      workshop_url: workshopUrl(),
     });
   },
 });
@@ -797,7 +839,7 @@ const archiveWorkshopItemTool = defineTool({
   title: "Archiver un objet de l'atelier",
   kind: "write",
   description:
-    "Archives a workshop item, as \"Archiver\": it leaves the workshop's lists, rebuying and procedures' material; its history stays (never deleted), and the parts fitted from it keep their link. archived false brings it back. Call with dry_run true first.",
+    "Archives a workshop item, as \"Archiver\": it leaves the workshop's lists, rebuying and procedures' material; its history stays (never deleted), and the parts fitted from it keep their link. archived false brings it back (list_workshop_items include_archived finds it). url: the item's page once back in the workshop; the workshop's page while archived (the app shows no archived item). Call with dry_run true first.",
   input: z.strictObject({
     item_id: z.number().describe("The workshop item (list_workshop_items)."),
     archived: z.boolean().optional().describe("true (default): archive; false: bring it back."),
@@ -807,6 +849,8 @@ const archiveWorkshopItemTool = defineTool({
     const item = listInventory(ctx).find((i) => i.id === itemId);
     if (!item)
       return refused([{ field: "item_id", message: "Objet introuvable." }], "Unknown item.");
+    // The item's page while it is in the workshop; archived, the app has no page for it.
+    const url = archived ? workshopUrl() : workshopItemUrl(item.id);
     if ((item.archivedAt != null) === archived) {
       return answer(
         `Nothing to change: "${item.name}" is already ${archived ? "archived" : "in the workshop"}.`,
@@ -815,6 +859,7 @@ const archiveWorkshopItemTool = defineTool({
           changed: false,
           item: { id: item.id, name: item.name, archived },
           warnings: [],
+          url,
         },
       );
     }
@@ -838,7 +883,7 @@ const archiveWorkshopItemTool = defineTool({
         changed: true,
         item: { id: item.id, name: item.name, archived },
         warnings: [],
-        url: archived ? null : workshopItemUrl(item.id),
+        url,
       },
     );
   },

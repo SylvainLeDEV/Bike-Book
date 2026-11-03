@@ -284,11 +284,17 @@ describe("ride tools", () => {
     expect(listRides(ctx, { bikeId: gravel })[0]?.rideType).toBe("trail");
 
     const preview = await callTool(token, "delete_ride", { ride_id: rideId, dry_run: true });
-    expect(preview.structuredContent).toMatchObject({ dry_run: true, attachment_count: 0 });
+    expect(preview.structuredContent).toMatchObject({
+      dry_run: true,
+      ride: { id: rideId, distance_m: 32_000 },
+      attachment_count: 0,
+    });
     expect(listRides(ctx, { bikeId: gravel })).toHaveLength(1);
 
+    // The same key in the dry run and the delete (D-100).
     const deleted = await callTool(token, "delete_ride", { ride_id: rideId, dry_run: false });
-    expect(deleted.structuredContent.deleted).toMatchObject({ distance_m: 32_000 });
+    expect(deleted.structuredContent.ride).toMatchObject({ id: rideId, distance_m: 32_000 });
+    expect(deleted.structuredContent).not.toHaveProperty("deleted");
     expect(listRides(ctx)).toEqual([]);
     const gone = await callTool(token, "delete_ride", { ride_id: rideId, dry_run: false });
     expect(gone.structuredContent.errors).toEqual([
@@ -396,6 +402,73 @@ describe("workshop tools", () => {
     expect(rebuy.structuredContent.items).toEqual([
       expect.objectContaining({ name: "Fouet à cassette", rebuy_state: "to_order" }),
     ]);
+  });
+
+  it("to_rebuy gives each item's reason in snake_case, a tool not owned as to_order", async () => {
+    const { ctx, token } = garage("Rebuy");
+    const bikeId = addBike(ctx); // bought in 2021: a monthly rule is overdue
+    await callTool(token, "add_component", {
+      bike_id: bikeId,
+      type_code: "brake_pads",
+      position: "front",
+      model: "Organiques",
+      rules: [],
+      dry_run: false,
+    });
+    await callTool(token, "add_rule", {
+      bike_id: bikeId,
+      component_type_code: "brake_pads",
+      position: "front",
+      title: "Contrôle des plaquettes",
+      interval_days: 30,
+      dry_run: false,
+    });
+    const add = async (args: Record<string, unknown>) =>
+      (await callTool(token, "add_workshop_item", { ...args, dry_run: false })).structuredContent
+        .item.id as number;
+    await add({
+      kind: "part",
+      name: "Plaquettes",
+      category: "brakes",
+      component_type_code: "brake_pads",
+      quantity: 1,
+      unit: "pair",
+      low_stock_threshold: 1,
+    });
+    await add({ kind: "tool", name: "Fouet à cassette", category: "drivetrain", owned: false });
+    const chain = await add({
+      kind: "part",
+      name: "Chaîne",
+      category: "drivetrain",
+      link: { shop_name: "Rayon Libre", price_cents: 2990 },
+    });
+    for (const status of ["to_order", "ordered"]) {
+      await callTool(token, "set_restock", { item_id: chain, status, dry_run: false });
+    }
+    await add({
+      kind: "part",
+      name: "Câble",
+      category: "other",
+      quantity: 0,
+      low_stock_threshold: 1,
+    });
+
+    const rebuy = await callTool(token, "list_workshop_items", { to_rebuy: true });
+    expect(
+      rebuy.structuredContent.items.map((i: { name: string; rebuy_reason: unknown }) => [
+        i.name,
+        i.rebuy_reason,
+      ]),
+    ).toEqual([
+      ["Plaquettes", { kind: "rule", status: "overdue", needed_on: expect.any(String) }],
+      ["Fouet à cassette", { kind: "to_order", price_cents: null }],
+      ["Chaîne", { kind: "ordered", ordered_on: today(), price_cents: 2990 }],
+      ["Câble", { kind: "low_stock" }],
+    ]);
+    // Without to_rebuy, no reason; every item says whether it is archived.
+    const all = await callTool(token, "list_workshop_items", {});
+    expect(all.structuredContent.items[0]).not.toHaveProperty("rebuy_reason");
+    expect(all.structuredContent.items[0]).toMatchObject({ archived: false });
   });
 
   it("update_stock: purchase, use, count, a product's level and a tool's possession", async () => {

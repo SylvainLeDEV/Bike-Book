@@ -139,7 +139,7 @@ of the navigation shows a "Bientôt ici" page rather than a 404.
 | `/workshop` | Atelier | Parts, products, tools (D-85) and maintenance procedures ("Fiches", D-86). `?tab=` selects the filter (`parts`, the default, is left out; `products`, `tools`, `rebuy`, `procedures`), `?bike=` the bike, `?q=` the search, `?item=` the item open, `?procedure=` the procedure open: read on arrival (an item alone opens its kind's tab) and rewritten in place as they change (`src/lib/workshop-filter.ts`, D-85). `?new=1` opens "Nouvelle fiche" on arrival (from a bike page, with `?bike=`), then leaves the address. Items and procedures are not routes of their own: under 1024 px they replace the list, from 1024 px the list stays beside them |
 | `/settings` | Paramètres | Account and sign-out, theme of this device, "Exporter mes données" (feature 12, D-68; labelled "Paramètres" since D-80), "Accès pour un assistant": personal tokens of the MCP server (D-90) |
 | `/login`, `/setup` | Connexion, premier lancement | Unchanged |
-| `/api/uploads`, `/api/uploads/[id]` | Pièces jointes | `POST /api/uploads?owner=<kind>&id=<n>&lastModified=<ms>[&cover=1]`: the raw file as body, its name in `X-File-Name` (URI-encoded), 201 `{ id }` or an error `{ error, message }` (401, 404, 413, 415). Without a session, a signed upload link for that element in `X-Upload-Link` (D-99). `GET /api/uploads/<id>[?size=thumb\|display][&download=1]`: signed in, scoped, `nosniff`, private cache revalidated by ETag (D-76) |
+| `/api/uploads`, `/api/uploads/[id]` | Pièces jointes | `POST /api/uploads?owner=<kind>&id=<n>&lastModified=<ms>[&cover=1]`: the raw file as body, its name in `X-File-Name` (URI-encoded), 201 `{ id }` or an error `{ error, message }` (401, 404, 413, 415). Without a session, a signed upload link for that element in `X-Upload-Link` (D-99); a link that does not authenticate answers 401 `link_invalid`, no link and no session 401 `signed_out` (D-100). `GET /api/uploads/<id>[?size=thumb\|display][&download=1]`: signed in, scoped, `nosniff`, private cache revalidated by ETag (D-76) |
 | `/api/export` | Export ZIP | Current workspace only, auth tables never included; 401 when signed out (D-68) |
 | `/api/mcp` | Serveur MCP | `POST` only, JSON-RPC, stateless, JSON answers (no SSE); a personal token in `Authorization: Bearer bb_…`, never the session cookie; 401 without it, 405 for GET and DELETE, 413 over 1 MB ([MCP server](#mcp-server-d-90), D-90) |
 | `/design` | Design system | Development only |
@@ -152,7 +152,8 @@ routes: they open from any screen and keep it underneath.
 Status: **Decided** and built on 2026-11-03 (V1: bikes and parts; D-91: rules; D-92: rides, what
 is to do, the workshop, the procedures; D-93: maintenance done; D-94: restocking and edits;
 D-95: maintenance history, setups, archiving; D-96: usage and cost, writing procedures;
-D-97: rides imported in batches; D-98: runs, deletes for mistakes; D-99: photos and PDFs through upload links).
+D-97: rides imported in batches; D-98: runs, deletes for mistakes; D-99: photos and PDFs through upload links;
+D-100: answers fixed after the real-use test).
 
 An assistant on the owner's computer (Claude Code) reads and writes bikes, parts, rules, rides,
 tasks and the workshop, and reads the procedures, through `POST /api/mcp`. Registering it, once a token exists (Paramètres › "Accès pour un assistant"):
@@ -185,7 +186,15 @@ describes the result. Anything that computes or decides lives in `src/server/dom
   objects are strict (`z.strictObject`, nested ones too): an unknown or misspelt field is refused
   by the SDK, never silently ignored.
 - Answers: structured JSON (`structuredContent`, also as a JSON text block) and a short text
-  summary in English. Never the frame number.
+  summary in English. Never the frame number. Summaries and `warnings` are in English, written
+  for the assistant, which tells the owner in their language; the server instructions say so
+  (D-100). One language per warning; French only for the app's own words (labels, `stock_text`)
+  and `errors[].message`.
+- One name per thing (D-100): the same key in a dry run and its write (`delete_ride`: `ride`),
+  the same shape before and after (`create_rides`' `bikes[].before` and `after`), no field
+  repeated next to the object that holds it (`list_maintenance`: `bike`, no `bike_id`), enums and
+  nested keys in snake_case (`rebuy_reason`). A null means one thing: `get_bike_usage`'s
+  `rule_status` is null only without a rule.
 - A refused input answers `isError` with `errors: [{ field, message }]`: the tool's field
   (`components[2].suspension.max_clicks.low_speed_rebound`) and the form's French message, so
   the assistant fixes it and tries again. A value of the wrong type is refused by the SDK before
@@ -232,8 +241,9 @@ within ±30 minutes (`ridesNear` in `src/server/domain/rides.ts`).
 **Rides in batches (D-97).** `create_rides`: up to 500 rides, each checked as `create_ride`
 does, written in one transaction (all or nothing, errors named `rides[3].duration_s`), source
 `manual`; a ride before the bike's purchase is refused; duplicates (`ridesNear`) warned, or left
-out with `skip_duplicates`; initial counters warned with each bike's totals before and after.
-`delete_rides` undoes it from the ids it answers.
+out with `skip_duplicates` (each `skipped[]` names its `matching_ride_id`); initial counters
+warned with each bike's totals before and after, in the same shape. `delete_rides` undoes it from
+the ids it answers.
 
 **What is to do (D-92).** `list_due_work` is the dashboard's "À prévoir" (`loadGarage`): the
 overdue and due-soon rules, the open tasks and the runs in progress, each rule and task with its
@@ -248,7 +258,10 @@ served. `add_workshop_item` validates with `itemInputSchema` and writes through 
 `update_stock` writes one movement as the item's buttons do (`containersChange`, `levelChange`,
 `ownedChange`, then `addMovement` or `setToolOwned`). Since D-94: `update_workshop_item`
 (`itemData`, `updateItem`, a purchase link with `add_link`), `set_restock` (`setRestock`) and
-`receive_item` (`receiveItem`, at the cheapest link's price unless one is given).
+`receive_item` (`receiveItem`, at the cheapest link's price unless one is given). Since D-100:
+`to_rebuy` gives `rebuy_reason` in snake_case from `rebuyRows` (`rule`, `to_order`, `ordered`,
+`low_stock`), and `include_archived` adds the archived items (`archivedItems` in
+`src/server/views/workshop.ts`: built as the others, serving no rule; the app lists none).
 
 **Edits (D-94).** `update_task` (`taskSchema`, `updateTask`), `update_rule` (the rule as the sheet
 edits it, `ruleFormInput`, then `ruleInputSchema` and `updateRule`; its slot never changes) and
@@ -265,17 +278,23 @@ with "C'est fait"). `replace_component` is "Remplacer une pièce" (`replacePartS
 `update_maintenance` ("Modifier l'entretien": `maintenanceEdit`, then `updateMaintenanceEvent`;
 its replacements stay). `list_setups` and `add_setup` (`setupPrefill` from the current setup, the
 values given merged in, `parseSetupInput` against the part's specs, `createSetup`).
-`archive_workshop_item` (`setItemArchived`, reversible).
+`archive_workshop_item` (`setItemArchived`, reversible; its `url` is the workshop's while the
+item is archived, D-100).
 
-**Runs (D-98).** `start_run`, `get_run` (`getRunPage`: the summary the screen proposes),
-`update_run_steps`, `finish_run` (`finishRunSchema`, `parseFinishRun`, `finishRun`; every field
-left out takes the summary's proposal) and `abandon_run`. A finished run's undo is
+**Runs (D-98).** `start_run`, `get_run` (`getRunPage`: the summary the screen proposes; without
+the run's rule nor one pointing to the procedure, the only active rule on its part type, and
+each rule's slot, D-100), `update_run_steps` (answers the steps and `unchecked_steps` only),
+`finish_run` (`finishRunSchema`, `parseFinishRun`, `finishRun`; every field left out takes the
+summary's proposal; answers the event as written, read back inside the transaction, so the dry
+run shows it whole) and `abandon_run`. A finished run's undo is
 `delete_maintenance` on its event, which gives the stock back. `delete_maintenance` previews in
 `previewWrite` only when no attachment is involved; `update_setup` and `delete_setup` correct the
 setup log.
 
 **Usage and cost (D-96).** `get_bike_usage`: the bike page's totals, `totalCost` and each fitted
-part's wear with the parts before it (`fittedSlots`), read-only.
+part's wear with the parts before it (`fittedSlots`), read-only. Each part's `rule_status` comes
+from `partStatuses` over the bike's active rules, whatever its status (D-100); `type_code` or
+`component_id` keeps those parts' slots.
 
 **Procedures (D-92, D-96).** `list_procedures` and `get_procedure`, from `procedureVMs`, with the
 material read for a bike. `create_procedure`, `update_procedure` (lists replaced whole; a step
@@ -289,8 +308,9 @@ id, the element, a 15-minute expiry, HMAC-SHA256 under a key derived from `AUTH_
 stored). The assistant sends each file from the owner's computer:
 `curl -X POST --data-binary @file -H "X-Upload-Link: …" -H "X-File-Name: …" "<url>"`. The link is
 a header, never in the URL, which access logs keep. It works for that element until it expires,
-and stops when its token is revoked. `list_attachments`, `update_attachment` and
-`delete_attachment` handle them afterwards.
+and stops when its token is revoked; a link that fails answers `link_invalid`, so the assistant
+asks for a new one (D-100). `list_attachments`, `update_attachment` and `delete_attachment`
+handle them afterwards (`delete_attachment` warns when the photo is its element's photo).
 
 **Later (not built):** adding or removing a run's steps along the way; FIT files read by the app
 (phase 2.1), sent with an upload link, their duplicates checked by the same `ridesNear` as every

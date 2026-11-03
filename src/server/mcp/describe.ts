@@ -21,7 +21,7 @@ import { trackingStartOn } from "@/server/domain/bikes";
 import type { RuleEvaluation } from "@/server/domain/rules";
 import { getEnv } from "@/server/env";
 import { today } from "@/server/time";
-import { evaluateBikeRules } from "@/server/views/rules";
+import { evaluateBikeRules, type EvaluatedRule } from "@/server/views/rules";
 
 // What the MCP tools answer (D-90): the data's own names and units (D-50), in snake_case, with
 // a French label where the assistant shows it to the owner. The frame number is never included.
@@ -88,14 +88,14 @@ export function describeComponent(
 }
 
 /**
- * A bike's active rules as the app evaluates them now (D-65, the same engine as "À prévoir"):
- * by rule id. Read inside a dry run, it is the state the write would leave.
+ * A bike's active rules as the app evaluates them now (D-65, the same engine as "À prévoir"),
+ * whatever the bike's status. Read inside a dry run, it is the state the write would leave.
  */
-export function evaluateRules(ctx: AccessContext, bikeId: number): Map<number, RuleEvaluation> {
+export function evaluatedBikeRules(ctx: AccessContext, bikeId: number): EvaluatedRule[] {
   const bike = getBike(ctx, bikeId);
-  if (!bike) return new Map();
+  if (!bike) return [];
   const { timeZone } = getEnv();
-  const evaluated = evaluateBikeRules({
+  return evaluateBikeRules({
     bike: {
       id: bike.id,
       name: bike.name,
@@ -110,7 +110,13 @@ export function evaluateRules(ctx: AccessContext, bikeId: number): Map<number, R
     today: today(),
     timeZone,
   });
-  return new Map(evaluated.map(({ rule, evaluation }) => [rule.id, evaluation]));
+}
+
+/** `evaluatedBikeRules` by rule id. */
+export function evaluateRules(ctx: AccessContext, bikeId: number): Map<number, RuleEvaluation> {
+  return new Map(
+    evaluatedBikeRules(ctx, bikeId).map(({ rule, evaluation }) => [rule.id, evaluation]),
+  );
 }
 
 export function describeRule(rule: Rule, ids: Ids = "real", evaluation?: RuleEvaluation) {

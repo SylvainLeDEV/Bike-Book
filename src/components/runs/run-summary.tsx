@@ -210,7 +210,7 @@ export function RunSummary({
                   <option value="">Aucune</option>
                   {summary.rules.map((rule) => (
                     <option key={rule.id} value={rule.id}>
-                      {rule.title}
+                      {rule.slot ? `${rule.title} · ${rule.slot}` : rule.title}
                     </option>
                   ))}
                 </NativeSelect>

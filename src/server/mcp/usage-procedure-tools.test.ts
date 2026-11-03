@@ -143,6 +143,101 @@ describe("get_bike_usage", () => {
   });
 });
 
+describe("get_bike_usage: rule_status and filters (D-100)", () => {
+  it("says ok when a part's rules are fine, null only without a rule", async () => {
+    const { ctx, token } = garage("Statuses");
+    const bikeId = addBike(ctx); // bought in 2021
+    const fit = async (fields: Record<string, unknown>) =>
+      (
+        await callTool(token, "add_component", {
+          bike_id: bikeId,
+          rules: [],
+          dry_run: false,
+          ...fields,
+        })
+      ).structuredContent.component.id as number;
+    const chain = await fit({ type_code: "chain", model: "CN-M8100" });
+    const tire = await fit({ type_code: "tire", position: "front", model: "Assegai" });
+    const cassette = await fit({ type_code: "cassette", model: "XT" });
+    const rule = (fields: Record<string, unknown>) =>
+      callTool(token, "add_rule", { bike_id: bikeId, dry_run: false, ...fields });
+    // A chain rule far from due, a tyre rule on both ends overdue since 2021; no cassette rule.
+    await rule({ component_type_code: "chain", title: "Usure", interval_distance_m: 3_000_000 });
+    await rule({ component_type_code: "tire", title: "Préventif", interval_days: 90 });
+
+    const usage = await callTool(token, "get_bike_usage", { bike_id: bikeId });
+    const statusOf = (id: number) =>
+      usage.structuredContent.parts.find((p: { component_id: number }) => p.component_id === id)
+        .rule_status;
+    expect(statusOf(chain)).toBe("ok");
+    expect(statusOf(tire)).toBe("overdue");
+    expect(statusOf(cassette)).toBeNull();
+  });
+
+  it("keeps one type or one part's slot; totals and cost stay the bike's", async () => {
+    const { ctx, token } = garage("Filters");
+    const bikeId = addBike(ctx);
+    const fit = async (fields: Record<string, unknown>) =>
+      (
+        await callTool(token, "add_component", {
+          bike_id: bikeId,
+          rules: [],
+          dry_run: false,
+          ...fields,
+        })
+      ).structuredContent.component.id as number;
+    const chain = await fit({ type_code: "chain", model: "CN-HG701" });
+    await fit({ type_code: "tire", position: "front", model: "Assegai" });
+    await fit({ type_code: "tire", position: "rear", model: "DHR II" });
+    const swap = await callTool(token, "replace_component", {
+      component_id: chain,
+      reason: "worn",
+      model: "CN-M8100",
+      dry_run: false,
+    });
+
+    const chains = await callTool(token, "get_bike_usage", { bike_id: bikeId, type_code: "chain" });
+    expect(chains.structuredContent.parts).toEqual([
+      expect.objectContaining({
+        component_id: swap.structuredContent.fitted.id,
+        previous_parts: [expect.objectContaining({ component_id: chain })],
+      }),
+    ]);
+    expect(chains.structuredContent.totals).toMatchObject({ distance_m: 1_000_000 });
+    expect(chains.structuredContent.cost).toMatchObject({ purchase_cents: 150_000 });
+    expect(chains.content[0]?.text).toMatch(/1 part\(s\) matching/);
+
+    const tires = await callTool(token, "get_bike_usage", { bike_id: bikeId, type_code: "tire" });
+    expect(tires.structuredContent.parts.map((p: { label: string }) => p.label)).toEqual([
+      "Pneu avant",
+      "Pneu arrière",
+    ]);
+    // A removed part: the slot it was in.
+    const old = await callTool(token, "get_bike_usage", { bike_id: bikeId, component_id: chain });
+    expect(old.structuredContent.parts).toHaveLength(1);
+    expect(old.structuredContent.parts[0].type_code).toBe("chain");
+    const none = await callTool(token, "get_bike_usage", { bike_id: bikeId, type_code: "rotor" });
+    expect(none.structuredContent.parts).toEqual([]);
+
+    const other = garage("Other");
+    const theirBike = addBike(other.ctx);
+    const theirs = await callTool(token, "get_bike_usage", {
+      bike_id: bikeId,
+      component_id: chain + 1000,
+    });
+    expect(theirs.structuredContent.errors).toEqual([
+      { field: "component_id", message: "Pièce introuvable sur ce vélo." },
+    ]);
+    const unknownBike = await callTool(token, "get_bike_usage", {
+      bike_id: theirBike,
+      component_id: chain,
+    });
+    expect(unknownBike.structuredContent.errors).toEqual([
+      { field: "bike_id", message: "Vélo introuvable." },
+    ]);
+  });
+});
+
 describe("create_procedure, update_procedure, archive_procedure", () => {
   const BLEED = {
     title: "Purge des freins Shimano",

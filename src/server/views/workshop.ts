@@ -112,6 +112,17 @@ export function loadGarage(ctx: AccessContext): Garage {
   return { bikes, ridable, rides, rules, items, procedures, runs };
 }
 
+/**
+ * The archived items, built as the others but serving no rule: the app lists none of them, the
+ * MCP's list_workshop_items does on request (D-100).
+ */
+export function archivedItems(ctx: AccessContext, garage: Garage): InventoryItemVM[] {
+  const { timeZone } = getEnv();
+  return listInventory(ctx)
+    .filter((item) => item.archivedAt != null)
+    .map((item) => itemVM(item, garage.bikes, garage.ridable, new Map(), timeZone));
+}
+
 /** "En cours" on a rule: its run in progress (D-87). */
 export function runOf(runs: RunInProgress[], ruleId: number): RuleRowVM["run"] {
   const run = runs.find((r) => r.ruleId === ruleId);

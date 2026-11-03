@@ -67,7 +67,8 @@ const partLabel = (component: Component | undefined) =>
     ? `${slotLabel(component.typeCode, component.position)}${component.model ? ` · ${component.model}` : ""}`
     : null;
 
-function describeEvent(
+/** An event as the tools answer it (record_maintenance, finish_run, list_maintenance…). */
+export function describeEvent(
   event: MaintenanceEvent,
   components: Component[],
   ruleTitles: Map<number, string>,
@@ -82,6 +83,8 @@ function describeEvent(
     performed_by: event.performedBy,
     shop: event.shop ? { name: event.shop.name, kind: event.shop.kind } : null,
     total_cost_cents: event.totalCostCents,
+    /** The time spent, typed at the end of a run (D-87); null otherwise. */
+    labor_time_s: event.laborTimeS,
     notes: event.notes,
     lines: event.items.map((item) => ({
       action: item.action,
@@ -464,7 +467,7 @@ const listMaintenanceTool = defineTool({
   title: "Historique d'entretien",
   kind: "read",
   description:
-    "The maintenance history, newest first: each event's day, title, who did it, costs, and its lines (action, part, the rule it fulfilled, a part replaced with the new one fitted, measures). Filters: bike_id, from and to (days, both included), component_id (lines on that part, as removed or fitted), rule_id (the times that rule was done), query (title, notes and lines' descriptions, ignoring case and accents). Answers \"when did I last…?\".",
+    "The maintenance history, newest first: each event's bike (id and name), day, title, who did it, costs, time spent (labor_time_s, a run's), and its lines (action, part, the rule it fulfilled, a part replaced with the new one fitted, measures). Filters: bike_id, from and to (days, both included), component_id (lines on that part, as removed or fitted), rule_id (the times that rule was done), query (title, notes and lines' descriptions, ignoring case and accents). Answers \"when did I last…?\".",
   input: z.strictObject({
     bike_id: z.number().optional().describe("Only this bike (list_bikes)."),
     from: z.string().optional().describe("First day, YYYY-MM-DD."),
@@ -512,10 +515,16 @@ const listMaintenanceTool = defineTool({
     );
     const { items, next_cursor } = paginate(events, (event) => String(event.id), page);
     return answer(`${items.length} of ${events.length} maintenance events.`, {
-      events: items.map((event) => ({
-        bike: { id: event.bikeId, name: names.get(event.bikeId) ?? "" },
-        ...describeEvent(event, components, titles, "real"),
-      })),
+      events: items.map((event) => {
+        // `bike` replaces `bike_id` here: the list spans bikes (D-100).
+        const { bike_id: eventBikeId, ...described } = describeEvent(
+          event,
+          components,
+          titles,
+          "real",
+        );
+        return { bike: { id: eventBikeId, name: names.get(eventBikeId) ?? "" }, ...described };
+      }),
       next_cursor,
     });
   },

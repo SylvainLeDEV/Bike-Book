@@ -967,8 +967,9 @@ procedure later changes nothing in it, and the steps added along the way.
 
 - one maintenance event of the bike (`performed_by = 'self'`) with one line: the action chosen
   (`serviced`, "Entretenu", by default; never `replaced`), the bike's part of the procedure's type when it has
-  only one, the rule reset (the run's rule, or the bike's rule pointing to the procedure, ticked by
-  default), the cost (the parts at their last purchase price, editable), "Fiche suivie : …" as its
+  only one, the rule reset (the run's rule, else the bike's rule pointing to the procedure, else
+  the bike's only active rule on the procedure's part type, D-100; ticked by default; each rule
+  shown with its slot, the procedure's part type first), the cost (the parts at their last purchase price, editable), "Fiche suivie : …" as its
   description, the time spent and the notes on the event. A part replaced from the summary
   through "Remplacer une pièce" made an event that day: the run joins it (D-63), its notes and
   time added to the event's, and that part's quantity is set to 0;

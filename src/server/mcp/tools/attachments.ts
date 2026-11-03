@@ -84,7 +84,7 @@ const getUploadLinkTool = defineTool({
   name: "get_upload_link",
   title: "Lien d'envoi d'un fichier",
   kind: "read",
-  description: `A link to send photos or PDFs to one element from the owner's computer: the file never goes through these tools. Send each file as the raw body of a POST to url, with the link in X-Upload-Link and its name in X-File-Name (URL-encoded): curl -sS -X POST --data-binary @"<path>" -H "X-Upload-Link: <link>" -H "X-File-Name: <name>" "<url>". Never write the link into a file or a URL. The answer is 201 {"id": <attachment id>}, else {"error", "message"} in French. The link works for that element for 15 minutes, for several files, and stops if the token is revoked. Accepted: ${UPLOAD_ACCEPT} (checked from the content), ${MAX_UPLOAD_BYTES / 1024 / 1024} MB at most; HEIC is refused: convert it first (macOS: sips -s format jpeg in.heic --out out.jpg). as_cover: the first photo sent becomes the element's photo (a bike or a workshop item). A photo sent from the phone to Claude Code is saved under ~/.claude/uploads/. Then update_attachment sets its caption or kind (invoice, manual).`,
+  description: `A link to send photos or PDFs to one element from the owner's computer: the file never goes through these tools. Send each file as the raw body of a POST to url, with the link in X-Upload-Link and its name in X-File-Name (URL-encoded): curl -sS -X POST --data-binary @"<path>" -H "X-Upload-Link: <link>" -H "X-File-Name: <name>" "<url>". Never write the link into a file or a URL. The answer is 201 {"id": <attachment id>}, else {"error", "message"} in French; error link_invalid (401): the link has expired, its token was revoked, or it is another element's: ask for a new link. The link works for that element for 15 minutes, for several files, and stops if the token is revoked. Accepted: ${UPLOAD_ACCEPT} (checked from the content), ${MAX_UPLOAD_BYTES / 1024 / 1024} MB at most; HEIC is refused: convert it first (macOS: sips -s format jpeg in.heic --out out.jpg). as_cover: the first photo sent becomes the element's photo (a bike or a workshop item). A photo sent from the phone to Claude Code is saved under ~/.claude/uploads/. Then update_attachment sets its caption or kind (invoice, manual).`,
   input: z.strictObject({
     ...ownerInput,
     as_cover: z
@@ -215,7 +215,7 @@ const deleteAttachmentTool = defineTool({
   title: "Supprimer une pièce jointe",
   kind: "delete",
   description:
-    "Deletes a photo or a PDF sent by mistake, as the app's \"Supprimer\": the file and its copies, for good; an element's photo goes back to none. The dry run says what would go; delete only once the owner has confirmed.",
+    "Deletes a photo or a PDF sent by mistake, as the app's \"Supprimer\": the file and its copies, for good; an element's photo goes back to none (the dry run warns). The dry run says what would go; delete only once the owner has confirmed.",
   input: z.strictObject({
     attachment_id: z.number().describe("The attachment (list_attachments)."),
     dry_run: dryRunInput,
@@ -229,12 +229,18 @@ const deleteAttachmentTool = defineTool({
       );
     }
     const described = attachmentsOf(ctx, current.owner)!.find((a) => a.id === id)!;
+    const coverWarning = (would: boolean) =>
+      described.is_cover
+        ? [
+            `This photo is the ${current.owner.kind === "bike" ? "bike" : "workshop item"}'s photo: it ${would ? "would have" : "now has"} none (update_attachment is_cover true makes another photo its photo).`,
+          ]
+        : [];
     // Never through previewWrite: the file is removed once the row is gone (D-76).
     if (dryRun) {
       return answer(`Dry run: would delete "${described.name}". Nothing was deleted.`, {
         dry_run: true,
         attachment: described,
-        warnings: [],
+        warnings: coverWarning(true),
       });
     }
     if (!deleteAttachment(ctx, id).ok) {
@@ -247,7 +253,7 @@ const deleteAttachmentTool = defineTool({
     return answer(`Deleted "${described.name}".`, {
       dry_run: false,
       attachment: described,
-      warnings: [],
+      warnings: coverWarning(false),
     });
   },
 });

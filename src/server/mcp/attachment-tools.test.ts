@@ -142,14 +142,27 @@ describe("get_upload_link and the upload route", () => {
     const target = createUploadLink(tokenCtx, { kind: "bike", id: bikeId });
     const bytes = await photo();
 
+    // A link that does not authenticate answers link_invalid, not signed_out (D-100).
+    const linkInvalid = {
+      status: 401,
+      body: {
+        error: "link_invalid",
+        message:
+          "Ce lien d'envoi n'est pas valable pour cet élément ou a expiré : demandes-en un nouveau.",
+      },
+    };
     // Another element with the same link.
     const moved = { ...target, url: target.url.replace(`id=${bikeId}`, `id=${other}`) };
-    expect((await send(moved, bytes, "a.jpg")).status).toBe(401);
-    // A tampered signature, or no link.
+    expect(await send(moved, bytes, "a.jpg")).toEqual(linkInvalid);
+    // A tampered signature.
     expect(
-      (await send({ ...target, link: `${target.link.slice(0, -2)}xx` }, bytes, "a.jpg")).status,
-    ).toBe(401);
-    expect((await send({ ...target, link: "" }, bytes, "a.jpg")).status).toBe(401);
+      await send({ ...target, link: `${target.link.slice(0, -2)}xx` }, bytes, "a.jpg"),
+    ).toEqual(linkInvalid);
+    // No link and no session: signed out.
+    expect(await send({ ...target, link: "" }, bytes, "a.jpg")).toMatchObject({
+      status: 401,
+      body: { error: "signed_out" },
+    });
     // Expired.
     const old = createUploadLink(
       tokenCtx,
@@ -158,14 +171,14 @@ describe("get_upload_link and the upload route", () => {
         now: Date.now() - UPLOAD_LINK_TTL_MS - 1,
       },
     );
-    expect((await send(old, bytes, "a.jpg")).status).toBe(401);
+    expect(await send(old, bytes, "a.jpg")).toEqual(linkInvalid);
     // HEIC or anything not a photo or a PDF is refused, as in the browser.
     const text = await send(target, new TextEncoder().encode("not a photo"), "a.txt");
     expect(text).toMatchObject({ status: 415, body: { error: "unsupported" } });
     // Valid, then revoked.
     expect((await send(target, bytes, "a.jpg")).status).toBe(201);
     revokeApiToken(ctx, tokenId);
-    expect((await send(target, bytes, "b.jpg")).status).toBe(401);
+    expect(await send(target, bytes, "b.jpg")).toEqual(linkInvalid);
     expect(listAttachments(ctx, { kind: "bike", id: bikeId })).toHaveLength(1);
   });
 
@@ -230,8 +243,20 @@ describe("update_attachment and delete_attachment", () => {
     });
     expect(invoice.structuredContent.attachment.kind).toBe("invoice");
 
-    await callTool(token, "delete_attachment", { attachment_id: sentPdf, dry_run: true });
+    const pdfPreview = await callTool(token, "delete_attachment", {
+      attachment_id: sentPdf,
+      dry_run: true,
+    });
+    expect(pdfPreview.structuredContent.warnings).toEqual([]);
     expect(listAttachments(ctx, { kind: "bike", id: bikeId })).toHaveLength(2);
+    // The bike's photo: the dry run warns that it will have none (D-100).
+    const coverPreview = await callTool(token, "delete_attachment", {
+      attachment_id: sentPhoto,
+      dry_run: true,
+    });
+    expect(coverPreview.structuredContent.warnings).toEqual([
+      "This photo is the bike's photo: it would have none (update_attachment is_cover true makes another photo its photo).",
+    ]);
     await callTool(token, "delete_attachment", { attachment_id: sentPdf, dry_run: false });
     expect(listAttachments(ctx, { kind: "bike", id: bikeId })?.map((a) => a.id)).toEqual([
       sentPhoto,

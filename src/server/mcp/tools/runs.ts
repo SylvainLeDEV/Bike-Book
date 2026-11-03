@@ -3,7 +3,7 @@ import { z } from "zod";
 import { formatItemStock } from "@/lib/display";
 import { MAINTENANCE_LINE_ACTIONS, PRODUCT_LEVELS } from "@/lib/enums";
 import { procedureNeeds } from "@/lib/procedures";
-import { partsCostCents, uncheckedSteps, uncheckedText } from "@/lib/runs";
+import { partsCostCents, uncheckedSteps } from "@/lib/runs";
 import type { RunVM } from "@/lib/view-models";
 import { finishRunSchema, parseFinishRun } from "@/server/actions/run-input";
 import {
@@ -12,6 +12,8 @@ import {
   finishRun,
   getRun,
   listAttachments,
+  listComponents,
+  listMaintenanceEvents,
   listRules,
   previewWrite,
   startRun,
@@ -34,6 +36,7 @@ import {
   ToolRefusal,
   type FieldError,
 } from "../tool";
+import { describeEvent } from "./maintenance";
 import { describeNeed } from "./procedures";
 
 // Runs ("suivi", D-82, D-87) through the MCP (D-98): start one from a task, a rule or a
@@ -47,11 +50,37 @@ function runUrl(runId: number): string {
   return `${getEnv().publicUrl}/runs/${runId}`;
 }
 
+/** A run's steps, numbered from 1, as its screen shows them. */
+function describeSteps(vm: RunVM, ids: Ids) {
+  return vm.steps.map((step, index) => ({
+    id: ids === "real" ? step.id : null,
+    number: index + 1,
+    instruction: step.instruction,
+    note: step.note,
+    torque_nm: step.torqueNm,
+    done: step.done,
+    comment: step.comment,
+    added_along_the_way: step.added,
+  }));
+}
+
+/**
+ * The steps not checked, for the assistant: warnings are in English (D-100), the app's own
+ * sentence ("L'étape 2 n'est pas cochée.") is for the owner's screen.
+ */
+function uncheckedWarning(numbers: number[]): string | null {
+  if (!numbers.length) return null;
+  const which =
+    numbers.length === 1
+      ? `Step ${numbers[0]} is`
+      : `Steps ${numbers.slice(0, -1).join(", ")} and ${numbers.at(-1)} are`;
+  return `${which} not checked (unchecked_steps): ask the owner whether ${numbers.length === 1 ? "it was" : "they were"} done; unchecked steps never block finishing.`;
+}
+
 /** A run as its screen shows it: steps, material for its bike, and the summary it proposes. */
 function describeRun(vm: RunVM, ids: Ids) {
   const real = ids === "real";
   const summary = vm.summary;
-  const unchecked = uncheckedSteps(vm.steps);
   return {
     id: real ? vm.id : null,
     title: vm.title,
@@ -60,17 +89,8 @@ function describeRun(vm: RunVM, ids: Ids) {
     context: vm.context,
     started_on: vm.startedOn,
     procedure: vm.procedure,
-    steps: vm.steps.map((step, index) => ({
-      id: real ? step.id : null,
-      number: index + 1,
-      instruction: step.instruction,
-      note: step.note,
-      torque_nm: step.torqueNm,
-      done: step.done,
-      comment: step.comment,
-      added_along_the_way: step.added,
-    })),
-    unchecked_steps: unchecked,
+    steps: describeSteps(vm, ids),
+    unchecked_steps: uncheckedSteps(vm.steps),
     material: procedureNeeds(vm.lines, vm.items, vm.bike?.id ?? null).map(describeNeed),
     resources: vm.resources.map((r) => ({
       kind: r.kind,
@@ -82,9 +102,16 @@ function describeRun(vm: RunVM, ids: Ids) {
     summary: summary
       ? {
           writes_event: summary.writesEvent,
+          /** The bike's fitted parts, the procedure's part type first. */
           components: summary.components,
           default_component_id: summary.defaultComponentId,
-          rules: summary.rules,
+          /** The bike's active rules, the default and the procedure's part type first. */
+          rules: summary.rules.map((rule) => ({
+            id: rule.id,
+            title: rule.title,
+            /** "Frein arrière", "Freins avant et arrière"; null for a bike-level rule. */
+            slot_label: rule.slot,
+          })),
           default_rule_id: summary.defaultRuleId,
           parts: summary.parts.map((part) => ({
             item_id: part.itemId,
@@ -213,7 +240,7 @@ const updateRunStepsTool = defineTool({
   title: "Étapes d'un suivi",
   kind: "write",
   description:
-    'Checks the steps of a run in progress as the owner does them ("Étape faite"), and keeps their comments ("serré à 6 N·m", "joint changé"). Each step: done (true or false), comment (null clears it). Guide the owner one step at a time and check each as they say it is done. Call with dry_run true first.',
+    'Checks the steps of a run in progress as the owner does them ("Étape faite"), and keeps their comments ("serré à 6 N·m", "joint changé"). Each step: done (true or false), comment (null clears it). Guide the owner one step at a time and check each as they say it is done. The answer gives the run\'s steps and unchecked_steps (their numbers) only; get_run gives the rest. Call with dry_run true first.',
   input: z.strictObject({
     run_id: z.number().describe("The run (start_run)."),
     steps: z
@@ -259,14 +286,22 @@ const updateRunStepsTool = defineTool({
           throw new ToolRefusal([{ field: "run_id", message: "Ce suivi est terminé." }], REFUSED);
         }
       }
-      return describeRun(runPage(ctx, runId)!, "real");
+      const vm = runPage(ctx, runId)!;
+      return { steps: describeSteps(vm, "real"), unchecked: uncheckedSteps(vm.steps) };
     };
     const after = dryRun ? previewWrite(write) : atomically(write);
     if (!dryRun) logWrite(ctx, "update_run_steps", { run_id: runId });
-    const left = after.unchecked_steps.length;
+    const left = after.unchecked.length;
+    // The steps only (D-100): get_run gives the material and the summary when they are needed.
     return answer(
       `${dryRun ? "Dry run: " : ""}${after.steps.length - left} of ${after.steps.length} steps done.${dryRun ? " Nothing was written." : ""}`,
-      { dry_run: dryRun, run: after, warnings: [] },
+      {
+        dry_run: dryRun,
+        run_id: runId,
+        steps: after.steps,
+        unchecked_steps: after.unchecked,
+        warnings: [],
+      },
     );
   },
 });
@@ -278,7 +313,7 @@ const finishRunTool = defineTool({
   title: "Terminer un suivi",
   kind: "write",
   description:
-    "Finishes a run, as \"Terminer\" then \"Enregistrer l'entretien\", in one transaction: a maintenance event (day, title, notes, time spent) with one line (action, part, the rule it fulfils: its counter restarts), the parts taken from the workshop (units) and the products' open container after the job (level), the task done. Every field left out takes what get_run's summary proposes (parts at their default quantity, products one level down, the cost of the parts taken); parts: [] or products: [] take none. A general task's run writes no event: the task is done. join_event_id adds the line to an event of the same bike and day (a replacement made for the job, replace_component). Unchecked steps are warned about, never blocking. Undo: delete_maintenance on its event gives the stock back. Call with dry_run true first.",
+    "Finishes a run, as \"Terminer\" then \"Enregistrer l'entretien\", in one transaction: a maintenance event (day, title, notes, time spent) with one line (action, part, the rule it fulfils: its counter restarts), the parts taken from the workshop (units) and the products' open container after the job (level), the task done. Every field left out takes what get_run's summary proposes (parts at their default quantity, products one level down, the cost of the parts taken); parts: [] or products: [] take none. A general task's run writes no event: the task is done. join_event_id adds the line to an event of the same bike and day (a replacement made for the job, replace_component). The answer gives the event as written (day, title, performed_by, labor_time_s, notes, its lines with their cost; the dry run shows it whole, without ids), the stock before and after, the rule restarted. Unchecked steps are warned about, never blocking. Undo: delete_maintenance on its event gives the stock back. Call with dry_run true first.",
   input: z.strictObject({
     run_id: z.number().describe("The run (start_run, list_due_work)."),
     performed_on: z.string().optional().describe("YYYY-MM-DD, not in the future (default today)."),
@@ -388,8 +423,22 @@ const finishRunTool = defineTool({
       const garage = loadGarage(ctx);
       const used = [...parts.map((p) => p.itemId), ...products.map((p) => p.itemId)];
       const evaluations = vm.bike ? evaluateRules(ctx, vm.bike.id) : new Map();
+      // The event as written (or the one joined, with its other lines): the dry run shows it whole.
+      const written =
+        vm.bike && outcome.eventId != null
+          ? listMaintenanceEvents(ctx, vm.bike.id).find((e) => e.id === outcome.eventId)
+          : undefined;
       return {
         outcome,
+        event:
+          vm.bike && written
+            ? describeEvent(
+                written,
+                listComponents(ctx, vm.bike.id),
+                new Map([...rules].map(([id, rule]) => [id, rule.title])),
+                ids,
+              )
+            : null,
         stock: [...new Set(used)].flatMap((id) => {
           const item = garage.items.find((i) => i.id === id);
           return item
@@ -414,7 +463,7 @@ const finishRunTool = defineTool({
     if (!dryRun) {
       logWrite(ctx, "finish_run", { run_id: runId, event_id: result.outcome.eventId });
     }
-    const unchecked = uncheckedText(uncheckedSteps(vm.steps));
+    const unchecked = uncheckedWarning(uncheckedSteps(vm.steps));
     const toRebuy = result.stock.filter((s) => s.rebuy_state === "low_stock");
     return answer(
       dryRun
@@ -422,19 +471,12 @@ const finishRunTool = defineTool({
         : `Finished "${data.title}"${result.outcome.eventId ? ` (event ${result.outcome.eventId})` : ""}.`,
       {
         dry_run: dryRun,
-        event_id: ids === "real" ? result.outcome.eventId : null,
-        line: data.line
-          ? {
-              action: data.line.action,
-              component_id: data.line.componentId,
-              rule_id: data.line.ruleId,
-              cost_cents: data.line.costCents,
-            }
-          : null,
+        /** The maintenance event written, whole (null for a general task's run: no event). */
+        event: result.event,
         stock: result.stock,
         rule_restarted: result.rule,
         warnings: [
-          ...(unchecked ? [`${unchecked} (unchecked steps never block)`] : []),
+          ...(unchecked ? [unchecked] : []),
           ...toRebuy.map(
             (s) => `"${s.name}" reaches its low stock: set_restock puts it on the list.`,
           ),

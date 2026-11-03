@@ -18,7 +18,7 @@ bikes and parts dictated to Claude Code, personal tokens in Paramètres; the sam
 what is to do, the workshop and the procedures through it (D-92), then maintenance done (D-93),
 restocking and edits (D-94), history and setups (D-95), usage and procedures (D-96), rides imported
 in batches (D-97), runs and deletes for mistakes (D-98), photos and PDFs through upload
-links (D-99).
+links (D-99); then the answers fixed after a real-use test (D-100, ready for 0.4.1).
 
 ## Read first
 
@@ -91,7 +91,15 @@ links (D-99).
   `update_run_steps`, `finish_run`, `abandon_run`), `delete_maintenance`, `update_setup`,
   `delete_setup`. Since D-99: `get_upload_link` (a signed link, 15 minutes, one element, in the
   `X-Upload-Link` header: the assistant sends files from the computer with curl, never through the
-  MCP), `list_attachments`, `update_attachment`, `delete_attachment`.
+  MCP), `list_attachments`, `update_attachment`, `delete_attachment`. Since D-100 (the real-use
+  test): `get_bike_usage`'s `rule_status` says `ok` (null only without a rule) and takes
+  `type_code` or `component_id`; an upload link that fails answers `link_invalid`; `finish_run`
+  answers the whole event (its dry run too); the run's summary falls back to the only rule on the
+  procedure's part type and names each rule's slot; `rebuy_reason` in snake_case (`to_order`);
+  `include_archived` on `list_workshop_items`; one key per thing (`delete_ride`'s `ride`,
+  `create_rides`' `after` shaped as `before`); `update_run_steps` answers the steps only.
+  Summaries and warnings are in English for the assistant (said in the server instructions),
+  one language per warning; French only for the app's own words and `errors[].message`.
 - **Setup (D-79, D-81):** a fork's or shock's spring, travel and adjusters (clicks from fully
   closed) live on the part (`suspension_specs`); each setup is a dated full copy whose values belong
   to the part measured. Advice only from manufacturers' documents, each with its source and date.
@@ -154,7 +162,7 @@ src/
 │   │               # attachments' originals under uploads/
 │   ├── files/      # uploads on disk: streaming to a temp file, atomic rename, sharp copies in
 │   │               # cache/ (upright, no metadata), generated demo photos and PDFs (D-76)
-│   ├── mcp/        # MCP server (D-90, D-92 to D-99): tools/ (bikes, components, rules,
+│   ├── mcp/        # MCP server (D-90, D-92 to D-100): tools/ (bikes, components, rules,
 │   │               # rides, maintenance, setups, usage, runs, attachments, todo, workshop,
 │   │               # procedures: one file per domain),
 │   │               # registry.ts, server.ts, http.ts (stateless JSON transport), tool.ts

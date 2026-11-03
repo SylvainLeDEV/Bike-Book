@@ -131,8 +131,11 @@ export function getRunPage(ctx: AccessContext, runId: number): RunVM | null {
 
 /**
  * What the summary proposes (D-87): the bike's parts and rules for the event's line (the part of
- * the procedure's type when it is the only one, the run's rule or the one pointing to the
- * procedure), the parts and products of its material read for the bike, its duration.
+ * the procedure's type when it is the only one; the run's rule, else the one pointing to the
+ * procedure, else the only active rule on the procedure's part type, D-100), the parts and
+ * products of its material read for the bike, its duration. Parts and rules list the
+ * procedure's part type first, each rule with its slot ("Frein arrière"): two "Purge des freins"
+ * are told apart.
  */
 function summaryOf(
   ctx: AccessContext,
@@ -160,11 +163,22 @@ function summaryOf(
     };
   }
   const slots = page.replace.slots;
-  const ofType = procedure?.componentTypeCode
-    ? slots.filter((slot) => slot.componentTypeCode === procedure.componentTypeCode)
-    : [];
-  const rules = page.vm.rules.map((rule) => ({ id: rule.id, title: rule.title }));
-  const pointing = page.vm.rules.find((rule) => rule.procedure?.id === run.procedureId);
+  const typeCode = procedure?.componentTypeCode ?? null;
+  const ofType = typeCode ? slots.filter((slot) => slot.componentTypeCode === typeCode) : [];
+  // The bike's active rules (page.vm.rules, by urgency) and the part type each targets.
+  const ruleTypes = new Map(listRules(ctx, run.bikeId).map((r) => [r.id, r.componentTypeCode]));
+  const isOfType = (ruleId: number) => typeCode != null && ruleTypes.get(ruleId) === typeCode;
+  const pointing =
+    run.procedureId == null
+      ? undefined
+      : page.vm.rules.find((rule) => rule.procedure?.id === run.procedureId);
+  const rulesOfType = page.vm.rules.filter((rule) => isOfType(rule.id));
+  const defaultRuleId =
+    run.ruleId ?? pointing?.id ?? (rulesOfType.length === 1 ? rulesOfType[0].id : null);
+  const rank = (ruleId: number) => (ruleId === defaultRuleId ? 0 : isOfType(ruleId) ? 1 : 2);
+  const rules = page.vm.rules
+    .map((rule) => ({ id: rule.id, title: rule.title, slot: rule.slot?.typeLabel ?? null }))
+    .sort((a, b) => rank(a.id) - rank(b.id));
 
   const parts = new Map<number, RunPartVM>();
   const products = new Map<number, RunProductVM>();
@@ -195,13 +209,13 @@ function summaryOf(
   return {
     today: day,
     writesEvent: true,
-    components: slots.map((slot) => ({
+    components: [...ofType, ...slots.filter((slot) => !ofType.includes(slot))].map((slot) => ({
       id: slot.componentId,
       label: `${slot.label} · ${slot.fitted.model}`,
     })),
     defaultComponentId: ofType.length === 1 ? ofType[0].componentId : null,
     rules,
-    defaultRuleId: run.ruleId ?? pointing?.id ?? null,
+    defaultRuleId,
     parts: [...parts.values()],
     products: [...products.values()],
     laborMinutes,

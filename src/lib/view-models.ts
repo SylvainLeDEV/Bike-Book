@@ -1054,11 +1054,15 @@ export type RunSummaryVM = {
   today: LocalDate;
   /** False for a general task's run: no event, the task is done. */
   writesEvent: boolean;
-  /** The bike's fitted parts, for the event's line. */
+  /** The bike's fitted parts, for the event's line: the procedure's part type first. */
   components: { id: number; label: string }[];
   defaultComponentId: number | null;
-  /** The bike's active rules: the one to reset, that of the run or pointing to its procedure first. */
-  rules: { id: number; title: string }[];
+  /**
+   * The bike's active rules: the one to reset first (the run's, else the one pointing to its
+   * procedure, else the only one on its part type, D-100), then those on its part type. `slot`:
+   * "Frein arrière", "Freins avant et arrière"; null for a bike-level rule.
+   */
+  rules: { id: number; title: string; slot: string | null }[];
   defaultRuleId: number | null;
   parts: RunPartVM[];
   products: RunProductVM[];

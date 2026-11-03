@@ -16,7 +16,9 @@ import { storeUpload } from "@/server/files/upload";
  *   X-File-Name: <encodeURIComponent(file.name)>
  * Without a session, a signed upload link for that element in `X-Upload-Link` (D-99) stands for
  * it: the MCP's get_upload_link answers one, so an assistant sends a file without handling a
- * token. A header, never the URL: access logs keep URLs.
+ * token. A header, never the URL: access logs keep URLs. A link that does not authenticate
+ * (expired, its token revoked, another element, tampered) answers `link_invalid`, not
+ * `signed_out`, so the assistant asks for a new one rather than for a sign-in (D-100).
  */
 
 const query = z.object({
@@ -35,6 +37,7 @@ const STATUS: Record<UploadErrorCode, number> = {
   aborted: 400,
   not_found: 404,
   signed_out: 401,
+  link_invalid: 401,
   invalid: 400,
 };
 
@@ -62,7 +65,7 @@ export async function POST(request: Request) {
     (params.success && link
       ? authenticateUploadLink(link, { kind: params.data.owner, id: params.data.id })
       : null);
-  if (!ctx) return refuse("signed_out");
+  if (!ctx) return refuse(!link ? "signed_out" : params.success ? "link_invalid" : "invalid");
   if (!params.success || !request.body) return refuse("invalid");
   // A declared size over the limit is refused before reading; the stream is checked anyway.
   if (Number(request.headers.get("content-length") ?? 0) > MAX_UPLOAD_BYTES) {

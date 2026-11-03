@@ -24,6 +24,7 @@ export type UploadErrorCode =
   | "aborted"
   | "not_found"
   | "signed_out"
+  | "link_invalid"
   | "invalid";
 
 export const UPLOAD_ERROR_MESSAGES: Record<UploadErrorCode, string> = {
@@ -35,6 +36,8 @@ export const UPLOAD_ERROR_MESSAGES: Record<UploadErrorCode, string> = {
   aborted: "Envoi interrompu. Réessaie.",
   not_found: "Cet élément n'existe plus.",
   signed_out: "Ta session a expiré : reconnecte-toi.",
+  link_invalid:
+    "Ce lien d'envoi n'est pas valable pour cet élément ou a expiré : demandes-en un nouveau.",
   invalid: "Envoi refusé.",
 };
 

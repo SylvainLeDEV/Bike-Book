@@ -462,7 +462,7 @@ const deleteRideTool = defineTool({
     logWrite(ctx, "delete_ride", { ride_id: rideId });
     return answer(`Deleted ride ${rideId} (${described.on}, ${described.bike.name}).`, {
       dry_run: false,
-      deleted: described,
+      ride: described,
       attachment_count: attachmentCount,
       warnings: [],
       bike_url: bikeUrl(ride.bikeId),
@@ -478,7 +478,7 @@ const createRidesTool = defineTool({
   name: "create_rides",
   title: "Importer des sorties",
   kind: "write",
-  description: `Adds up to ${MAX_BATCH} rides at once (a spreadsheet or a log read by the assistant), each as create_ride's fields with its bike_id, in one transaction: one ride refused refuses them all, its errors named rides[3].duration_s. They are rides like the ones typed (source manual). A ride before the bike's purchase day is refused. The dry run warns about rides within 30 minutes of another of the same bike (in the app or in the batch; skip_duplicates true leaves out those matching a ride already in the app) and about bikes or parts with counters from before tracking: they may already hold this history's wear, so ask the owner whether to lower them (update_bike, update_component) before writing. The answer gives the ids created (undo: delete_rides), each bike's totals before and after, and the rules made due. Call with dry_run true first.`,
+  description: `Adds up to ${MAX_BATCH} rides at once (a spreadsheet or a log read by the assistant), each as create_ride's fields with its bike_id, in one transaction: one ride refused refuses them all, its errors named rides[3].duration_s. They are rides like the ones typed (source manual). A ride before the bike's purchase day is refused. The dry run warns about rides within 30 minutes of another of the same bike (in the app or in the batch; skip_duplicates true leaves out those matching a ride already in the app) and about bikes or parts with counters from before tracking: they may already hold this history's wear, so ask the owner whether to lower them (update_bike, update_component) before writing. The answer gives the ids created (undo: delete_rides), the rides skipped (rides[index] and the ride it matches, matching_ride_id), each bike's totals before and after (ride_count, distance_m, wear_time_s), and the rules made due. Call with dry_run true first.`,
   input: z.strictObject({
     rides: z
       .array(
@@ -531,7 +531,7 @@ const createRidesTool = defineTool({
     // Duplicates: against the app's rides (skipped on request), then inside the batch.
     const bikeIds = [...new Set(prepared.map((p) => p.data.bikeId))];
     const existing = new Map(bikeIds.map((id) => [id, listRides(ctx, { bikeId: id })]));
-    const skipped: number[] = [];
+    const skipped: { index: number; matchingRideId: number }[] = [];
     const duplicates: number[] = [];
     const kept = prepared.filter(({ index, data }) => {
       const near = ridesNear(existing.get(data.bikeId) ?? [], {
@@ -539,7 +539,12 @@ const createRidesTool = defineTool({
         startedAt: data.startedAt,
       });
       if (near.length && skipDuplicates) {
-        skipped.push(index);
+        const closest = near.reduce((best, ride) =>
+          Math.abs(ride.startedAt - data.startedAt) < Math.abs(best.startedAt - data.startedAt)
+            ? ride
+            : best,
+        );
+        skipped.push({ index, matchingRideId: closest.id });
         return false;
       }
       if (near.length) duplicates.push(index);
@@ -590,18 +595,21 @@ const createRidesTool = defineTool({
       );
     }
 
+    /** Each bike's totals, by bike id: the same shape before and after (D-100). */
     const totalsOf = () =>
-      bikeIds.map((id) => {
-        const rides = listRides(ctx, { bikeId: id });
-        const bike = bikes.get(id)!;
-        return {
-          bike_id: id,
-          name: bike.name,
-          ride_count: rides.length,
-          distance_m: bike.initialDistanceM + rides.reduce((sum, r) => sum + (r.distanceM ?? 0), 0),
-          wear_time_s: bike.initialWearS + rides.reduce((sum, r) => sum + rideWear(r).wearS, 0),
-        };
-      });
+      new Map(
+        bikeIds.map((id) => {
+          const rides = listRides(ctx, { bikeId: id });
+          const bike = bikes.get(id)!;
+          const totals = {
+            ride_count: rides.length,
+            distance_m:
+              bike.initialDistanceM + rides.reduce((sum, r) => sum + (r.distanceM ?? 0), 0),
+            wear_time_s: bike.initialWearS + rides.reduce((sum, r) => sum + rideWear(r).wearS, 0),
+          };
+          return [id, totals] as const;
+        }),
+      );
     const before = totalsOf();
     const statuses = statusesOf(ctx, bikeIds);
     const write = () => {
@@ -622,16 +630,17 @@ const createRidesTool = defineTool({
         dry_run: dryRun,
         created_count: kept.length,
         ride_ids: dryRun ? null : result.ids,
-        skipped: skipped.map((index) => ({ index, reason: "duplicate" })),
-        bikes: before.map((b) => ({
-          bike_id: b.bike_id,
-          name: b.name,
-          before: {
-            ride_count: b.ride_count,
-            distance_m: b.distance_m,
-            wear_time_s: b.wear_time_s,
-          },
-          after: result.after.find((a) => a.bike_id === b.bike_id),
+        /** The rides left out: rides[index], within 30 minutes of that ride in the app. */
+        skipped: skipped.map(({ index, matchingRideId }) => ({
+          index,
+          reason: "duplicate",
+          matching_ride_id: matchingRideId,
+        })),
+        bikes: bikeIds.map((id) => ({
+          bike_id: id,
+          name: bikes.get(id)!.name,
+          before: before.get(id)!,
+          after: result.after.get(id)!,
         })),
         rules_made_due: result.madeDue,
         warnings: [...warnings, ...dueWarnings(result.madeDue, dryRun)],

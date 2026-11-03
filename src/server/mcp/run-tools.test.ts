@@ -147,7 +147,17 @@ describe("runs", () => {
       run_id: runId,
       steps: [{ step_id: first!.id, done: true, comment: "Roue sur le pied" }],
     });
-    expect(checked.run.steps[0]).toMatchObject({ done: true, comment: "Roue sur le pied" });
+    // The steps only (D-100): no material, no summary.
+    expect(Object.keys(checked).sort()).toEqual(
+      ["dry_run", "run_id", "steps", "unchecked_steps", "warnings"].sort(),
+    );
+    expect(checked).toMatchObject({ run_id: runId, unchecked_steps: [2] });
+    expect(checked.steps[0]).toMatchObject({
+      id: first!.id,
+      number: 1,
+      done: true,
+      comment: "Roue sur le pied",
+    });
     const unknown = await callTool(token, "update_run_steps", {
       run_id: runId,
       steps: [{ step_id: 999_999, done: true }],
@@ -177,12 +187,39 @@ describe("runs", () => {
       { field: "performed_on", message: "La date ne peut pas être dans le futur." },
     ]);
 
-    const dry = await callTool(token, "finish_run", { run_id: runId, dry_run: true });
-    expect(dry.structuredContent).toMatchObject({
-      line: { action: "serviced", component_id: brake, rule_id: ruleId },
-      rule_restarted: { id: ruleId, status: "ok" },
-      warnings: [expect.stringMatching(/étape 2 n'est pas cochée/)],
+    const dry = await callTool(token, "finish_run", {
+      run_id: runId,
+      notes: "Purge propre",
+      dry_run: true,
     });
+    // The whole event that would be written, without ids (D-100).
+    expect(dry.structuredContent).toMatchObject({
+      event: {
+        id: null,
+        bike_id: bikeId,
+        on: today(),
+        title: "Purge du frein arrière",
+        performed_by: "self",
+        labor_time_s: 2700,
+        notes: "Purge propre",
+        lines: [
+          {
+            action: "serviced",
+            component_id: brake,
+            rule_id: ruleId,
+            rule_title: "Purge arrière",
+            description: "Fiche suivie : Purge du frein arrière",
+          },
+        ],
+        url: null,
+      },
+      rule_restarted: { id: ruleId, status: "ok" },
+    });
+    expect(dry.structuredContent).not.toHaveProperty("line");
+    // One language per warning: English, for the assistant.
+    expect(dry.structuredContent.warnings).toEqual([
+      "Step 2 is not checked (unchecked_steps): ask the owner whether it was done; unchecked steps never block finishing.",
+    ]);
     expect(stockOf(ctx, pads)).toMatchObject({ quantity: 2 });
 
     await write(token, "update_run_steps", {
@@ -190,7 +227,11 @@ describe("runs", () => {
       steps: [{ step_id: second!.id, done: true }],
     });
     const finished = await write(token, "finish_run", { run_id: runId, notes: "Purge propre" });
-    expect(finished.event_id).toEqual(expect.any(Number));
+    expect(finished.event).toMatchObject({
+      id: expect.any(Number),
+      labor_time_s: 2700,
+      url: expect.stringMatching(/\/bikes\/\d+\?event=\d+$/),
+    });
     expect(finished.warnings).toEqual([]);
     expect(stockOf(ctx, pads)).toMatchObject({ quantity: 1 });
     expect(stockOf(ctx, oil)).toMatchObject({ containers: 1, level: "started" });
@@ -200,13 +241,98 @@ describe("runs", () => {
       (await callTool(token, "get_run", { run_id: runId })).structuredContent.run,
     ).toMatchObject({ status: "done", summary: null });
 
-    const undo = await write(token, "delete_maintenance", { event_id: finished.event_id });
+    const undo = await write(token, "delete_maintenance", { event_id: finished.event.id });
     expect(undo).toMatchObject({
       run_deleted: true,
       rules_after: [{ id: ruleId, status: "overdue" }],
     });
     expect(stockOf(ctx, pads)).toMatchObject({ quantity: 2 });
     expect(stockOf(ctx, oil)).toMatchObject({ level: "full" });
+  });
+
+  it("proposes the only rule on the procedure's part type, and tells two alike rules apart", async () => {
+    const { ctx, token } = garage("Defaults");
+    const bikeId = addBike(ctx);
+    const fit = async (position: string, model: string) =>
+      (
+        await write(token, "add_component", {
+          bike_id: bikeId,
+          type_code: "brake",
+          position,
+          model,
+          rules: [],
+        })
+      ).component.id as number;
+    const front = await fit("front", "Code avant");
+    const rear = await fit("rear", "Code arrière");
+    await write(token, "add_component", {
+      bike_id: bikeId,
+      type_code: "chain",
+      model: "CN-M8100",
+      rules: [],
+    });
+    const rule = async (fields: Record<string, unknown>) =>
+      (await write(token, "add_rule", { bike_id: bikeId, ...fields })).rule.id as number;
+    const chainRule = await rule({
+      title: "Graissage",
+      component_type_code: "chain",
+      interval_days: 7,
+    });
+    // One rule on both brakes, not pointing to the procedure.
+    const bleed = await rule({
+      title: "Purge des freins",
+      component_type_code: "brake",
+      interval_days: 365,
+    });
+    const procedureId = (
+      await write(token, "create_procedure", {
+        title: "Purge Hayes",
+        component_type_code: "brake",
+        steps: [{ instruction: "Purger" }],
+      })
+    ).procedure.id as number;
+
+    const single = await callTool(token, "start_run", {
+      procedure_id: procedureId,
+      bike_id: bikeId,
+      dry_run: true,
+    });
+    const summary = single.structuredContent.run.summary;
+    expect(summary.default_rule_id).toBe(bleed);
+    // The procedure's part type first: its parts and its rule, then the others.
+    expect(
+      summary.components
+        .map((c: { id: number }) => c.id)
+        .slice(0, 2)
+        .sort(),
+    ).toEqual([front, rear].sort());
+    expect(summary.rules).toEqual([
+      { id: bleed, title: "Purge des freins", slot_label: "Freins avant et arrière" },
+      { id: chainRule, title: "Graissage", slot_label: "Chaîne" },
+    ]);
+
+    // A second brake rule of the same title: no default any more, the slot tells them apart.
+    const rearBleed = await rule({
+      title: "Purge des freins",
+      component_type_code: "brake",
+      position: "rear",
+      interval_days: 365,
+    });
+    const two = await callTool(token, "start_run", {
+      procedure_id: procedureId,
+      bike_id: bikeId,
+      dry_run: true,
+    });
+    const rules = two.structuredContent.run.summary.rules as { id: number; slot_label: string }[];
+    expect(two.structuredContent.run.summary.default_rule_id).toBeNull();
+    expect(
+      rules
+        .slice(0, 2)
+        .map((r) => r.id)
+        .sort(),
+    ).toEqual([bleed, rearBleed].sort());
+    expect(rules.find((r) => r.id === rearBleed)?.slot_label).toBe("Frein arrière");
+    expect(rules.at(-1)?.id).toBe(chainRule);
   });
 
   it("abandon_run deletes a run in progress; a dry run keeps it", async () => {

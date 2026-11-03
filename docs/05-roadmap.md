@@ -93,6 +93,7 @@ weeks of real use.
 - [x] Usage, cost and procedures through the MCP (D-96): `get_bike_usage`, `create_procedure`, `update_procedure`, `archive_procedure` (done 2026-11-03, release 0.4.0)
 - [x] Runs and deletes for mistakes through the MCP (D-98): `start_run`, `get_run`, `update_run_steps`, `finish_run`, `abandon_run`, `delete_maintenance`, `update_setup`, `delete_setup` (done 2026-11-03, release 0.4.0)
 - [x] Photos and PDFs from the assistant (D-99): `get_upload_link` (a signed link, 15 minutes, one element, sent in a header), `list_attachments`, `update_attachment`, `delete_attachment` (done 2026-11-03, release 0.4.0)
+- [x] The MCP's answers fixed after the real-use test (D-100): 14 findings (misleading fields, incomplete previews, inconsistent shapes, oversized answers) (done 2026-11-03, for release 0.4.1)
 - [ ] The assistant on the phone: through Claude Code's remote control (no internet exposure, D-99); to try once deployed
 - [x] Rides imported through the MCP (D-97, answers Q-14 to Q-16): `create_rides` (up to 500, one transaction, source `manual`, duplicates and initial counters warned) and `delete_rides` as its undo (done 2026-11-03, release 0.4.0)
 - [ ] Statistics: km and hours per bike per month, cost per bike per year, cost per 100 km over time (D-23, D-44)

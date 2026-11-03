@@ -1,7 +1,7 @@
 import "server-only";
 import { z } from "zod";
 import { slotLabel } from "@/lib/display";
-import { COMPONENT_POSITIONS, COMPONENT_TYPE_CODES, type RuleStatus } from "@/lib/enums";
+import { COMPONENT_POSITIONS, COMPONENT_TYPE_CODES, type ComponentTypeCode } from "@/lib/enums";
 import { daysBetween, localDateOf } from "@/lib/format";
 import { REMOVAL_REASON_LABELS } from "@/lib/labels";
 import {
@@ -19,17 +19,13 @@ import { getEnv } from "@/server/env";
 import { today } from "@/server/time";
 import { totalCost } from "@/server/views/bikes";
 import { partStatuses } from "@/server/views/rules";
-import { loadGarage } from "@/server/views/workshop";
-import { bikeUrl } from "../describe";
+import { bikeUrl, evaluatedBikeRules } from "../describe";
 import { answer, defineTool, refused } from "../tool";
 
 // What a bike has done and cost (D-96): the bike record's counters and total cost (D-44), each
 // fitted part's wear (D-13, D-43) and the parts that slot had before, with their wear at removal.
-// All computed by the app's own functions, read-only.
-
-/** Overdue or due soon; a part whose rules are fine, or snoozed, is left unmarked. */
-const dueStatus = (status: RuleStatus | undefined) =>
-  status === "overdue" || status === "due_soon" ? status : null;
+// All computed by the app's own functions, read-only. Since D-100: a part's rule_status is ok
+// when its rules are fine (null only without a rule), and a filter keeps one part or one type.
 
 const counterOf = (usage: Usage) => ({
   distance_m: usage.distanceM,
@@ -37,7 +33,9 @@ const counterOf = (usage: Usage) => ({
   ride_count: usage.rideIds.length,
 });
 
-function bikeUsage(ctx: AccessContext, bikeId: number) {
+type PartFilter = { componentId?: number; typeCode?: ComponentTypeCode };
+
+function bikeUsage(ctx: AccessContext, bikeId: number, filter: PartFilter = {}) {
   const bike = getBike(ctx, bikeId);
   if (!bike) return null;
   const { timeZone } = getEnv();
@@ -46,16 +44,25 @@ function bikeUsage(ctx: AccessContext, bikeId: number) {
   const events = listMaintenanceEvents(ctx, bikeId);
   const components = listComponents(ctx, bikeId);
   const groups = new Map(listComponentTypes().map((type) => [type.code, type.componentGroup]));
-  const statuses = partStatuses(loadGarage(ctx).rules.get(bikeId) ?? [], components);
+  // Every bike's rules, ridden or not: a stored bike's parts keep their status.
+  const statuses = partStatuses(evaluatedBikeRules(ctx, bikeId), components);
   const usage = usageBetween(rides, null, null);
   const cost = totalCost(bike, events, rides);
-  const slots = fittedSlots(components, rides).sort(
-    (a, b) =>
-      COMPONENT_TYPE_CODES.indexOf(a.fitted.typeCode) -
-        COMPONENT_TYPE_CODES.indexOf(b.fitted.typeCode) ||
-      COMPONENT_POSITIONS.indexOf(a.fitted.position) -
-        COMPONENT_POSITIONS.indexOf(b.fitted.position),
-  );
+  const slots = fittedSlots(components, rides)
+    .filter(
+      ({ fitted, lineage }) =>
+        (filter.typeCode == null || fitted.typeCode === filter.typeCode) &&
+        (filter.componentId == null ||
+          fitted.id === filter.componentId ||
+          lineage.some((part) => part.id === filter.componentId)),
+    )
+    .sort(
+      (a, b) =>
+        COMPONENT_TYPE_CODES.indexOf(a.fitted.typeCode) -
+          COMPONENT_TYPE_CODES.indexOf(b.fitted.typeCode) ||
+        COMPONENT_POSITIONS.indexOf(a.fitted.position) -
+          COMPONENT_POSITIONS.indexOf(b.fitted.position),
+    );
   return {
     bike: { id: bike.id, name: bike.name, status: bike.status },
     totals: {
@@ -94,8 +101,11 @@ function bikeUsage(ctx: AccessContext, bikeId: number) {
         /** The counter the app shows for this kind of part: distance, or hours for suspension. */
         counter_unit: counterUnit(group),
         ...counterOf(fitted.counter),
-        /** The worst status of the rules on this part (overdue, due_soon); null when none is due. */
-        rule_status: dueStatus(statuses.get(fitted.id)),
+        /**
+         * The worst status of the active rules on this part: overdue, due_soon, snoozed, or ok
+         * (rules, none due); null only when no active rule covers it.
+         */
+        rule_status: statuses.get(fitted.id) ?? null,
         previous_parts: lineage.map((part) => ({
           component_id: part.id,
           name: componentName(part) || null,
@@ -119,15 +129,36 @@ const getBikeUsageTool = defineTool({
   title: "Usure et coût d'un vélo",
   kind: "read",
   description:
-    'What a bike has done and cost, as its page shows it: totals (distance in metres and wear time in seconds, with the counters before tracking; rides; last ride; last maintenance), total cost (purchase, upkeep at a shop and at home, sale; per 100 km over the rides\' distance), and each fitted part with its wear since fitted (distance, wear time: on lift-assisted rides the descent, D-13; counter_unit says which one the app shows), the worst status of its rules, and the parts that slot had before with their wear when removed and why. Answers "how many km on my chain?", "how long did my last chains last?", "what has this bike cost me?".',
-  input: z.strictObject({ bike_id: z.number().describe("The bike (list_bikes).") }),
-  run: (ctx, { bike_id: bikeId }) => {
-    const usage = bikeUsage(ctx, bikeId);
+    'What a bike has done and cost, as its page shows it: totals (distance in metres and wear time in seconds, with the counters before tracking; rides; last ride; last maintenance), total cost (purchase, upkeep at a shop and at home, sale; per 100 km over the rides\' distance), and each fitted part with its wear since fitted (distance, wear time: on lift-assisted rides the descent, D-13; counter_unit says which one the app shows), rule_status (the worst of its active rules: overdue, due_soon, snoozed, ok when none is due; null only when no rule covers it: list_rules gives them), and the parts that slot had before with their wear when removed and why. type_code (chain, tire…) or component_id (a part fitted or removed: its slot) keeps only those parts; totals and cost stay the whole bike\'s. Answers "how many km on my chain?" (type_code chain), "how long did my last chains last?", "what has this bike cost me?".',
+  input: z.strictObject({
+    bike_id: z.number().describe("The bike (list_bikes)."),
+    component_id: z
+      .number()
+      .optional()
+      .describe("Only this part's slot (get_bike; a removed part: the slot it was in)."),
+    type_code: z
+      .enum(COMPONENT_TYPE_CODES)
+      .optional()
+      .describe("Only the parts of this type (list_component_types): chain, tire, brake_pads…"),
+  }),
+  run: (ctx, { bike_id: bikeId, component_id: componentId, type_code: typeCode }) => {
+    if (componentId != null && !listComponents(ctx, bikeId).some((c) => c.id === componentId)) {
+      return refused(
+        [
+          getBike(ctx, bikeId)
+            ? { field: "component_id", message: "Pièce introuvable sur ce vélo." }
+            : { field: "bike_id", message: "Vélo introuvable." },
+        ],
+        "Unknown part.",
+      );
+    }
+    const usage = bikeUsage(ctx, bikeId, { componentId, typeCode });
     if (!usage) {
       return refused([{ field: "bike_id", message: "Vélo introuvable." }], "Unknown bike.");
     }
+    const filtered = componentId != null || typeCode != null;
     return answer(
-      `${usage.bike.name}: ${Math.round(usage.totals.distance_m / 1000)} km, ${usage.parts.length} parts fitted.`,
+      `${usage.bike.name}: ${Math.round(usage.totals.distance_m / 1000)} km, ${usage.parts.length} part(s) ${filtered ? "matching" : "fitted"}.`,
       usage,
     );
   },
