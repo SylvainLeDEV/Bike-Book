@@ -15,7 +15,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { nextThemePreference, THEME_LABELS, type ThemePreference } from "@/lib/theme";
 import { Avatar } from "./nav";
-import { useShell } from "./shell-context";
+import { ShellNotices } from "./notices";
+import { useOptionalShell, useShell } from "./shell-context";
 
 export const THEME_ICONS: Record<ThemePreference, typeof Sun> = {
   system: SunMoon,
@@ -128,7 +129,8 @@ export function Topbar({ start, actions }: { start?: React.ReactNode; actions?: 
 }
 
 /** The content column of a page, with the mockup's margins (16, 24, 32 px). */
-export function PageBody({ className, ...props }: React.ComponentProps<"div">) {
+export function PageBody({ className, children, ...props }: React.ComponentProps<"div">) {
+  const notices = useOptionalShell()?.notices ?? [];
   return (
     <div
       className={cn(
@@ -136,6 +138,9 @@ export function PageBody({ className, ...props }: React.ComponentProps<"div">) {
         className,
       )}
       {...props}
-    />
+    >
+      <ShellNotices notices={notices} />
+      {children}
+    </div>
   );
 }

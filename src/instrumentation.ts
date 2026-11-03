@@ -1,6 +1,6 @@
 /**
  * Runs once when the server starts: checks the configuration, opens the database and applies
- * pending migrations (src/server/startup.ts). Phase 1.5 will also start the scheduler here.
+ * pending migrations, then starts the scheduler of the Garmin import (src/server/startup.ts).
  */
 export async function register() {
   if (process.env.NEXT_RUNTIME !== "nodejs") return;

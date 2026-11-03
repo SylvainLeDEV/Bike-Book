@@ -11,6 +11,7 @@ import { createBike, type BikeData } from "./bikes";
 import { getDb } from "./client";
 import { seedDemoAttachments } from "./demo-files";
 import { seedDemoParts } from "./demo-garage";
+import { seedDemoGarmin } from "./demo-garmin";
 import { seedDemoRides } from "./demo-rides";
 import { accounts, memberships, users, workspaces } from "./schema";
 
@@ -186,6 +187,8 @@ export async function seedDemoData(
   // Rides first: the demo rules are dated from them.
   seedDemoRides({ ctx, bikes, day: moved, timeZone });
   seedDemoParts({ ctx, bikes, day: moved, now: Date.now(), timeZone });
+  // What a Garmin import leaves (D-101): no key, no ride added.
+  seedDemoGarmin({ ctx, bikes, day: moved });
   // Generated photos and PDFs, written to DATA_DIR like uploads (feature 10).
   await seedDemoAttachments({ ctx, bikes, day: moved, timeZone });
 

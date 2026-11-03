@@ -4,6 +4,9 @@ const nextConfig: NextConfig = {
   // Self-contained server in .next/standalone, copied into the Docker image.
   output: "standalone",
   poweredByHeader: false,
+  // Development logs each Server Function call with its arguments: the Garmin key (D-101) and
+  // the first account's password would be printed in clear. Off (04, pitfall 14).
+  logging: { serverFunctions: false },
   // Read at request time by the ZIP export (feature 12): the data dictionary it ships (D-50).
   outputFileTracingIncludes: {
     "/api/export": ["./docs/03-data-model.md"],

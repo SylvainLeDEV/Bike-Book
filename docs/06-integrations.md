@@ -1,7 +1,8 @@
 # GPS and activity integrations
 
-Research done on **2026-10-24**. This area moves fast: Garmin changed its developer program
-three days before this was written. Re-check before building anything.
+Research done on **2026-10-24**; the Garmin Personal API was then checked against Garmin's
+Swagger and the owner's account on **2026-11-03** ([spike results](#spike-results-2026-11-03)),
+and the import built (D-101). This area moves fast: re-check before building anything new.
 
 Context: Garmin records every ride, and Komoot is only used for planning (D-04). Nothing may be
 exposed to the Internet (D-09), which rules out anything that needs a public webhook.
@@ -63,7 +64,35 @@ Garmin's Swagger reference for the full list.
 - Terms as summarised by third parties (**Unverified**): personal use only, the key must not be
   shared, no service built on other people's keys.
 
-**Still uncertain (test in spike 2.0):**
+### Spike results (2026-11-03)
+
+Checked in Garmin's Swagger (`developer.garmin.com/gc-developer-program/personal/swagger-docs/`,
+OpenAPI 3.0.1, servers `personal.connectapi.garmin.com` and `.cn`), in the official Python
+client's code, and on the owner's account with a probe script that printed structure only (no
+key, token or id kept). All **Verified 2026-11-03**:
+
+| Question | Answer |
+|----------|--------|
+| Token | `POST /personalapitoken-service/personal-api/personal-api-key/token` with `Authorization: ApiKey <key>` answers the token as the raw body (not JSON): a JWT whose `exp` is 24 h after `iat`. Not in the Swagger; the official client does the same, refreshing when less than an hour is left. No refresh token |
+| Errors | A wrong key or token answers 401 with an empty body. No 429 is documented, and no rate-limit header is sent (`content-type`, `x-content-type-options`, `x-frame-options`, `x-xss-protection` only) |
+| List parameters | `start` (0-based), `limit` (default 99; 500 accepted), `activityType` = a **parent** type key (`cycling`), `activitySubType` = a child key (`gravel_cycling`), `startDate`/`endDate` = local days, inclusive, `minDuration`/`maxDuration` (timer seconds), `minDistance`, `sortOrder` (`asc`/`desc`), `sortBy`, `search`, a start bounding box… An unknown or mismatched type answers 400 |
+| What each filter did | `activityType=cycling` kept every ride (gravel and MTB); `activitySubType=gravel_cycling` only the gravel ones; `startDate`/`endDate` worked by local day; `minDuration=60` removed exactly the stray recordings; `sortOrder=asc` gave the oldest first; two pages of 5 did not overlap |
+| Owner's types | `gravel_cycling` (typeId 143) and `mountain_biking` (typeId 5), both parent 2 (`cycling`). The stray recordings (1 to 10 s, 0 to 20 m) were `gravel_cycling` |
+| History | Everything back to the account's first activity (89 activities, the oldest the first one recorded): the Tredict claim of "current activities only" does not hold here |
+| Fields and units | `startTimeGMT` and `startTimeLocal` as `YYYY-MM-DD HH:MM:SS` without a zone; `distance` metres, `duration` (timer), `movingDuration`, `elapsedDuration` seconds, `elevationGain`/`elevationLoss` metres, `averageSpeed` m/s, all as decimals (`5821.75`) |
+| Gear | **Not exposed**: no `gear` or equipment field in the list (`SummarizedActivityDTO`), nor in the detail (`ActivitySummaryDTO`, `metadataDTO`); the only "equipment" in the whole spec is a dive's and a swim workout step's. The detail's `metadataDTO.sensors[]` lists paired sensors with a serial number: on the owner's ride, a bike radar and a light (`BIKE_RADAR`, `BIKE_LIGHT_MAIN`), which move between bikes. The FIT file was not parsed (message 526 stays **Unverified**) |
+| FIT download | `GET /download-service/files/activity/{id}` answers `application/x-zip-compressed` holding one `<id>_ACTIVITY.fit` |
+| Key expiry | Not readable from the key nor from any endpoint found: the owner types it in Paramètres (D-101) |
+
+**Still uncertain:**
+
+- Rate limits: none published, none hit with about twenty calls in a minute. The import retries
+  429 with backoff (D-101).
+- Garmin's reminder email before a key expires (third-party claim, **Unverified**): not relied on.
+- Whether some FIT fields are stripped by the API (**Secondary**): does not matter until 2.1/2.4.
+- The terms, especially about AI use (phase 3).
+
+**Questions of 2026-10-24 (before the spike):**
 
 1. **How far back history goes.** Sources disagree: Tredict says the Personal API only returns
    current activities, while a third-party guide says history goes back to the first activity
@@ -133,7 +162,9 @@ accepted.
 
 ### How a ride gets the right bike
 
-Rules in order of priority:
+**Decided 2026-11-03 (D-101):** gear is not exposed, so an activity type → bike table set in
+Paramètres (`gravel_cycling` → the gravel bike); anything else waits in "À classer". The rules
+first considered, kept for later:
 
 1. The gear ID, if the API or the FIT file provides it. Gear is set on every activity (D-17),
    so this is the key question of the spike. If the official API lacks it, python-garminconnect

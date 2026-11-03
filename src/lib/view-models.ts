@@ -24,6 +24,7 @@ import type {
   MaintenancePerformer,
   MeasurementUnit,
   MovementKind,
+  PendingReason,
   ProcedureDifficulty,
   ProcedureResourceKind,
   ProductLevel,
@@ -1126,3 +1127,78 @@ export type ApiTokenVM = {
 export type CreateApiTokenResult =
   | { ok: true; token: string; name: string }
   | { ok: false; error?: string; fieldErrors?: { name?: string } };
+
+// --- Garmin Connect (phase 2, D-101) ---------------------------------------------------------------
+
+/** The key's state as Paramètres and the banner show it. */
+export type GarminKeyStateVM =
+  | { state: "ok"; daysLeft: number }
+  | { state: "expires_soon"; daysLeft: number }
+  | { state: "expired" }
+  | { state: "rejected" };
+
+/** "Garmin Connect" in Paramètres. Never the key: its last 4 characters only. */
+export type GarminSettingsVM = {
+  today: LocalDate;
+  connection: {
+    keyHint: string;
+    keyExpiresOn: LocalDate;
+    keySavedOn: LocalDate;
+    importFrom: LocalDate;
+    keyState: GarminKeyStateVM;
+    /** The last import, success or not, local date and "HH:MM" in TZ. */
+    lastSync: { on: LocalDate; time: string } | null;
+    /** In French, as the import recorded it; null after a success. */
+    lastError: string | null;
+  } | null;
+  /** Each Garmin activity type seen or set, with its bike (null: "À classer"). */
+  types: { activityType: string; label: string; count: number; bikeId: number | null }[];
+  /** The bikes an activity type can go to: the ridden ones, and any already set. */
+  bikes: { id: number; name: string }[];
+  pendingCount: number;
+  /** Hours between two automatic imports; 0: off. */
+  syncIntervalH: number;
+};
+
+/** What "Clé API Garmin" sends: `key` empty keeps the saved key. */
+export type GarminKeyInput = { key: string; keyExpiresOn: string; importFrom: string };
+
+export type GarminKeyResult =
+  | { ok: true; message: string }
+  | { ok: false; error?: string; fieldErrors?: Partial<Record<keyof GarminKeyInput, string>> };
+
+/** A message at the top of every page: the key's expiry, or activities waiting. */
+export type ShellNoticeVM = {
+  tone: "soon" | "late" | "brand";
+  message: string;
+  href: string;
+  action: string;
+};
+
+/** An activity waiting in "À classer" (Activité). */
+export type PendingActivityVM = {
+  id: number;
+  startedOn: LocalDate;
+  /** "HH:MM" in TZ. */
+  time: string;
+  name: string | null;
+  typeLabel: string;
+  distanceM: number | null;
+  durationS: number | null;
+  elevationGainM: number | null;
+  reason: PendingReason;
+  /** Offered first in the bike choice. */
+  suggestedBikeId: number | null;
+  /** For a possible duplicate: the ride typed by hand it may be. */
+  nearRide: { id: number; label: string } | null;
+};
+
+/** An activity "Ignorer" set aside, which "Remettre à classer" brings back. */
+export type IgnoredActivityVM = Omit<PendingActivityVM, "reason" | "suggestedBikeId" | "nearRide">;
+
+export type PendingActivitiesVM = {
+  activities: PendingActivityVM[];
+  /** Empty: the list and its buttons are not shown. */
+  ignored: IgnoredActivityVM[];
+  bikes: { id: number; name: string }[];
+};

@@ -18,7 +18,9 @@ bikes and parts dictated to Claude Code, personal tokens in Paramètres; the sam
 what is to do, the workshop and the procedures through it (D-92), then maintenance done (D-93),
 restocking and edits (D-94), history and setups (D-95), usage and procedures (D-96), rides imported
 in batches (D-97), runs and deletes for mistakes (D-98), photos and PDFs through upload
-links (D-99); then the answers fixed after a real-use test (D-100, ready for 0.4.1).
+links (D-99); then the answers fixed after a real-use test (D-100, ready for 0.4.1). Phase 2 started the same
+day (D-101): the Garmin Connect import through the Personal API (key in Paramètres, activity type
+→ bike, "À classer", every 6 hours, expiry warnings).
 
 ## Read first
 
@@ -100,6 +102,17 @@ links (D-99); then the answers fixed after a real-use test (D-100, ready for 0.4
   `create_rides`' `after` shaped as `before`); `update_run_steps` answers the steps only.
   Summaries and warnings are in English for the assistant (said in the server instructions),
   one language per warning; French only for the app's own words and `errors[].message`.
+- **Garmin import (D-101):** the Personal API (read-only); the key typed in Paramètres, encrypted
+  (AES-256-GCM, key derived from `AUTH_SECRET`, `src/server/auth/secrets.ts`), never sent back nor
+  logged, `integrations` not exported; its expiry date typed with it (the key does not say it).
+  Token from the raw body of the key exchange, a JWT kept in memory until less than
+  `GARMIN_TOKEN_REFRESH_MARGIN_S` is left; one retry after a 401, then `key_rejected`. List:
+  `activityType=cycling` (a parent type), `startDate`, `minDuration`, `sortOrder=asc`, pages of
+  100. No gear in the API: `activity_type_bikes` (type → bike) makes the ride at once, else
+  "À classer" in Activité (no bike for the type, bike not ridden, a typed ride within ±30 min).
+  First import from a chosen day (default the key's), then from the day before the latest read;
+  `(workspace, provider, external_id)` unique. In-process scheduler (`src/server/jobs`), every
+  `GARMIN_SYNC_INTERVAL_H`. Warnings 30 then 7 days before expiry; FIT behind `GARMIN_DOWNLOAD_FIT`.
 - **Setup (D-79, D-81):** a fork's or shock's spring, travel and adjusters (clicks from fully
   closed) live on the part (`suspension_specs`); each setup is a dated full copy whose values belong
   to the part measured. Advice only from manufacturers' documents, each with its source and date.
@@ -138,6 +151,8 @@ src/
 │                   # api/auth/[...all] (Better Auth), api/healthz, api/export (ZIP, D-68),
 │                   # api/uploads (POST, raw body streamed) and api/uploads/[id] (GET, D-76),
 │                   # api/mcp (POST, the MCP server, personal token, D-90).
+│                   # Activité has "À classer" (#a-classer) and Paramètres "Garmin Connect"
+│                   # (#garmin) since D-101; a notice tops every page (key expiry, to classify)
 │                   # Routes: /, /bikes, /bikes/[bikeId], /activity, /workshop (D-54), /settings,
 │                   # /runs/[runId] (a run, full screen, D-87);
 │                   # /workshop?tab=, ?bike=, ?q=, ?item=, ?procedure= stay in the address
@@ -148,10 +163,11 @@ src/
 │                   # globals.css = the design tokens (D-30, D-31)
 ├── server/         # server-only
 │   ├── db/         # schema, migrations/, seed, data-access layer (index.ts = public API),
-│   │               # transactions.ts (atomically, previewWrite for dry runs, D-90)
+│   │               # transactions.ts (atomically, previewWrite for dry runs, D-90),
+│   │               # garmin.ts (integrations, external_activities, activity_type_bikes, D-101)
 │   ├── auth/       # Better Auth instance, sign-up policy, current user + workspace,
 │   │               # personal tokens (tokens.ts: authenticateBearer, D-90),
-│   │               # upload links (upload-links.ts, D-99)
+│   │               # upload links (upload-links.ts, D-99), secrets.ts (encrypted secrets, D-101)
 │   ├── actions/    # Server Actions, their Zod input schemas in *-input.ts
 │   ├── domain/     # pure, tested logic: bike status, total cost, wear (D-13), part history,
 │   │               # instants of dated entries (D-61), rule engine (D-65), attachments
@@ -167,8 +183,9 @@ src/
 │   │               # procedures: one file per domain),
 │   │               # registry.ts, server.ts, http.ts (stateless JSON transport), tool.ts
 │   │               # (results, errors, pagination, dry_run, logs), describe.ts (answers)
-│   ├── env.ts      # configuration, validated with Zod (TZ included); time.ts: today in TZ
-│   └── (jobs/, integrations/ come with 1.5 and phase 2)
+│   ├── integrations/garmin/ # Garmin Personal API (D-101): client.ts, sync.ts, fit.ts, errors.ts
+│   ├── jobs/       # scheduler.ts: the Garmin import every GARMIN_SYNC_INTERVAL_H hours
+│   └── env.ts      # configuration, validated with Zod (TZ included, GARMIN_*); time.ts: today in TZ
 ├── components/     # Screens and building blocks, fed by view models (props);
 │                   # primitives in components/ui (shadcn/ui style, Radix), shell/ = app shell,
 │                   # attachments/ = the "Pièces jointes" block and its service context (D-74),

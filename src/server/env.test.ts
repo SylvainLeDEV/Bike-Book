@@ -54,3 +54,38 @@ describe("parseEnv", () => {
     expect(() => parseEnv({ TZ: "Europe/Nowhere" })).toThrow(/IANA time zone/);
   });
 });
+
+describe("Garmin configuration (D-101)", () => {
+  it("has defaults for everything", () => {
+    expect(parseEnv({}).garmin).toEqual({
+      apiBaseUrl: "https://personal.connectapi.garmin.com",
+      syncIntervalH: 6,
+      minDurationS: 60,
+      tokenRefreshMarginS: 3600,
+      keyWarnDays: [30, 7],
+      downloadFit: false,
+    });
+  });
+
+  it("reads the variables and refuses bad values", () => {
+    const garmin = parseEnv({
+      GARMIN_SYNC_INTERVAL_H: "0",
+      GARMIN_MIN_DURATION_S: "120",
+      GARMIN_TOKEN_REFRESH_MARGIN_S: "1800",
+      GARMIN_KEY_WARN_DAYS: "60, 14,3",
+      GARMIN_DOWNLOAD_FIT: "true",
+      GARMIN_API_BASE_URL: "https://personal.connectapi.garmin.cn/",
+    }).garmin;
+    expect(garmin).toEqual({
+      apiBaseUrl: "https://personal.connectapi.garmin.cn",
+      syncIntervalH: 0,
+      minDurationS: 120,
+      tokenRefreshMarginS: 1800,
+      keyWarnDays: [60, 14, 3],
+      downloadFit: true,
+    });
+    expect(() => parseEnv({ GARMIN_KEY_WARN_DAYS: "trente" })).toThrow(/separated by commas/);
+    expect(() => parseEnv({ GARMIN_SYNC_INTERVAL_H: "-1" })).toThrow(/At least 0/);
+    expect(() => parseEnv({ GARMIN_API_BASE_URL: "http://garmin.test" })).toThrow();
+  });
+});

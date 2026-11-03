@@ -256,3 +256,34 @@ export type ProcedureResourceKind = (typeof PROCEDURE_RESOURCE_KINDS)[number];
  */
 export const RUN_STATUSES = ["in_progress", "done"] as const;
 export type RunStatus = (typeof RUN_STATUSES)[number];
+
+// --- Activity imports (phase 2, Garmin, D-101) -----------------------------------------------------
+
+/** Where activities are imported from. */
+export const INTEGRATION_PROVIDERS = ["garmin"] as const;
+export type IntegrationProvider = (typeof INTEGRATION_PROVIDERS)[number];
+
+/**
+ * An integration's state as last seen by the import: `active`, or `key_rejected` when the
+ * provider refused the key (invalid, expired or revoked) and imports wait for a new key. The
+ * key's expiry date is a separate, typed value: "expired" is computed from it.
+ */
+export const INTEGRATION_STATUSES = ["active", "key_rejected"] as const;
+export type IntegrationStatus = (typeof INTEGRATION_STATUSES)[number];
+
+/** An imported activity: waiting in "À classer", turned into a ride (or linked to one), or ignored. */
+export const EXTERNAL_ACTIVITY_STATUSES = ["new", "assigned", "ignored"] as const;
+export type ExternalActivityStatus = (typeof EXTERNAL_ACTIVITY_STATUSES)[number];
+
+/**
+ * Why an activity waits in "À classer": no bike is set for its type, the bike set for it is no
+ * longer ridden (sold, stored…), a ride of that bike typed by hand starts within ±30 minutes,
+ * or it was ignored and put back ("Remettre à classer").
+ */
+export const PENDING_REASONS = [
+  "no_bike_for_type",
+  "bike_not_ridden",
+  "possible_duplicate",
+  "restored",
+] as const;
+export type PendingReason = (typeof PENDING_REASONS)[number];

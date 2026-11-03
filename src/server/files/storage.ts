@@ -118,6 +118,34 @@ function concat(a: Uint8Array, b: Uint8Array): Uint8Array {
   return out;
 }
 
+/**
+ * Writes bytes the app made or fetched itself (a Garmin FIT file, D-101) to their final place,
+ * through a temporary file and an atomic rename, as an upload. Returns the stored path, size and
+ * SHA-256.
+ */
+export async function writeOwnFile(
+  bytes: Buffer,
+  format: FileFormat,
+  at: number,
+): Promise<{ storagePath: string; sizeBytes: number; sha256: string }> {
+  const tempPath = `${TEMP_DIR}/${randomName()}.part`;
+  await fs.mkdir(path.dirname(dataPath(tempPath)), { recursive: true });
+  await fs.writeFile(dataPath(tempPath), bytes, { flag: "wx" });
+  const finalPath = storagePath(at, randomName(), format);
+  try {
+    await fs.mkdir(path.dirname(dataPath(finalPath)), { recursive: true });
+    await fs.rename(dataPath(tempPath), dataPath(finalPath));
+  } catch (error) {
+    await fs.rm(dataPath(tempPath), { force: true });
+    throw error;
+  }
+  return {
+    storagePath: finalPath,
+    sizeBytes: bytes.length,
+    sha256: createHash("sha256").update(bytes).digest("hex"),
+  };
+}
+
 /** Moves a received file to its final place (`uploads/YYYY/MM/<random>.<ext>`), atomically. */
 export async function commitFile(file: ReceivedFile, uploadedAt: number): Promise<string> {
   const finalPath = storagePath(uploadedAt, randomName(), file.format);

@@ -25,6 +25,20 @@ function isTimeZone(value: string): boolean {
   }
 }
 
+const wholeNumber = (min: number, max: number) =>
+  z.coerce
+    .number({ error: "Expected a whole number" })
+    .int("Expected a whole number")
+    .min(min, `At least ${min}`)
+    .max(max, `At most ${max}`);
+
+/** "30,7": days before the key's expiry when the app warns (D-101). */
+const dayList = z
+  .string()
+  .trim()
+  .regex(/^\d{1,3}(\s*,\s*\d{1,3})*$/, "Expected days separated by commas, e.g. 30,7")
+  .transform((value) => [...new Set(value.split(",").map((day) => Number(day.trim())))]);
+
 const envSchema = z.object({
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
   DATA_DIR: z.string().trim().min(1).default("./data"),
@@ -36,7 +50,32 @@ const envSchema = z.object({
     .trim()
     .refine(isTimeZone, { error: "Expected an IANA time zone, e.g. Europe/Paris" })
     .optional(),
+  // Garmin Connect imports (phase 2, D-101). The key itself is typed in Paramètres, not here.
+  GARMIN_API_BASE_URL: z
+    .url({ protocol: /^https$/ })
+    .default("https://personal.connectapi.garmin.com"),
+  GARMIN_SYNC_INTERVAL_H: wholeNumber(0, 168).default(6),
+  GARMIN_MIN_DURATION_S: wholeNumber(0, 3600).default(60),
+  GARMIN_TOKEN_REFRESH_MARGIN_S: wholeNumber(0, 43_200).default(3600),
+  GARMIN_KEY_WARN_DAYS: dayList.default([30, 7]),
+  GARMIN_DOWNLOAD_FIT: booleanString.default(false),
 });
+
+/** How the Garmin import runs (D-101); every value has a default. */
+export type GarminConfig = {
+  /** https://personal.connectapi.garmin.com (or Garmin's China server). */
+  apiBaseUrl: string;
+  /** Hours between two automatic imports; 0 turns them off (the "Synchroniser" button stays). */
+  syncIntervalH: number;
+  /** Activities shorter than this on the timer are left out (stray seconds-long recordings). */
+  minDurationS: number;
+  /** A new token is asked for when the current one has less than this left. */
+  tokenRefreshMarginS: number;
+  /** Days before the key's expiry when the app warns, e.g. [30, 7]. */
+  keyWarnDays: number[];
+  /** Keep each imported ride's FIT file as an attachment (off by default). */
+  downloadFit: boolean;
+};
 
 export type Env = {
   nodeEnv: "development" | "production" | "test";
@@ -46,6 +85,7 @@ export type Env = {
   allowSignup: boolean;
   /** Display time zone (H-02): instants are shown, and "today" is computed, in this zone. */
   timeZone: string;
+  garmin: GarminConfig;
 };
 
 /**
@@ -87,6 +127,14 @@ export function parseEnv(source: Record<string, string | undefined>): Env {
     allowSignup: env.ALLOW_SIGNUP,
     // Without TZ, the zone of the process (UTC in most containers).
     timeZone: env.TZ ?? Intl.DateTimeFormat().resolvedOptions().timeZone,
+    garmin: {
+      apiBaseUrl: env.GARMIN_API_BASE_URL.replace(/\/+$/, ""),
+      syncIntervalH: env.GARMIN_SYNC_INTERVAL_H,
+      minDurationS: env.GARMIN_MIN_DURATION_S,
+      tokenRefreshMarginS: env.GARMIN_TOKEN_REFRESH_MARGIN_S,
+      keyWarnDays: env.GARMIN_KEY_WARN_DAYS,
+      downloadFit: env.GARMIN_DOWNLOAD_FIT,
+    },
   };
 }
 

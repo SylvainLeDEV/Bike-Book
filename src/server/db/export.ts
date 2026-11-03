@@ -31,11 +31,13 @@ import {
   suspensionSpecs,
   tasks,
   workspaces,
+  activityTypeBikes,
+  externalActivities,
 } from "./schema";
 
 // The ZIP export (feature 12, D-12, D-50): every table of the current workspace, as stored.
-// Auth tables (users, sessions, accounts, verifications, memberships) and the personal tokens
-// (D-90) are never exported.
+// Auth tables (users, sessions, accounts, verifications, memberships), the personal tokens
+// (D-90) and the Garmin links with their key (D-101) are never exported.
 
 /**
  * Tables left out of the export: the auth library's, the links between users and workspaces,
@@ -48,6 +50,8 @@ export const NOT_EXPORTED_TABLES = [
   "verifications",
   "memberships",
   "api_tokens",
+  // The Garmin key, encrypted (D-101): a credential, like the tokens.
+  "integrations",
 ];
 
 export type ExportColumn = {
@@ -179,6 +183,9 @@ export function exportWorkspaceTables(ctx: AccessContext): ExportTable[] {
       [setups, inArray(setups.bikeId, bikeIds)],
       [setupSuspensions, inArray(setupSuspensions.setupId, setupIds)],
       [attachments, workspaceScope(tx, [workspaceId])],
+      // Garmin imports (D-101), after the bikes and rides they point to.
+      [externalActivities, eq(externalActivities.workspaceId, workspaceId)],
+      [activityTypeBikes, eq(activityTypeBikes.workspaceId, workspaceId)],
     ];
 
     return sources.map(([table, where]) => {

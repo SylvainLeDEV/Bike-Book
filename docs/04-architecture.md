@@ -38,7 +38,7 @@ you have backed up everything.
 | Charts and motion | Recharts (shadcn/ui charts), Motion | Statistics per bike and per month, polished transitions | Apache ECharts, Tremor |
 | Images | **sharp**, installed with feature 10 | Resizing, thumbnails, EXIF orientation, copies without metadata (D-72). Prebuilt binaries for linux/amd64 (glibc) come as an optional dependency, installed by `pnpm install` inside the image build | — |
 | FIT parsing (phase 2) | **`@garmin/fitsdk`** | Garmin's official JavaScript FIT SDK on npm, decode only (**Verified 2026-10-24**) | fit-file-parser |
-| Scheduled jobs | In-process scheduler (e.g. croner) started from Next.js `instrumentation.ts` | Reminders (phase 1.5) and Garmin sync (phase 2) need no queue | System cron calling a protected route |
+| Scheduled jobs | In-process timers started from Next.js `instrumentation.ts` (`src/server/jobs/scheduler.ts`, D-101): a fixed interval needs no library; croner if reminders need cron expressions later | Reminders (phase 1.5) and Garmin sync (phase 2) need no queue | System cron calling a protected route |
 | Authentication | **Better Auth** (email + password, Drizzle adapter, SQLite) | Supports several users from day one; roles, invitations, organisations and passkeys can be switched on later without a rewrite (D-25). Plugin availability to confirm at scaffold time | Auth.js; a hand-rolled single password (simplest, but a rewrite once there are several users) |
 | MCP server (D-90) | **`@modelcontextprotocol/server`** 2.4.0, the TypeScript SDK's v2 | An external assistant dictates bikes and parts through the app's own validation. Web `Request`/`Response` handler, two dependencies (its core, Zod) | v1 `@modelcontextprotocol/sdk` (about fifteen dependencies: express, hono, cors…); a separate server reading the SQLite file (bypasses validation and scoping) |
 | Tests | **Vitest** for the wear and rule engine, **Playwright** for 2–3 key flows | Counters are the logic that must not be wrong | — |
@@ -90,12 +90,14 @@ src/
 │   ├── files/             # Uploads on disk: streaming, atomic rename, sharp copies (feature 10)
 │   ├── mcp/               # MCP tools (D-90): tools/ one file per domain, registry.ts, server.ts,
 │   │                      # http.ts (stateless JSON transport), tool.ts, describe.ts
+│   ├── integrations/garmin/ # Garmin Personal API (D-101): client.ts (token, list, FIT, retries),
+│   │                      # sync.ts (the import), fit.ts (ZIP reader), errors.ts
+│   ├── jobs/              # scheduler.ts: the Garmin import every GARMIN_SYNC_INTERVAL_H hours
 │   ├── theme.ts           # Reads the theme cookie
 │   ├── time.ts            # "Today" in the configured TZ
 │   ├── startup.ts         # Server start: configuration, database (migrations); exit on failure
 │   └── env.ts             # Configuration, validated with Zod
-│   # Later: jobs/ (1.5), integrations/ (2)
-└── instrumentation.ts     # Runs server/startup.ts at startup; scheduler later
+└── instrumentation.ts     # Runs server/startup.ts at startup (database, then the scheduler)
 ```
 
 ### Design system (phase 1 step A)
@@ -349,7 +351,12 @@ in the logs (D-28): the container exits instead of answering HTTP 500.
 | `PUBLIC_URL` | Yes in production (D-28) | Origin users type, e.g. `http://bikes.lan`. Better Auth's base URL: origin check on sign-in, and session cookies get `Secure` only when it starts with `https://`. Open the app at exactly this origin, or sign-in is refused |
 | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | No | Phase 1.5 notifications (D-18) |
 | `ICS_FEED_TOKEN` | No | Secret part of the calendar feed URL (D-18) |
-| `GARMIN_PERSONAL_API_KEY` | No | Phase 2 sync (D-14) |
+| `GARMIN_SYNC_INTERVAL_H` | No (default `6`) | Hours between two automatic Garmin imports; `0` turns them off ("Synchroniser maintenant" stays). The key itself is typed in Paramètres, encrypted in the database (D-101), never in the environment |
+| `GARMIN_MIN_DURATION_S` | No (default `60`) | Activities shorter than this on the timer are left out (stray recordings of a few seconds) |
+| `GARMIN_TOKEN_REFRESH_MARGIN_S` | No (default `3600`) | A new Garmin token is asked for when the current one has less than this left (read from its `exp`) |
+| `GARMIN_KEY_WARN_DAYS` | No (default `30,7`) | Days before the key's expiry when the app warns (notice on every page, a log line) |
+| `GARMIN_DOWNLOAD_FIT` | No (default `false`) | `true`: each imported ride keeps its FIT file as an attachment |
+| `GARMIN_API_BASE_URL` | No (default `https://personal.connectapi.garmin.com`) | Garmin's China server is `https://personal.connectapi.garmin.cn` |
 
 ### Example compose file
 
@@ -464,8 +471,13 @@ Backing up is the operator's job (D-12); the app makes it easy:
 - **Public repository (D-22):** no secrets, no real data, no installation details. `.gitignore`
   covers `data/`, `.env*` and uploads; seed data is fictitious; GitHub secret scanning and push
   protection enabled. Dependencies updated with Renovate or Dependabot.
-- The Garmin key (phase 2) gives read access to health data: treat it like a password. It
-  expires within a year anyway.
+- **The Garmin key (D-101)** gives read access to activities and health data: treat it like a
+  password. Typed in Paramètres (a password field), it is stored encrypted with AES-256-GCM under
+  a key derived from `AUTH_SECRET` (HKDF-SHA256, `src/server/auth/secrets.ts`), so the database
+  or a backup of the data directory alone does not give it; it is never sent back to the browser
+  (its last 4 characters only), never logged, never exported (`integrations` is left out of the
+  ZIP). Changing `AUTH_SECRET` makes it unreadable: the app says to type it again. Garmin's
+  tokens (24 h) stay in memory only. It expires within a year anyway.
 
 ## Observability
 
@@ -473,6 +485,9 @@ Backing up is the operator's job (D-12); the app makes it easy:
 - `/api/healthz` for the container health check and uptime monitoring.
 - Each write through the MCP logs one JSON line on stdout (`"event": "mcp_write"`, the tool,
   `workspace_id`, `token_id` and the ids written), nothing typed by the owner (D-90).
+- Each Garmin import logs one JSON line (`"event": "garmin_sync"`: outcome, counts, the first
+  day asked, an error's kind and status code; never the key, a token or a body), and a key within
+  its warning days one line a day (`"event": "garmin_key_expiring"`, D-101).
 - Optional later: a Prometheus `/metrics` endpoint (rule counts, last Garmin sync).
 
 ## Pitfalls
@@ -491,8 +506,10 @@ Backing up is the operator's job (D-12); the app makes it easy:
    date (their `lastModified` is the upload time). A HEIC that arrives from a Mac or the Files
    app is therefore **refused** with a message saying how to get a JPEG (D-73), not decoded.
    A file named `.jpg` that is something else is refused too: only the content counts.
-5. **Garmin key expiry (phase 2).** The Personal API key lasts one year at most: the app shows
-   its expiry date and warns 30 days before.
+5. **Garmin key expiry (D-101).** The Personal API key lasts 30 days to a year and nothing reads
+   its expiry: the owner types the date with the key. The app warns 30 then 7 days before (a
+   notice on every page), stops importing after that day, and stops too when Garmin refuses the
+   key (401 twice): Paramètres says to create a new key. Garmin's reminder email is not relied on.
 6. **SQLite table rebuilds in migrations.** drizzle-kit changes a column by recreating the
    table and dropping the old one; with foreign keys on, the drop cascades and empties the child
    tables. `openDatabase` therefore migrates with foreign keys off and checks them afterwards
@@ -524,6 +541,15 @@ Backing up is the operator's job (D-12); the app makes it easy:
     the modern path is set to JSON (**Verified 2026-11-03** in `@modelcontextprotocol/server`
     2.4.0): the endpoint routes those requests itself (`src/server/mcp/http.ts`). Check it again
     when upgrading the SDK.
+13. **Garmin's `activityType` takes a parent type only.** Garmin's Swagger says a subtype there
+    answers 400: gravel is `activitySubType=gravel_cycling` of `activityType=cycling` (Verified
+    2026-11-03 in the Swagger and, for `cycling`, on the owner's account; the 400 itself was not
+    tried). The import asks for `cycling` and keeps every cycling subtype.
+14. **Server Function arguments in development logs.** `next dev` prints each Server Function
+    call with its arguments (**Verified 2026-11-03** in the Next.js 16.4 docs and on the dev
+    server): the Garmin key typed in Paramètres appeared in clear, and the first account's
+    password (a Server Action too) would. `logging.serverFunctions` is off in `next.config.ts`;
+    the docs say production does not log them.
 
 ## Local development
 

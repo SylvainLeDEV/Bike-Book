@@ -10,6 +10,7 @@ import { Card } from "@/components/ui/card";
 import { ChoiceCard } from "@/components/ui/choice-card";
 import { THEME_PREFERENCES, type ThemePreference } from "@/lib/theme";
 import { ApiTokensSection, type ApiTokensProps } from "./api-tokens-section";
+import { GarminSection, type GarminSectionProps } from "./garmin-section";
 
 const THEME_CHOICES: Record<ThemePreference, { title: string; meta: string }> = {
   system: { title: "Comme l'appareil", meta: "Clair ou sombre selon le réglage du système" },
@@ -30,18 +31,20 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 /**
- * "Paramètres" (feature 12, renamed by D-80): account, theme of this device, the ZIP export
- * (D-12) and the personal tokens of an external assistant (D-90).
+ * "Paramètres" (feature 12, renamed by D-80): account, theme of this device, the Garmin Connect
+ * import (D-101), the ZIP export (D-12) and the personal tokens of an external assistant (D-90).
  */
 export function SettingsScreen({
   exportHref,
   version,
   tokens,
+  garmin,
 }: {
   /** The Route Handler that streams the ZIP; a plain link, so the browser downloads it. */
   exportHref: string;
   version: string;
   tokens: ApiTokensProps;
+  garmin: GarminSectionProps;
 }) {
   const { user, theme, setTheme, onSignOut } = useShell();
   const [signingOut, startSignOut] = React.useTransition();
@@ -87,6 +90,10 @@ export function SettingsScreen({
             );
           })}
         </div>
+      </Section>
+
+      <Section title="Garmin Connect">
+        <GarminSection {...garmin} />
       </Section>
 
       <Section title="Mes données">

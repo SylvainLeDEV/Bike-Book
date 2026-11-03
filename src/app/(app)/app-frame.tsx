@@ -75,6 +75,7 @@ export function AppFrame({
           theme,
           onSignOut: signOutAction,
           onOpenSettings: () => router.push("/settings"),
+          notices: frame.notices,
         }}
         quickRide={frame.quickRide}
         onQuickRideSubmit={async (input) => {

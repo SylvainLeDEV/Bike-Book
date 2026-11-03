@@ -1,9 +1,16 @@
 import "server-only";
-import type { ProcedureOption, QuickRideVM, ShellUserVM, ShopOption } from "@/lib/view-models";
+import type {
+  ProcedureOption,
+  QuickRideVM,
+  ShellNoticeVM,
+  ShellUserVM,
+  ShopOption,
+} from "@/lib/view-models";
 import { listBikes, listProcedures, listRides, listShops, type AccessContext } from "@/server/db";
 import { canBeRidden } from "@/server/domain/bikes";
 import { quickRideDefaults } from "@/server/domain/rides";
 import { today } from "@/server/time";
+import { shellNotices } from "./garmin";
 import { procedureOptions } from "./procedures";
 import { bikeRef } from "./refs";
 
@@ -14,6 +21,8 @@ export type AppFrameVM = {
   shops: ShopOption[];
   /** What "Nouvelle tâche" and "Modifier la tâche" can point to (D-86). */
   procedures: ProcedureOption[];
+  /** The Garmin key's expiry and the activities to classify (D-101). */
+  notices: ShellNoticeVM[];
 };
 
 /** What the signed-in shell needs on every page: account, quick ride entry, bike sheet. */
@@ -36,5 +45,6 @@ export function getAppFrameVM(ctx: AccessContext): AppFrameVM {
     },
     shops: listShops(ctx),
     procedures: procedureOptions(listProcedures(ctx)),
+    notices: shellNotices(ctx),
   };
 }

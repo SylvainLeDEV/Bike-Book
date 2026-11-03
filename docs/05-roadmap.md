@@ -104,17 +104,24 @@ weeks of real use.
 
 ## Phase 2 — Garmin (≈ 8–12 evenings, after the spike)
 
+**Started 2026-11-03 (D-101), ahead of phase 1's exit at the owner's request:** spike 2.0 done
+([results](06-integrations.md#spike-results-2026-11-03)); the import through the Personal API
+built (2.2, 2.3, 2.6): key in Paramètres, activity type → bike, "À classer", every 6 hours and on
+demand, expiry warnings. Left: 2.1 (FIT upload), 2.4 (bike park values), 2.5 (the API returns the
+whole history; an import of the days before the first one is still to build), the MCP tools for "À classer", and
+the first real import on the deployed app.
+
 Details and sources: [06-integrations.md](06-integrations.md#garmin).
 
 | Step | Content | Exit |
 |------|---------|------|
-| 2.0 Spike (1–2 evenings, go/no-go) | Create a Personal API key. **First check whether the bike (gear) assigned in Garmin Connect is exposed** (D-17), in the JSON or in the FIT file. List activities, read one in detail, download one FIT file. Measure how far back history goes, the rate limits and the available fields (activity type, device, laps, gear?). Read the terms, especially on AI use. Write the results into 06 | Decide 2.2–2.5 or fall back |
+| 2.0 Spike (1–2 evenings, go/no-go) ✓ 2026-11-03 | Create a Personal API key. **First check whether the bike (gear) assigned in Garmin Connect is exposed** (D-17), in the JSON or in the FIT file. List activities, read one in detail, download one FIT file. Measure how far back history goes, the rate limits and the available fields (activity type, device, laps, gear?). Read the terms, especially on AI use. Write the results into 06 | Decide 2.2–2.5 or fall back |
 | 2.1 FIT/GPX upload | Drag and drop a file exported from Garmin Connect, parsed with `@garmin/fitsdk`. Works whatever happens to the API. The same reader serves the MCP (D-90): the file through `/api/uploads` with a personal token (or in base64, decided then), then a tool taking the attachment | A ride created from a file |
-| 2.2 Activity inbox | `external_activities`, bike assignment rules, confirmation screen | Imported activities on the right bike after one click |
-| 2.3 Scheduled sync | Pull every few hours and on demand; duplicates detected against manual rides (one domain function for every import, the MCP's too, D-90) | No typing for Garmin rides |
+| 2.2 Activity inbox ✓ 2026-11-03 (D-101: type → bike, "À classer") | `external_activities`, bike assignment rules, confirmation screen | Imported activities on the right bike after one click |
+| 2.3 Scheduled sync ✓ 2026-11-03 (D-101) | Pull every few hours and on demand; duplicates detected against manual rides (one domain function for every import, the MCP's too, D-90) | No typing for Garmin rides |
 | 2.4 Bike park metrics | The Edge 540/840 has no Downhill profile (D-16): runs from manual laps pressed at the top of each run, otherwise descent detection from altitude/speed streams (accuracy is an **Estimate**, check on my own rides) | Bike park fields filled automatically |
 | 2.5 History backfill | If the API allows it: import past activities and recompute the counters | Counters that reflect the bikes' real history |
-| 2.6 Key expiry | Show the key's expiry date, warn 30 days before | No silent sync stop |
+| 2.6 Key expiry ✓ 2026-11-03 (D-101: 30 then 7 days, import stopped after) | Show the key's expiry date, warn 30 days before | No silent sync stop |
 
 **Exit:** a ride recorded on the Garmin shows up in Bike-Book, on the right bike, within a few
 hours and without typing.

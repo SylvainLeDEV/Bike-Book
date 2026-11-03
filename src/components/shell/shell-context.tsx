@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { applyThemePreference, type ThemePreference } from "@/lib/theme";
-import type { ShellUserVM } from "@/lib/view-models";
+import type { ShellNoticeVM, ShellUserVM } from "@/lib/view-models";
 
 /** Where the navigation entries lead: the real routes, or the /design screens. */
 export type ShellNav = {
@@ -19,6 +19,8 @@ export type ShellValue = {
   /** Server Action in the app; a toast on /design. */
   onSignOut: () => void | Promise<void>;
   onOpenSettings: () => void;
+  /** Shown at the top of every page body: the Garmin key's expiry, activities to classify (D-101). */
+  notices?: ShellNoticeVM[];
 };
 
 /** The shell as pages see it: `theme` is the current choice, `setTheme` changes it. */
@@ -44,6 +46,11 @@ export function ShellProvider({
     },
   };
   return <ShellContext.Provider value={context}>{children}</ShellContext.Provider>;
+}
+
+/** The shell when there is one (a page body outside the shell has none). */
+export function useOptionalShell(): ShellContextValue | null {
+  return React.useContext(ShellContext);
 }
 
 export function useShell(): ShellContextValue {

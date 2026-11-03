@@ -2,12 +2,27 @@
 
 import { useRouter } from "next/navigation";
 import { ActivityScreen } from "@/components/activity/activity-screen";
+import { PendingActivities } from "@/components/activity/pending-activities";
 import { useTaskSheet } from "@/components/plan/task-sheet";
 import { useQuickRide } from "@/components/rides/quick-ride";
 import { PageBody, Topbar } from "@/components/shell/topbar";
-import type { ActivityVM, TimelineEdits } from "@/lib/view-models";
+import type { ActivityVM, PendingActivitiesVM, TimelineEdits } from "@/lib/view-models";
+import {
+  ignorePendingActivityAction,
+  importPendingActivityAction,
+  linkPendingActivityAction,
+  restoreIgnoredActivityAction,
+} from "@/server/actions/garmin";
 
-export function ActivityView({ vm, edits }: { vm: ActivityVM; edits: TimelineEdits }) {
+export function ActivityView({
+  vm,
+  edits,
+  pending,
+}: {
+  vm: ActivityVM;
+  edits: TimelineEdits;
+  pending: PendingActivitiesVM;
+}) {
   const quickRide = useQuickRide();
   const taskSheet = useTaskSheet();
   const router = useRouter();
@@ -18,6 +33,16 @@ export function ActivityView({ vm, edits }: { vm: ActivityVM; edits: TimelineEdi
         <ActivityScreen
           vm={vm}
           onAddRide={() => quickRide.open()}
+          inbox={
+            <PendingActivities
+              vm={pending}
+              today={vm.today}
+              onImport={importPendingActivityAction}
+              onLink={linkPendingActivityAction}
+              onIgnore={ignorePendingActivityAction}
+              onRestore={restoreIgnoredActivityAction}
+            />
+          }
           onEdit={(item) => {
             if (item.kind === "ride") {
               const ride = edits.rides[item.id];

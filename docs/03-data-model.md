@@ -316,9 +316,10 @@ the others.
 
 ### `rides`
 
-Status: **Built** in phase 1 feature 4 (2026-10-26, migration `0005_rides`), except
-`external_activity_id`, added with the Garmin import (phase 2, D-57). Rides are edited and deleted
-from their sheet (D-70); a change of duration clears `moving_time_s`.
+Status: **Built** in phase 1 feature 4 (2026-10-26, migration `0005_rides`). An imported ride's
+activity is found through `external_activities.ride_id` (D-101; the `external_activity_id`
+planned by D-57 was not added). Rides are edited and deleted from their sheet (D-70); a change
+of duration clears `moving_time_s`.
 
 | Field | Type | Notes |
 |-------|------|-------|
@@ -339,7 +340,6 @@ from their sheet (D-70); a change of duration clears `moving_time_s`.
 | `conditions` | enum, nullable | See [values](#ride-values) |
 | `notes` | text | |
 | `source` | enum, required, default `manual` | See [values](#ride-values) |
-| `external_activity_id` | FK `external_activities`, nullable | Phase 2 (D-57) |
 | `created_at`, `updated_at` | timestamp | |
 
 Validation: at least one of `total_time_s` and `moving_time_s` is set (CHECK). Durations are
@@ -357,7 +357,8 @@ seconds; the UI types hours and minutes.
 | `conditions` | `dry`, `wet`, `mud`, `dust`, `snow` | The ground during the ride |
 | | `mixed` | Several of these |
 | `source` | `manual` | Typed in the app |
-| | `garmin_api`, `file_import` | Imported from Garmin's API or a FIT file (phase 2) |
+| | `garmin_api` | Imported from Garmin's Personal API (D-101) |
+| | `file_import` | From a FIT file (phase 2.1, not built) |
 
 ### `shops`
 
@@ -986,19 +987,89 @@ and gives back the stock its lines took (`giveBackLineStock`).
 
 ## Phase 2 additions (Garmin)
 
-| Table | Purpose |
-|-------|---------|
-| `integrations` | One row per user and provider (`user_id`, `provider`): `status`, `key_expires_on`, `last_sync_at`, `sync_cursor`, `last_error`. The API key itself stays a secret in the environment, not in the database (**Proposed**) |
-| `external_activities` | The inbox of imported activities: `provider`, `external_id` (unique per provider), `started_at`, `activity_type`, `device_name`, distance and times, `summary_json`, `fit_attachment_id`, `suggested_bike_id`, `status` (`new`, `assigned`, `ignored`), `ride_id` |
-| `bike_assignment_rules` | Rules that suggest a bike: `field` (`activity_type`, `device`, `gear_id`…), `value`, `bike_id`, `priority`, `trusted` (assign without asking) |
+Status: **Built** on 2026-11-03 (D-101, migrations `0017_garmin` and `0018_pending_restored`): the Personal API import
+(phase 2.2, 2.3 and 2.6). Not built yet: bike park values from the FIT file (2.4), FIT/GPX
+upload (2.1). Flow: the import reads the cycling activities → each one is stored in
+`external_activities` → when its type has a bike (`activity_type_bikes`), a ride of that bike is
+created with `source = garmin_api`; otherwise it waits in "À classer" (Activité), where one click
+imports it on a bike, links it to a ride typed by hand, or ignores it. An ignored activity stays
+stored and is listed under "Activités ignorées" (only when there is one), where "Remettre à
+classer" brings it back, its type's bike offered first. Only cycling activities are read
+(`activityType=cycling`): hikes, walks or runs from a watch are never fetched nor stored. The draft's
+`bike_assignment_rules` (field, value, priority, trusted) became `activity_type_bikes`: Garmin
+gives no gear (Verified 2026-11-03), and the only rule chosen is the activity type, always
+trusted. The draft's `rides.external_activity_id` (D-57) is not added: the link is
+`external_activities.ride_id` alone, one place for it.
 
-Flow: sync → `external_activities` → a rule suggests a bike → the user confirms (or it is assigned
-directly if the rule is trusted) → a ride is created with `source = garmin_api`. Bike park
-values are derived from the FIT file (laps or descent detection, see
-[06-integrations.md](06-integrations.md#bike-park-on-garmin)).
+### `integrations`
 
-Duplicates: `(provider, external_id)` is unique. A manual ride on the same bike starting within
-±30 minutes of an imported activity is offered for merging.
+A user's link to an activity provider in one workspace: the personal API key and its dates.
+**Not exported** (D-68): it holds a credential, like `api_tokens`. One row per user, workspace
+and provider (unique).
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `id` | integer PK | |
+| `user_id` | FK `users`, required | Whose Garmin account |
+| `workspace_id` | FK `workspaces`, required | Where its rides go |
+| `provider` | enum, required | `garmin` |
+| `status` | enum, required, default `active` | `active`; `key_rejected` once Garmin refused the key (401 twice): imports stop until a new key is saved |
+| `key_ciphertext` | text, required | The key, AES-256-GCM under a key derived from `AUTH_SECRET` (`v1.<iv>.<tag>.<ciphertext>`, base64url). Never sent to the browser; unreadable once `AUTH_SECRET` changes |
+| `key_hint` | text, required | The key's last 4 characters, shown to recognise it |
+| `key_expires_on` | date, required | Typed by the owner when the key is created: the key does not say it. Drives the warnings and the "expired" state |
+| `key_saved_at` | timestamp, required | |
+| `import_from` | date, required | The first import takes the activities from this local day on (default: the day the key is saved) |
+| `last_sync_at` | timestamp, nullable | The last import, success or not |
+| `last_success_at` | timestamp, nullable | |
+| `last_error` | text, nullable | The last failure in French, as the app shows it; null after a success |
+| `created_at`, `updated_at` | timestamp | |
+
+### `external_activities`
+
+An activity read from a provider. `(workspace_id, provider, external_id)` is unique, so an
+import never brings the same activity twice and can always run again.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `id` | integer PK | |
+| `workspace_id` | FK `workspaces`, required | |
+| `provider` | enum, required | `garmin` |
+| `external_id` | text, required | Garmin's `activityId` |
+| `started_at` | timestamp, required | Garmin's `startTimeGMT`, read as UTC |
+| `activity_type` | text, required | Garmin's `activityType.typeKey`: `gravel_cycling`, `mountain_biking`… (any value Garmin sends) |
+| `name` | text, nullable | Garmin's `activityName` |
+| `location` | text, nullable | Garmin's `locationName` |
+| `distance_m` | integer, nullable | Rounded from Garmin's metres |
+| `duration_s` | integer, nullable | Timer time (`duration`) |
+| `moving_time_s` | integer, nullable | `movingDuration` |
+| `elapsed_time_s` | integer, nullable | Wall-clock time, pauses included (`elapsedDuration`) |
+| `elevation_gain_m`, `elevation_loss_m` | integer, nullable | |
+| `summary_json` | JSON, required | The summary's fields kept (a fixed list: figures, type, temperatures, laps); never the owner's name, profile or start coordinates |
+| `status` | enum, required | `new` (waits in "À classer"), `assigned` (a ride, or linked to a ride typed by hand), `ignored` (kept, never imported by an import; "Remettre à classer" in Activité's "Activités ignorées" makes it `new` again) |
+| `pending_reason` | enum, nullable | Set exactly when `new` (CHECK): `no_bike_for_type`, `bike_not_ridden` (the type's bike is sold, stored…), `possible_duplicate` (a ride of that bike typed by hand starts within ±30 minutes), `restored` (ignored, then put back with "Remettre à classer", migration `0018_pending_restored`) |
+| `suggested_bike_id` | FK `bikes`, nullable, `ON DELETE SET NULL` | The type's bike, offered first; the ride's bike once assigned |
+| `ride_id` | FK `rides`, nullable, `ON DELETE SET NULL` | The ride it became, or the ride typed by hand it was linked to |
+| `created_at`, `updated_at` | timestamp | |
+
+The ride an activity becomes: `started_at`, `title` = name, `location`, `distance_m`,
+`total_time_s` = timer time, `moving_time_s` (wear, D-13), elevations; `ride_type` =
+`gravel` for `gravel_cycling`, else the bike's usual type (most frequent, else its discipline's:
+`mountain_biking` can be XC, trail or enduro); never lift-assisted (bike park values: 2.4).
+An imported ride is edited as any ride but never deleted (`delete_ride` refuses it, D-92).
+
+### `activity_type_bikes`
+
+Which bike each provider activity type goes to (Paramètres › Garmin Connect). An activity of a
+type with a bike becomes a ride of that bike without asking.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `id` | integer PK | |
+| `workspace_id` | FK `workspaces`, required | |
+| `provider` | enum, required | `garmin` |
+| `activity_type` | text, required | Unique per workspace and provider |
+| `bike_id` | FK `bikes`, required, `ON DELETE CASCADE` | |
+| `created_at` | timestamp | |
 
 ## Phase 3 additions (AI)
 
@@ -1143,6 +1214,6 @@ the app. The data therefore has to explain itself. **Decided** on 2026-10-25.
 - **Export**: every table can be exported to CSV/JSON in a single ZIP with the uploads (the
   originals, under `uploads/` at their `storage_path`, feature 10), the
   workshop tables included (and the label and procedure tables from 1.5). It doubles as a
-  portable backup. Built in feature 12 (D-68): the auth tables, `memberships` and `api_tokens`
-  (D-90) are left out; a new table must be added to the export or to its exclusion list (a test
+  portable backup. Built in feature 12 (D-68): the auth tables, `memberships`, `api_tokens`
+  (D-90) and `integrations` (D-101, the Garmin key) are left out; a new table must be added to the export or to its exclusion list (a test
   checks it).

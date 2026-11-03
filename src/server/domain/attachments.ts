@@ -11,7 +11,8 @@ export { MAX_UPLOAD_BYTES } from "@/lib/uploads";
 /** How many leading bytes `detectFormat` needs. */
 export const SNIFF_BYTES = 64;
 
-export type FileFormat = "jpeg" | "png" | "webp" | "pdf";
+/** `fit`: a Garmin activity file, written by the import only (D-101), never accepted as an upload. */
+export type FileFormat = "jpeg" | "png" | "webp" | "pdf" | "fit";
 
 export const FORMATS: Record<FileFormat, { mimeType: string; extension: string; image: boolean }> =
   {
@@ -19,6 +20,7 @@ export const FORMATS: Record<FileFormat, { mimeType: string; extension: string; 
     png: { mimeType: "image/png", extension: "png", image: true },
     webp: { mimeType: "image/webp", extension: "webp", image: true },
     pdf: { mimeType: "application/pdf", extension: "pdf", image: false },
+    fit: { mimeType: "application/vnd.ant.fit", extension: "fit", image: false },
   };
 
 export type Detection =

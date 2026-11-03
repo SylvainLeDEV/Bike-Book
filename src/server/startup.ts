@@ -2,11 +2,12 @@ import "server-only";
 import { initDatabase } from "@/server/db";
 import { getEnv } from "@/server/env";
 import { clearPartialUploads } from "@/server/files/storage";
+import { startScheduler } from "@/server/jobs/scheduler";
 
 /**
  * Server start (Node.js runtime, from instrumentation.ts): checks the configuration, then opens
  * the database and applies pending migrations, so a bad configuration, a misconfigured DATA_DIR
- * or a failed migration stops the app at boot instead of on first use.
+ * or a failed migration stops the app at boot instead of on first use. Then starts the scheduler.
  */
 export function startServer(): void {
   try {
@@ -16,6 +17,8 @@ export function startServer(): void {
     void clearPartialUploads().catch((error) =>
       console.error("Partial uploads not cleared:", error),
     );
+    // Scheduled imports (D-101): after the database is ready, never during tests.
+    if (process.env.NODE_ENV !== "test") startScheduler();
   } catch (error) {
     if (process.env.NODE_ENV !== "production") throw error;
     // Next.js only logs a failed register() and keeps serving, with HTTP 500 on every route

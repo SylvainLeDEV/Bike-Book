@@ -38,7 +38,8 @@ export function DocumentList({
         const label = doc.caption ?? doc.name;
         const meta = [
           showOrigin ? documentOrigin(doc) : ATTACHMENT_KIND_LABELS[doc.kind],
-          doc.isImage ? "Image" : "PDF",
+          // A Garmin FIT file kept by the import (D-101) is the only other document.
+          doc.isImage ? "Image" : /\.fit$/i.test(doc.name) ? "FIT" : "PDF",
           formatFileSize(doc.sizeBytes),
           formatDate(doc.addedOn, { month: "short" }),
         ].join(" · ");

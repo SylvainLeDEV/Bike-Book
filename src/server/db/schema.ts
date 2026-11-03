@@ -29,11 +29,15 @@ import {
   INVENTORY_UNITS,
   MOVEMENT_KINDS,
   PRODUCT_LEVELS,
+  PENDING_REASONS,
   PROCEDURE_DIFFICULTIES,
   PROCEDURE_RESOURCE_KINDS,
   RESTOCK_STATUSES,
   RUN_STATUSES,
   EVIDENCE_LEVELS,
+  EXTERNAL_ACTIVITY_STATUSES,
+  INTEGRATION_PROVIDERS,
+  INTEGRATION_STATUSES,
   MAINTENANCE_ACTIONS,
   MAINTENANCE_PERFORMERS,
   MEASUREMENT_UNITS,
@@ -1219,6 +1223,142 @@ export const procedureRunSteps = sqliteTable(
       "procedure_run_steps_torque_check",
       sql`${table.torqueNm} is null or ${table.torqueNm} > 0`,
     ),
+  ],
+);
+
+// --- Activity imports (phase 2, Garmin, D-101) ---------------------------------------------------
+
+/**
+ * A user's link to an activity provider, for one workspace: the personal API key, encrypted
+ * with a key derived from AUTH_SECRET (never readable from the database alone, never sent back
+ * to the browser), its expiry date as typed by the owner (the key itself does not say it), the
+ * day the first import starts from, and the last import's outcome. Not exported (D-68): it holds
+ * a credential.
+ */
+export const integrations = sqliteTable(
+  "integrations",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    workspaceId: integer("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    provider: text("provider", { enum: INTEGRATION_PROVIDERS }).notNull(),
+    status: text("status", { enum: INTEGRATION_STATUSES }).notNull().default("active"),
+    /** AES-256-GCM, base64url (`v1.<iv>.<tag>.<ciphertext>`, src/server/auth/secrets.ts). */
+    keyCiphertext: text("key_ciphertext").notNull(),
+    /** The key's last 4 characters, to recognise it; never enough to use it. */
+    keyHint: text("key_hint").notNull(),
+    /** Typed by the owner when the key is created (30, 90, 180 days or 1 year at Garmin). */
+    keyExpiresOn: text("key_expires_on").notNull(),
+    keySavedAt: integer("key_saved_at", { mode: "timestamp_ms" }).notNull(),
+    /** The first import takes the activities from this day on (local start date). */
+    importFrom: text("import_from").notNull(),
+    lastSyncAt: integer("last_sync_at", { mode: "timestamp_ms" }),
+    lastSuccessAt: integer("last_success_at", { mode: "timestamp_ms" }),
+    /** The last import's failure, in French as the app shows it; null once one succeeds. */
+    lastError: text("last_error"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    uniqueIndex("integrations_user_workspace_provider_unique").on(
+      table.userId,
+      table.workspaceId,
+      table.provider,
+    ),
+    enumCheck("integrations_provider_check", table.provider, INTEGRATION_PROVIDERS),
+    enumCheck("integrations_status_check", table.status, INTEGRATION_STATUSES),
+  ],
+);
+
+/**
+ * An activity read from a provider (the inbox, "À classer"): its summary in the app's units, the
+ * ride it became or was linked to, or why it waits. `(workspace, provider, external_id)` is
+ * unique, so an import never brings the same activity twice.
+ */
+export const externalActivities = sqliteTable(
+  "external_activities",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    workspaceId: integer("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    provider: text("provider", { enum: INTEGRATION_PROVIDERS }).notNull(),
+    /** The provider's id (Garmin `activityId`), as text. */
+    externalId: text("external_id").notNull(),
+    startedAt: integer("started_at", { mode: "timestamp_ms" }).notNull(),
+    /** The provider's type key (Garmin `activityType.typeKey`: gravel_cycling…). */
+    activityType: text("activity_type").notNull(),
+    name: text("name"),
+    location: text("location"),
+    distanceM: integer("distance_m"),
+    /** Timer time (Garmin `duration`). */
+    durationS: integer("duration_s"),
+    movingTimeS: integer("moving_time_s"),
+    /** Wall-clock time, pauses included (Garmin `elapsedDuration`). */
+    elapsedTimeS: integer("elapsed_time_s"),
+    elevationGainM: integer("elevation_gain_m"),
+    elevationLossM: integer("elevation_loss_m"),
+    /** The provider's summary fields kept (a fixed list, no owner name nor profile). */
+    summaryJson: text("summary_json", { mode: "json" }).notNull(),
+    status: text("status", { enum: EXTERNAL_ACTIVITY_STATUSES }).notNull(),
+    /** Set while it waits (`new`). */
+    pendingReason: text("pending_reason", { enum: PENDING_REASONS }),
+    /** The bike its type points to, offered first in "À classer". */
+    suggestedBikeId: integer("suggested_bike_id").references(() => bikes.id, {
+      onDelete: "set null",
+    }),
+    /** The ride it became, or the ride typed by hand it was linked to (`assigned`). */
+    rideId: integer("ride_id").references(() => rides.id, { onDelete: "set null" }),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    uniqueIndex("external_activities_workspace_provider_external_id_unique").on(
+      table.workspaceId,
+      table.provider,
+      table.externalId,
+    ),
+    index("external_activities_workspace_id_started_at_idx").on(table.workspaceId, table.startedAt),
+    index("external_activities_ride_id_idx").on(table.rideId),
+    enumCheck("external_activities_provider_check", table.provider, INTEGRATION_PROVIDERS),
+    enumCheck("external_activities_status_check", table.status, EXTERNAL_ACTIVITY_STATUSES),
+    enumCheck("external_activities_pending_reason_check", table.pendingReason, PENDING_REASONS),
+    check(
+      "external_activities_pending_check",
+      sql`(${table.status} = 'new') = (${table.pendingReason} is not null)`,
+    ),
+  ],
+);
+
+/**
+ * Which bike a provider's activity type goes to ("gravel_cycling" → the gravel bike): an
+ * activity of that type becomes a ride of that bike without asking (D-101).
+ */
+export const activityTypeBikes = sqliteTable(
+  "activity_type_bikes",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    workspaceId: integer("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    provider: text("provider", { enum: INTEGRATION_PROVIDERS }).notNull(),
+    activityType: text("activity_type").notNull(),
+    bikeId: integer("bike_id")
+      .notNull()
+      .references(() => bikes.id, { onDelete: "cascade" }),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    uniqueIndex("activity_type_bikes_workspace_provider_type_unique").on(
+      table.workspaceId,
+      table.provider,
+      table.activityType,
+    ),
+    enumCheck("activity_type_bikes_provider_check", table.provider, INTEGRATION_PROVIDERS),
   ],
 );
 

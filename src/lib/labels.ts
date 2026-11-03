@@ -16,6 +16,7 @@ import type {
   InventoryUnit,
   MaintenanceAction,
   MovementKind,
+  PendingReason,
   ProcedureDifficulty,
   ProcedureResourceKind,
   ProductLevel,
@@ -342,4 +343,31 @@ export const PROCEDURE_RESOURCE_KIND_LABELS: Record<ProcedureResourceKind, strin
   video: "Vidéo",
   link: "Lien",
   note: "Note",
+};
+
+// --- Garmin Connect (D-101) ------------------------------------------------------------------------
+
+/**
+ * Garmin activity types seen on real activities (`activityType.typeKey`); any other type is
+ * shown as Garmin writes it.
+ */
+const GARMIN_TYPE_LABELS: Record<string, string> = {
+  gravel_cycling: "Gravel",
+  mountain_biking: "VTT",
+  cyclocross: "Cyclocross",
+};
+
+/** "Gravel" for gravel_cycling; an unknown type as Garmin writes it ("road_biking"). */
+export function garminTypeLabel(typeKey: string): string {
+  return GARMIN_TYPE_LABELS[typeKey] ?? typeKey;
+}
+
+/** Types offered in Paramètres before any import, so their bike can be set first. */
+export const GARMIN_DEFAULT_TYPES = ["gravel_cycling", "mountain_biking"];
+
+export const PENDING_REASON_LABELS: Record<PendingReason, string> = {
+  no_bike_for_type: "Aucun vélo choisi pour ce type d'activité",
+  bike_not_ridden: "Le vélo choisi pour ce type n'est plus roulé",
+  possible_duplicate: "Une sortie saisie à la main commence à la même heure",
+  restored: "Remise à classer : choisis son vélo",
 };

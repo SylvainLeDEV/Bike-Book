@@ -185,6 +185,23 @@ function otherGarage() {
     .values([file({ maintenanceEventId: event.id }, 7), file({ inventoryItemId: item.id }, 8)])
     .run();
   oneProcedure(workspaceId, bike.id, item.id, "Fiche de Lou");
+  // Garmin imports (D-101): one activity type's bike, one activity waiting.
+  db.insert(schema.activityTypeBikes)
+    .values({ workspaceId, provider: "garmin", activityType: "road_biking", bikeId: bike.id })
+    .run();
+  db.insert(schema.externalActivities)
+    .values({
+      workspaceId,
+      provider: "garmin",
+      externalId: `ws${workspaceId}-1`,
+      startedAt: new Date(NOW),
+      activityType: "road_biking",
+      summaryJson: { activityId: 1 },
+      status: "new",
+      pendingReason: "possible_duplicate",
+      suggestedBikeId: bike.id,
+    })
+    .run();
   return ctx;
 }
 

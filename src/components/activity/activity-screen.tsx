@@ -1,3 +1,4 @@
+import type * as React from "react";
 import { Activity, Plus } from "lucide-react";
 import { EmptyState } from "@/components/empty-state";
 import { Timeline } from "@/components/timeline";
@@ -14,10 +15,13 @@ export function ActivityScreen({
   vm,
   onAddRide,
   onEdit,
+  inbox,
 }: {
   vm: ActivityVM;
   onAddRide: () => void;
   onEdit?: (item: TimelineItemVM) => void;
+  /** "À classer": Garmin activities waiting for their bike (D-101), above the timeline. */
+  inbox?: React.ReactNode;
 }) {
   return (
     <>
@@ -39,6 +43,7 @@ export function ActivityScreen({
           Ajouter une sortie
         </Button>
       </div>
+      {inbox}
       {vm.items.length ? (
         <Card padded>
           <Timeline items={vm.items} today={vm.today} withBike groupByMonth onEdit={onEdit} />
