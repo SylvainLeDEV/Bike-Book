@@ -13,20 +13,12 @@ import type {
   TimelineEdits,
   TimelineItemVM,
 } from "@/lib/view-models";
-import type {
-  Bike,
-  Component,
-  MaintenanceEvent,
-  MaintenanceItem,
-  Ride,
-  Run,
-  Task,
-} from "@/server/db";
+import type { Component, MaintenanceEvent, MaintenanceItem, Ride, Run, Task } from "@/server/db";
 import { eventCostCents } from "@/server/domain/cost";
 import { rideDurationS, shownWearS } from "@/server/domain/rides";
 import { eventInstant } from "@/server/domain/time";
 import { isPhoto } from "./attachments";
-import { taskRow } from "./refs";
+import { taskRow, type BikeRefSource } from "./refs";
 
 /** A done task as the history shows it (D-77): at the local date of `done_at`. */
 export type DoneTask = Task & { doneAt: number };
@@ -155,7 +147,7 @@ export function timelineEdits(
   rides: Ride[],
   events: MaintenanceEvent[],
   tasks: DoneTask[],
-  bikes: Pick<Bike, "id" | "name" | "coverAttachmentId">[],
+  bikes: BikeRefSource[],
   timeZone: string,
   /** The runs the done tasks were done with: "Voir le suivi" (D-87). */
   runs: Pick<Run, "id" | "taskId" | "status">[] = [],

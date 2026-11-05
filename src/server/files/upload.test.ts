@@ -105,6 +105,8 @@ describe("storeUpload", () => {
       expect(copy.width).toBeGreaterThan(copy.height); // Upright: orientation 6 applied.
       expect(copy.exif).toBeUndefined(); // No EXIF, so no GPS (D-72).
       expect(copy.orientation).toBeUndefined();
+      // Never cut: the page crops around the focus point (D-103).
+      expect(copy.width! / copy.height!).toBeCloseTo(300 / 200, 1);
     }
     const original6 = await sharp(dataPath(attachment.storagePath)).metadata();
     expect(original6.orientation).toBe(6);

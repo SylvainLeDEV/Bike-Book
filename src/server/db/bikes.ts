@@ -4,9 +4,10 @@ import type { BikeStatus, Discipline, ShopKind, WheelSize } from "@/lib/enums";
 import type { LocalDate } from "@/lib/format";
 import { cleanName, nameKey } from "@/lib/names";
 import type { AccessContext } from "./access-context";
+import { coverPhotoColumns, type CoverPhoto } from "./attachments";
 import { getDb, type Tx } from "./client";
 import { resolveShopId } from "./shops";
-import { bikes, shops } from "./schema";
+import { attachments, bikes, shops } from "./schema";
 
 // Bikes and shops of the current workspace (D-25). Every function filters on ctx.workspace.id:
 // a bike or shop of another workspace is invisible and cannot be changed.
@@ -36,11 +37,16 @@ export type Bike = {
   notes: string | null;
   /** The main photo (feature 10, D-75), changed through the attachments only. */
   coverAttachmentId: number | null;
+  /** The cover's framing and size (D-103), read with it. */
+  coverPhoto: CoverPhoto | null;
   createdAt: Date;
 };
 
 /** What a save writes: validated input plus the resolved status columns. */
-export type BikeData = Omit<Bike, "id" | "purchaseShop" | "createdAt" | "coverAttachmentId"> & {
+export type BikeData = Omit<
+  Bike,
+  "id" | "purchaseShop" | "createdAt" | "coverAttachmentId" | "coverPhoto"
+> & {
   /** Matched by name among the workspace's shops; a new name creates the shop. */
   purchaseShop: { name: string; kind: ShopKind } | null;
 };
@@ -74,6 +80,7 @@ const bikeColumns = {
   salePriceCents: bikes.salePriceCents,
   notes: bikes.notes,
   coverAttachmentId: bikes.coverAttachmentId,
+  coverPhoto: coverPhotoColumns,
   createdAt: bikes.createdAt,
   shopId: shops.id,
   shopName: shops.name,
@@ -86,6 +93,7 @@ function selectBikes(ctx: AccessContext, bikeId?: number) {
     .select(bikeColumns)
     .from(bikes)
     .leftJoin(shops, eq(shops.id, bikes.purchaseShopId))
+    .leftJoin(attachments, eq(attachments.id, bikes.coverAttachmentId))
     .where(
       and(
         eq(bikes.workspaceId, ctx.workspace.id),

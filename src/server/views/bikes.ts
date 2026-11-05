@@ -220,6 +220,7 @@ export function getBikePage(ctx: AccessContext, bikeId: number): BikePage | null
       name: bike.name,
       trackingStartAt: startOfLocalDay(trackedSince, timeZone),
       coverAttachmentId: bike.coverAttachmentId,
+      coverPhoto: bike.coverPhoto,
     },
     rules,
     resets: listRuleResets(ctx, bike.id),

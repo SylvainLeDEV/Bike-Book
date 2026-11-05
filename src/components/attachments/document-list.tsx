@@ -10,6 +10,7 @@ import type { AttachmentVM } from "@/lib/view-models";
 import { AttachmentEditor } from "./attachment-editor";
 import { documentOrigin } from "./origin";
 import { useAttachmentService } from "./service";
+import { FramedImage } from "@/components/photos/framed-image";
 
 /**
  * Invoices, manuals and other documents (D-74): a PDF opens in a new tab (the browser's viewer,
@@ -47,12 +48,9 @@ export function DocumentList({
           <li key={doc.id} className="py-2.5">
             <div className="flex min-h-10 items-center gap-3">
               {doc.isImage && doc.thumbUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element -- served by the uploads handler
-                <img
-                  src={doc.thumbUrl}
-                  alt=""
-                  className="size-9 shrink-0 rounded-[10px] object-cover"
-                />
+                <span className="relative size-9 shrink-0 overflow-hidden rounded-[10px] bg-surface-2">
+                  <FramedImage src={doc.thumbUrl} frame={doc.frame} />
+                </span>
               ) : (
                 <span className="grid size-9 shrink-0 place-items-center rounded-[10px] bg-surface-2 text-fg-muted">
                   <FileText className="size-[18px]" aria-hidden />

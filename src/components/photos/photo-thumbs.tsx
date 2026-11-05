@@ -2,6 +2,7 @@
 
 import { usePhotoViewer } from "./photo-viewer";
 import type { PhotoVM } from "@/lib/view-models";
+import { FramedImage } from "./framed-image";
 
 /** A row of 48 px thumbnails that open the viewer on that sequence. */
 export function PhotoThumbs({
@@ -20,10 +21,7 @@ export function PhotoThumbs({
   return (
     <div className="mt-2 flex flex-wrap items-center gap-1.5">
       {photos.map((photo) => {
-        const image = (
-          // eslint-disable-next-line @next/next/no-img-element -- served by the uploads handler
-          <img src={photo.thumbUrl} alt="" className="size-full object-cover" />
-        );
+        const image = <FramedImage src={photo.thumbUrl} frame={photo.frame} />;
         return viewer ? (
           <button
             key={photo.id}
@@ -31,12 +29,12 @@ export function PhotoThumbs({
             data-photo-id={photo.id}
             onClick={() => viewer.open({ title, photos }, photo.id)}
             aria-label={`Voir la photo : ${photo.caption ?? photo.alt}`}
-            className="size-12 shrink-0 overflow-hidden rounded-[9px] bg-surface-2 transition-transform hover:-translate-y-px"
+            className="relative size-12 shrink-0 overflow-hidden rounded-[9px] bg-surface-2 transition-transform hover:-translate-y-px"
           >
             {image}
           </button>
         ) : (
-          <span key={photo.id} className="size-12 shrink-0 overflow-hidden rounded-[9px]">
+          <span key={photo.id} className="relative size-12 shrink-0 overflow-hidden rounded-[9px]">
             {image}
           </span>
         );

@@ -10,6 +10,7 @@ import { NativeSelect } from "@/components/ui/field";
 import { formatDate, formatMonthYear } from "@/lib/format";
 import type { PhotoOrigin, PhotoVM } from "@/lib/view-models";
 import { usePhotoViewer } from "./photo-viewer";
+import { FramedImage } from "./framed-image";
 
 const ORIGIN_FILTERS: [PhotoOrigin | "", string][] = [
   ["", "Toutes origines"],
@@ -165,12 +166,7 @@ export function PhotoGallery({
                     onClick={() => viewer?.open(sequence, photo.id)}
                     className="relative block aspect-square w-full overflow-hidden rounded-[10px] bg-surface-2 text-left text-on-photo transition-transform hover:-translate-y-px"
                   >
-                    {/* eslint-disable-next-line @next/next/no-img-element -- served by the uploads handler */}
-                    <img
-                      src={photo.thumbUrl}
-                      alt=""
-                      className="absolute inset-0 size-full object-cover"
-                    />
+                    <FramedImage src={photo.thumbUrl} frame={photo.frame} />
                     <span className="absolute inset-0 bg-[linear-gradient(to_top,var(--photo-shade),transparent_58%)]" />
                     <span
                       aria-hidden

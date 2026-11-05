@@ -276,6 +276,24 @@
   );
 }
 
+/*
+ * A photo cropped around its focus point (D-103), inside a box with `container-type: size`
+ * (FramedImage). From the photo's shape (--r, width / height), the point (--fx, --fy, 0 to 1) and
+ * the zoom (--z): the photo covers the box, is enlarged by the zoom, and is moved so the point
+ * sits in the middle, without ever leaving an empty edge. With the point in the middle and no
+ * zoom, it is exactly `object-fit: cover`. Same computation as `visibleRegion` (src/lib/framing.ts).
+ */
+@utility framed-photo {
+  --w: calc(var(--z) * max(100cqw, 100cqh * var(--r)));
+  --h: calc(var(--w) / var(--r));
+  position: absolute;
+  max-width: none;
+  width: var(--w);
+  height: var(--h);
+  left: clamp(100cqw - var(--w), 50cqw - var(--fx) * var(--w), 0px);
+  top: clamp(100cqh - var(--h), 50cqh - var(--fy) * var(--h), 0px);
+}
+
 @layer base {
   * {
     @apply border-border;

@@ -81,6 +81,7 @@ export function DemoAttachmentProvider({ children }: { children: React.ReactNode
               origin: owned?.origin ?? { ...owner, title: "", on: null },
               bikeName: owned?.bikeName ?? "Spectral",
               isCover: false,
+              frame: null,
             };
             setList((current) => [
               ...current.map((a) => (asCover && isImage ? { ...a, isCover: false } : a)),
@@ -121,6 +122,15 @@ export function DemoAttachmentProvider({ children }: { children: React.ReactNode
           ),
         );
         toast(on ? "Photo principale du vélo changée" : "Photo principale retirée");
+        return { ok: true };
+      },
+      setFraming: async (id, framing) => {
+        setList((current) =>
+          current.map((a) =>
+            a.id === id && a.frame ? { ...a, frame: { ...a.frame, ...framing } } : a,
+          ),
+        );
+        toast("Cadrage enregistré");
         return { ok: true };
       },
       changed: () => {},

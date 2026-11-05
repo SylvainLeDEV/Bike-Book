@@ -26,6 +26,7 @@ import { formatDate } from "@/lib/format";
 import { procedureNeeds } from "@/lib/procedures";
 import type { FinishRunInput, PartItemVM, ReplacePartInput, RunVM } from "@/lib/view-models";
 import { RunSummary } from "./run-summary";
+import { FramedImage } from "@/components/photos/framed-image";
 
 export type RunActions = {
   /** "Étape faite", a comment. Resolves with an error message, or null. */
@@ -398,10 +399,9 @@ function StepView({
                   href={photo.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="block size-24 overflow-hidden rounded-[10px] bg-surface-2"
+                  className="relative block size-24 overflow-hidden rounded-[10px] bg-surface-2"
                 >
-                  {/* eslint-disable-next-line @next/next/no-img-element -- served by the uploads handler */}
-                  <img src={photo.thumbUrl} alt={photo.alt} className="size-full object-cover" />
+                  <FramedImage src={photo.thumbUrl} frame={photo.frame} alt={photo.alt} />
                 </a>
               </li>
             ))}

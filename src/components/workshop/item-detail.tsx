@@ -54,6 +54,7 @@ import type {
   PurchaseLinkVM,
 } from "@/lib/view-models";
 import { LevelGauge } from "./inventory-row";
+import { FramedImage } from "@/components/photos/framed-image";
 
 export type RestockStep = "to_order" | "ordered" | "received" | "none";
 
@@ -888,8 +889,7 @@ function ItemPhoto({
         )}
       >
         {item.photoUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element -- served by the uploads handler
-          <img src={item.photoUrl} alt="" className="absolute inset-0 size-full object-cover" />
+          <FramedImage src={item.photoUrl} frame={item.photoFrame} />
         ) : (
           <Camera className="size-[22px]" aria-hidden />
         )}

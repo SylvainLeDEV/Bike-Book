@@ -1,6 +1,7 @@
 import "server-only";
 import { containerWords } from "@/lib/display";
 import { localDateOf, startOfLocalDay } from "@/lib/format";
+import { photoFrame } from "@/lib/framing";
 import type {
   BikeRef,
   InventoryItemVM,
@@ -83,6 +84,7 @@ export function loadGarage(ctx: AccessContext): Garage {
           name: bike.name,
           trackingStartAt: startOfLocalDay(trackedSince, timeZone),
           coverAttachmentId: bike.coverAttachmentId,
+          coverPhoto: bike.coverPhoto,
         },
         rules: listRules(ctx, bike.id),
         resets: listRuleResets(ctx, bike.id),
@@ -253,6 +255,7 @@ function itemVM(
     name: item.name,
     photoUrl:
       item.photoAttachmentId == null ? null : `/api/uploads/${item.photoAttachmentId}?size=thumb`,
+    photoFrame: item.photoAttachmentId == null ? null : photoFrame(item.photo),
     brand: item.brand,
     reference: item.reference,
     category: item.category,
@@ -360,6 +363,7 @@ export function bikeStock(items: InventoryItemVM[], bikeId: number) {
       id: item.id,
       name: item.name,
       photoUrl: item.photoUrl,
+      photoFrame: item.photoFrame,
       category: item.category,
       bikes: item.bikes,
       location: item.location,

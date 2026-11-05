@@ -20,7 +20,8 @@ restocking and edits (D-94), history and setups (D-95), usage and procedures (D-
 in batches (D-97), runs and deletes for mistakes (D-98), photos and PDFs through upload
 links (D-99); then the answers fixed after a real-use test (D-100, ready for 0.4.1). Phase 2 started the same
 day (D-101): the Garmin Connect import through the Personal API (key in Paramètres, activity type
-→ bike, "À classer", every 6 hours, expiry warnings).
+→ bike, "À classer", every 6 hours, expiry warnings). On 2026-11-05, "Cadrer" (D-103): a focus
+point and a zoom on each photo, which every cropped frame centres on.
 
 ## Read first
 
@@ -113,6 +114,10 @@ day (D-101): the Garmin Connect import through the Personal API (key in Paramèt
   First import from a chosen day (default the key's), then from the day before the latest read;
   `(workspace, provider, external_id)` unique. In-process scheduler (`src/server/jobs`), every
   `GARMIN_SYNC_INTERVAL_H`. Warnings 30 then 7 days before expiry; FIT behind `GARMIN_DOWNLOAD_FIT`.
+- **Photo framing (D-103):** `attachments.focus_x_pct`, `focus_y_pct`, `zoom_pct`; the files are
+  never cut (thumbnails are whole, short side 480 px); every cropped photo goes through
+  `components/photos/framed-image.tsx` (CSS `.framed-photo`, container query units); "Cadrer" in
+  the viewer and on the bike page's cover; `update_attachment` takes them.
 - **Setup (D-79, D-81):** a fork's or shock's spring, travel and adjusters (clicks from fully
   closed) live on the part (`suspension_specs`); each setup is a dated full copy whose values belong
   to the part measured. Advice only from manufacturers' documents, each with its source and date.

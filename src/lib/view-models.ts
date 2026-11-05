@@ -6,6 +6,7 @@
  * metres, durations in seconds, money in cents, calendar dates as `YYYY-MM-DD` (instants are
  * turned into local dates on the server, in TZ). Labels and formats are the screens' job.
  */
+import type { PhotoFrame } from "./framing";
 import type {
   AttachmentKind,
   AttachmentOwnerKind,
@@ -80,7 +81,14 @@ export type Quantity =
  * The bike's cover photo (D-75): display size, and a thumbnail for pastilles and small covers.
  * Placeholder art until the bike has one: one of the cover palettes.
  */
-export type BikeCoverVM = { photoUrl: string | null; thumbUrl?: string | null; artIndex: number };
+export type BikeCoverVM = {
+  photoUrl: string | null;
+  thumbUrl?: string | null;
+  artIndex: number;
+  /** The cover's attachment ("Cadrer" on the bike page) and its framing (D-103). */
+  attachmentId?: number | null;
+  frame?: PhotoFrame | null;
+};
 
 export type BikeRef = { id: number; name: string; cover: BikeCoverVM };
 
@@ -172,6 +180,8 @@ export type AttachmentVM = {
   bikeName: string | null;
   /** The bike's cover or the workshop item's photo (D-75). */
   isCover: boolean;
+  /** Images whose size is known: where cropped frames centre, and the zoom (D-103). */
+  frame: PhotoFrame | null;
 };
 
 /** A photo: an image attachment of kind `photo`, shown in galleries and the viewer. */
@@ -372,6 +382,8 @@ export type InventoryRowVM = {
   name: string;
   /** Thumbnail of its photo (D-75), else the category icon. */
   photoUrl: string | null;
+  /** Its photo's framing (D-103). */
+  photoFrame?: PhotoFrame | null;
   category: InventoryCategory;
   bikes: BikeRef[] | "all";
   location: string | null;
@@ -1024,7 +1036,7 @@ export type RunStepVM = {
   comment: string | null;
   photoCount: number;
   /** The procedure step's reference photos, while it exists. */
-  reference: { thumbUrl: string; url: string; alt: string }[];
+  reference: { thumbUrl: string; url: string; alt: string; frame?: PhotoFrame | null }[];
   /** Added during the run, not copied from the procedure: it can be removed. */
   added: boolean;
 };

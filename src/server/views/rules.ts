@@ -29,13 +29,13 @@ import {
 } from "@/server/domain/rules";
 import { eventInstant } from "@/server/domain/time";
 import type { RideUsage } from "@/server/domain/wear";
-import { bikeRef } from "./refs";
+import { bikeRef, type BikeRefSource } from "./refs";
 
 // Rule view models (feature 6): "À prévoir" rows, the parts' status marks, the "C'est fait"
 // prefill, and the "Règles" sheet. Everything is evaluated by the pure engine.
 
 export type BikeRulesInput = {
-  bike: { id: number; name: string; trackingStartAt: number; coverAttachmentId?: number | null };
+  bike: BikeRefSource & { trackingStartAt: number };
   rules: Rule[];
   resets: { ruleId: number; eventId: number; on: LocalDate; recordedAt: number }[];
   components: Component[];

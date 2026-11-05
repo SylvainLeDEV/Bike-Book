@@ -873,6 +873,14 @@ export const attachments = sqliteTable(
     /** Images only: EXIF date taken, else the file's last change, else the upload (D-73). */
     takenAt: integer("taken_at", { mode: "timestamp_ms" }),
     caption: text("caption"),
+    /**
+     * Images only: where the subject is, in % of the width and height from the top left, and the
+     * zoom in % (100 = none). Every cropped frame centres on it (D-103). Checked by the app: no
+     * CHECK, so the columns could be added without rebuilding the table (D-57).
+     */
+    focusXPct: integer("focus_x_pct").notNull().default(50),
+    focusYPct: integer("focus_y_pct").notNull().default(50),
+    zoomPct: integer("zoom_pct").notNull().default(100),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },

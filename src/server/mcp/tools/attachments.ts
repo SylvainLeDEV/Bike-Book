@@ -3,7 +3,11 @@ import { z } from "zod";
 import { ATTACHMENT_OWNERS, DOCUMENT_KINDS } from "@/lib/enums";
 import { MAX_UPLOAD_BYTES, UPLOAD_ACCEPT } from "@/lib/uploads";
 import type { AttachmentVM } from "@/lib/view-models";
-import { attachmentEditSchema, toAttachmentPatch } from "@/server/actions/attachment-input";
+import {
+  attachmentEditSchema,
+  framingSchema,
+  toAttachmentPatch,
+} from "@/server/actions/attachment-input";
 import { createUploadLink } from "@/server/auth/upload-links";
 import {
   atomically,
@@ -67,6 +71,10 @@ function describeAttachment(vm: AttachmentVM, coverId: number | null) {
     taken_time: vm.takenTime,
     added_on: vm.addedOn,
     is_cover: coverId === vm.id,
+    // Images: where every cropped frame centres, and the zoom (D-103).
+    focus_x_pct: vm.frame?.focusXPct ?? null,
+    focus_y_pct: vm.frame?.focusYPct ?? null,
+    zoom_pct: vm.frame?.zoomPct ?? null,
     url: `${base}${vm.url}`,
   };
 }
@@ -136,7 +144,7 @@ const updateAttachmentTool = defineTool({
   title: "Modifier une pièce jointe",
   kind: "write",
   description:
-    "Changes an attachment's caption, kind (photo for an image only; invoice, manual, other), or the day and time a photo was taken (local, HH:MM); is_cover makes a photo the element's photo or removes it (a bike or a workshop item). Only the fields given change. Call with dry_run true first.",
+    "Changes an attachment's caption, kind (photo for an image only; invoice, manual, other), or the day and time a photo was taken (local, HH:MM); is_cover makes a photo the element's photo or removes it (a bike or a workshop item). An image's framing: focus_x_pct and focus_y_pct place the subject (the bike, a part) in % of the width and height from the top left, zoom_pct enlarges around it (100 to 300); every cropped frame (cards, the bike page's banner, thumbnails) centres on it, the file is not changed. Only the fields given change. Call with dry_run true first.",
   input: z.strictObject({
     attachment_id: z.number().describe("The attachment (list_attachments, or the upload's id)."),
     caption: z.string().nullable().optional(),
@@ -144,9 +152,23 @@ const updateAttachmentTool = defineTool({
     taken_on: z.string().nullable().optional().describe("YYYY-MM-DD."),
     taken_time: z.string().nullable().optional().describe("HH:MM, local time."),
     is_cover: z.boolean().optional(),
+    focus_x_pct: z.number().optional().describe("0 (left edge) to 100 (right edge)."),
+    focus_y_pct: z.number().optional().describe("0 (top edge) to 100 (bottom edge)."),
+    zoom_pct: z.number().optional().describe("100 (none) to 300."),
     dry_run: dryRunInput,
   }),
-  run: (ctx, { attachment_id: id, dry_run: dryRun, is_cover: isCover, ...args }) => {
+  run: (
+    ctx,
+    {
+      attachment_id: id,
+      dry_run: dryRun,
+      is_cover: isCover,
+      focus_x_pct: focusXPct,
+      focus_y_pct: focusYPct,
+      zoom_pct: zoomPct,
+      ...args
+    },
+  ) => {
     const REFUSED = "The attachment was refused; nothing was written.";
     const current = getAttachment(ctx, id);
     if (!current) {
@@ -163,6 +185,15 @@ const updateAttachmentTool = defineTool({
       takenTime: args.taken_time === undefined ? vm.takenTime : args.taken_time,
     });
     if (!parsed.success) return refused(fieldErrorsOf(parsed.error.issues), REFUSED);
+    const reframing = focusXPct !== undefined || focusYPct !== undefined || zoomPct !== undefined;
+    const framing = framingSchema.safeParse({
+      focusXPct: focusXPct ?? vm.frame?.focusXPct ?? 50,
+      focusYPct: focusYPct ?? vm.frame?.focusYPct ?? 50,
+      zoomPct: zoomPct ?? vm.frame?.zoomPct ?? 100,
+    });
+    if (reframing && !framing.success) {
+      return refused(fieldErrorsOf(framing.error.issues), REFUSED);
+    }
     const editing =
       args.caption !== undefined ||
       args.kind !== undefined ||
@@ -182,6 +213,15 @@ const updateAttachmentTool = defineTool({
                 ? { field: "kind", message: "Un PDF ne peut pas être une photo." }
                 : { field: "attachment_id", message: "Pièce jointe introuvable." },
             ],
+            REFUSED,
+          );
+        }
+      }
+      if (reframing && framing.success) {
+        const outcome = updateAttachment(ctx, id, { framing: framing.data });
+        if (!outcome.ok) {
+          throw new ToolRefusal(
+            [{ field: "focus_x_pct", message: "Seule une image peut être cadrée." }],
             REFUSED,
           );
         }

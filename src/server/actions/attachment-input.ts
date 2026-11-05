@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { ATTACHMENT_OWNERS, DOCUMENT_KINDS } from "@/lib/enums";
 import { isLocalDate, localInstant } from "@/lib/format";
+import { ZOOM_MAX_PCT, ZOOM_MIN_PCT } from "@/lib/framing";
 import type { AttachmentPatch } from "@/server/db";
 
 // Inputs of the attachment actions (feature 10), validated before anything is written (D-50).
@@ -28,6 +29,23 @@ export const attachmentEditSchema = z.object({
 });
 
 export type AttachmentEditInput = z.infer<typeof attachmentEditSchema>;
+
+const percent = z
+  .number("Point invalide.")
+  .int("Point invalide.")
+  .min(0, "Le point doit être sur la photo.")
+  .max(100, "Le point doit être sur la photo.");
+
+/** "Cadrer" (D-103): the subject's point in % from the top left, the zoom in % (100 = none). */
+export const framingSchema = z.object({
+  focusXPct: percent,
+  focusYPct: percent,
+  zoomPct: z
+    .number("Zoom invalide.")
+    .int("Zoom invalide.")
+    .min(ZOOM_MIN_PCT, "Zoom entre ×1 et ×3.")
+    .max(ZOOM_MAX_PCT, "Zoom entre ×1 et ×3."),
+});
 
 /** The edit as the data-access layer takes it: the date taken becomes an instant in TZ. */
 export function toAttachmentPatch(input: AttachmentEditInput, timeZone: string): AttachmentPatch {

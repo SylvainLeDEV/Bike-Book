@@ -9,6 +9,7 @@ import { ownerAttachments } from "@/server/views/attachments";
 import {
   attachmentEditSchema,
   attachmentIdSchema,
+  framingSchema,
   ownerSchema,
   toAttachmentPatch,
 } from "./attachment-input";
@@ -45,6 +46,26 @@ export async function updateAttachmentAction(id: unknown, input: unknown): Promi
     return {
       ok: false,
       error: outcome.reason === "invalid" ? "Un PDF ne peut pas être une photo." : NOT_FOUND,
+    };
+  }
+  refresh();
+  return { ok: true };
+}
+
+/** "Cadrer" (D-103): where every cropped frame of an image centres, and its zoom. */
+export async function setAttachmentFramingAction(id: unknown, input: unknown): Promise<Result> {
+  const ctx = await requireAccessContext();
+  const parsedId = attachmentIdSchema.safeParse(id);
+  const parsed = framingSchema.safeParse(input);
+  if (!parsedId.success) return { ok: false, error: NOT_FOUND };
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Saisie invalide." };
+  }
+  const outcome = updateAttachment(ctx, parsedId.data, { framing: parsed.data });
+  if (!outcome.ok) {
+    return {
+      ok: false,
+      error: outcome.reason === "invalid" ? "Seule une image peut être cadrée." : NOT_FOUND,
     };
   }
   refresh();

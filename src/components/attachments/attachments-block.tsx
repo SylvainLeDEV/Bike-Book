@@ -10,6 +10,7 @@ import { DocumentList } from "./document-list";
 import { useAttachmentService, type AttachmentOwnerRef } from "./service";
 import { UploadButton, UploadRows } from "./upload-controls";
 import { useUploads } from "./use-uploads";
+import { FramedImage } from "@/components/photos/framed-image";
 
 /*
  * "Pièces jointes" (feature 10, D-74): one block for every element (bike, component,
@@ -113,8 +114,7 @@ function Thumbs({ photos }: { photos: AttachmentVM[] }) {
             aria-label={`Voir la photo : ${photo.caption ?? photo.alt}${photo.isCover ? " (photo principale)" : ""}`}
             className="relative block size-14 overflow-hidden rounded-[10px] bg-surface-2 transition-transform hover:-translate-y-px pointer-coarse:size-16"
           >
-            {/* eslint-disable-next-line @next/next/no-img-element -- served by the uploads handler */}
-            <img src={photo.thumbUrl ?? ""} alt="" className="size-full object-cover" />
+            <FramedImage src={photo.thumbUrl ?? ""} frame={photo.frame} />
             {photo.isCover ? (
               <span className="absolute top-1 right-1 grid size-5 place-items-center rounded-full bg-photo-glass text-on-photo backdrop-blur-md">
                 <Star className="size-3" aria-hidden />

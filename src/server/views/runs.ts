@@ -1,5 +1,6 @@
 import "server-only";
 import { localDateOf } from "@/lib/format";
+import { photoFrame } from "@/lib/framing";
 import { procedureNeeds } from "@/lib/procedures";
 import { defaultLevelAfter } from "@/lib/runs";
 import type {
@@ -102,6 +103,7 @@ export function getRunPage(ctx: AccessContext, runId: number): RunVM | null {
               thumbUrl: attachmentUrl(a.id, "thumb"),
               url: attachmentUrl(a.id, "display"),
               alt: a.caption ?? `Photo de référence : ${step.instruction}`,
+              frame: photoFrame({ ...a.framing, widthPx: a.widthPx, heightPx: a.heightPx }),
             })),
   }));
 

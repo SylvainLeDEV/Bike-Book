@@ -1,5 +1,6 @@
 import { cn } from "cn";
 import type { BikeCoverVM } from "@/lib/view-models";
+import { FramedImage } from "@/components/photos/framed-image";
 
 /*
  * Placeholder art for a bike without a photo: sky, two mountain ridges and a bike line. Its
@@ -64,8 +65,7 @@ export function BikeCover({
   if (photo) {
     return (
       <Tag className={cn("relative block overflow-hidden bg-surface-2", className)}>
-        {/* eslint-disable-next-line @next/next/no-img-element -- served by the uploads handler */}
-        <img src={photo} alt="" className="absolute inset-0 size-full object-cover" />
+        <FramedImage src={photo} frame={cover.frame} />
         {children}
       </Tag>
     );

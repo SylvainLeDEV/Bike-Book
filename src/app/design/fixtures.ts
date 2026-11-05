@@ -208,6 +208,7 @@ function photo(seed: PhotoSeed, bikeName = "Spectral"): PhotoVM {
     downloadUrl: art,
     bikeName,
     isCover,
+    frame: null,
   };
 }
 
@@ -229,6 +230,7 @@ function doc(
     downloadUrl: `#document-${seed.id}`,
     bikeName: "Spectral",
     isCover: false,
+    frame: null,
   };
 }
 

@@ -9,11 +9,18 @@ import { dataPath, derivedDir, randomName } from "./storage";
 // They live in `cache/`, are made on first request and can be deleted at any time.
 
 export const DERIVED_SIZES = {
-  /** Square tiles of the galleries and rows (shown at 48 to 160 CSS px). */
-  thumb: { width: 320, height: 320, fit: "cover" },
+  /**
+   * Tiles, rows and pastilles (shown at 36 to 160 CSS px): the whole photo, its short side 480 px,
+   * cropped by the page around the photo's focus point (D-103). `file` changed from the square
+   * `thumb.webp` cut in the middle, so no browser or cache keeps serving the old one.
+   */
+  thumb: { width: 480, height: 480, fit: "outside", file: "thumb-full.webp" },
   /** The viewer and the bike cover. */
-  display: { width: 1600, height: 1600, fit: "inside" },
+  display: { width: 1600, height: 1600, fit: "inside", file: "display.webp" },
 } as const;
+
+/** Copies made by an earlier version, removed when their replacement is made. */
+const REPLACED_FILES: Partial<Record<DerivedSize, string>> = { thumb: "thumb.webp" };
 
 export type DerivedSize = keyof typeof DERIVED_SIZES;
 
@@ -36,7 +43,7 @@ export async function inspectImage(
 
 /** The derived copy of an original, made now if it is missing. Absolute path of a WebP file. */
 export async function derivedFile(storage: string, size: DerivedSize): Promise<string> {
-  const target = dataPath(`${derivedDir(storage)}/${size}.webp`);
+  const target = dataPath(`${derivedDir(storage)}/${DERIVED_SIZES[size].file}`);
   try {
     await fs.access(target);
     return target;
@@ -54,6 +61,8 @@ export async function derivedFile(storage: string, size: DerivedSize): Promise<s
       .webp({ quality: size === "thumb" ? 72 : 82 })
       .toFile(temp);
     await fs.rename(temp, target);
+    const replaced = REPLACED_FILES[size];
+    if (replaced) await fs.rm(dataPath(`${derivedDir(storage)}/${replaced}`), { force: true });
   } catch (error) {
     await fs.rm(temp, { force: true });
     throw error;

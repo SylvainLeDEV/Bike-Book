@@ -3,6 +3,7 @@
 import * as React from "react";
 import type { AttachmentKind, AttachmentOwnerKind } from "@/lib/enums";
 import type { LocalDate } from "@/lib/format";
+import type { Framing } from "@/lib/framing";
 import { MAX_UPLOAD_BYTES, UPLOAD_ERROR_MESSAGES, type UploadErrorCode } from "@/lib/uploads";
 import type { AttachmentVM } from "@/lib/view-models";
 
@@ -37,6 +38,8 @@ export type AttachmentService = {
   update: (id: number, edit: AttachmentEdit) => Promise<ServiceResult>;
   remove: (id: number) => Promise<ServiceResult>;
   setCover: (id: number, on: boolean) => Promise<ServiceResult>;
+  /** "Cadrer" (D-103). */
+  setFraming: (id: number, framing: Framing) => Promise<ServiceResult>;
   /** After a change: the page's own data (gallery, covers, thumbnails) is read again. */
   changed: () => void;
 };

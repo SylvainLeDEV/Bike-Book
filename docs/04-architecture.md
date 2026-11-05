@@ -550,6 +550,12 @@ Backing up is the operator's job (D-12); the app makes it easy:
     server): the Garmin key typed in Paramètres appeared in clear, and the first account's
     password (a Server Action too) would. `logging.serverFunctions` is off in `next.config.ts`;
     the docs say production does not log them.
+15. **Framed photos need a frame with its own size (D-103).** `FramedImage` crops in CSS with
+    container query units (`container-type: size`): the box it fills must be positioned and get
+    its size from its parent or an `aspect-ratio`, never from the photo, or the photo collapses
+    to nothing. A cropped `<img>` with `object-cover` would ignore the owner's framing: every
+    cropped photo goes through `FramedImage`. Thumbnails are whole photos since D-103, so a copy
+    cut on the server would break the framing too.
 
 ## Local development
 

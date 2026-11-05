@@ -13,8 +13,10 @@ import type {
 import type { LocalDate } from "@/lib/format";
 import { stockQuantity } from "@/server/domain/inventory";
 import type { AccessContext } from "./access-context";
+import { coverPhotoColumns, type CoverPhoto } from "./attachments";
 import { getDb, type Tx } from "./client";
 import {
+  attachments,
   bikes,
   inventoryItemBikes,
   inventoryItems,
@@ -75,6 +77,8 @@ export type InventoryItem = {
   archivedAt: number | null;
   /** Its photo (feature 10, D-75), changed through the attachments only. */
   photoAttachmentId: number | null;
+  /** Its photo's framing and size (D-103), read with it. */
+  photo: CoverPhoto | null;
   movements: InventoryMovement[];
   links: InventoryLink[];
 };
@@ -145,11 +149,13 @@ function setBikes(tx: Tx, itemId: number, bikeIds: number[]) {
 export function listInventory(ctx: AccessContext): InventoryItem[] {
   const db = getDb();
   const items = db
-    .select()
+    .select({ item: inventoryItems, photo: coverPhotoColumns })
     .from(inventoryItems)
+    .leftJoin(attachments, eq(attachments.id, inventoryItems.photoAttachmentId))
     .where(eq(inventoryItems.workspaceId, ctx.workspace.id))
     .orderBy(asc(inventoryItems.id))
-    .all();
+    .all()
+    .map(({ item, photo }) => ({ ...item, photo }));
   if (!items.length) return [];
   const ids = items.map((item) => item.id);
   const itemBikes = db
@@ -217,6 +223,7 @@ export function listInventory(ctx: AccessContext): InventoryItem[] {
     notes: item.notes,
     archivedAt: item.archivedAt?.getTime() ?? null,
     photoAttachmentId: item.photoAttachmentId,
+    photo: item.photo,
     links: links
       .filter((link) => link.itemId === item.id)
       .map((link) => ({

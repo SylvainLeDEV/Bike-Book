@@ -243,6 +243,36 @@ describe("update_attachment and delete_attachment", () => {
     });
     expect(invoice.structuredContent.attachment.kind).toBe("invoice");
 
+    // Framing (D-103): an image only, within its bounds, the other values kept.
+    const framed = await callTool(token, "update_attachment", {
+      attachment_id: sentPhoto,
+      focus_x_pct: 20,
+      zoom_pct: 250,
+      dry_run: false,
+    });
+    expect(framed.structuredContent.attachment).toMatchObject({
+      focus_x_pct: 20,
+      focus_y_pct: 50,
+      zoom_pct: 250,
+    });
+    const tooFar = await callTool(token, "update_attachment", {
+      attachment_id: sentPhoto,
+      zoom_pct: 400,
+      dry_run: false,
+    });
+    expect(tooFar.structuredContent.errors).toEqual([
+      { field: "zoom_pct", message: "Zoom entre ×1 et ×3." },
+    ]);
+    const pdfFramed = await callTool(token, "update_attachment", {
+      attachment_id: sentPdf,
+      focus_x_pct: 20,
+      dry_run: false,
+    });
+    expect(pdfFramed.structuredContent.errors).toEqual([
+      { field: "focus_x_pct", message: "Seule une image peut être cadrée." },
+    ]);
+    expect(invoice.structuredContent.attachment.focus_x_pct).toBeNull();
+
     const pdfPreview = await callTool(token, "delete_attachment", {
       attachment_id: sentPdf,
       dry_run: true,

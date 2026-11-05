@@ -4,7 +4,7 @@ import { Readable } from "node:stream";
 import type { NextRequest } from "next/server";
 import { getAccessContext } from "@/server/auth/context";
 import { getAttachment } from "@/server/db";
-import { derivedFile, isDerivedSize } from "@/server/files/images";
+import { DERIVED_SIZES, derivedFile, isDerivedSize } from "@/server/files/images";
 import { dataPath } from "@/server/files/storage";
 
 /*
@@ -46,7 +46,10 @@ export async function GET(request: NextRequest, ctx: RouteContext<"/api/uploads/
     return new Response("Taille inconnue.", { status: 400, headers: HEADERS });
   }
 
-  const etag = `"${attachment.sha256.slice(0, 32)}${size ? `-${size}` : ""}"`;
+  // A copy's ETag names its file: a new kind of copy (D-103) is never answered by a 304 for the
+  // old one a browser kept.
+  const copy = size ? `-${DERIVED_SIZES[size].file.replace(/\.webp$/, "")}` : "";
+  const etag = `"${attachment.sha256.slice(0, 32)}${copy}"`;
   if (request.headers.get("if-none-match") === etag) {
     return new Response(null, { status: 304, headers: { ...HEADERS, ETag: etag } });
   }

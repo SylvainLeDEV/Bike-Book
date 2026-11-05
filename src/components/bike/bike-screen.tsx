@@ -2,13 +2,22 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Camera, ImagePlus, Paperclip, Plus, Replace, ShoppingCart, Wrench } from "lucide-react";
+import {
+  Camera,
+  Crop,
+  ImagePlus,
+  Paperclip,
+  Plus,
+  Replace,
+  ShoppingCart,
+  Wrench,
+} from "lucide-react";
 import { UploadButton, UploadRows } from "@/components/attachments/upload-controls";
 import { useUploads } from "@/components/attachments/use-uploads";
 import { BikeCover } from "@/components/bike-cover";
 import { FilteredHistory, useHistoryFilter } from "@/components/history-filters";
 import { PhotoGallery } from "@/components/photos/photo-gallery";
-import { PhotoViewerProvider } from "@/components/photos/photo-viewer";
+import { PhotoViewerProvider, usePhotoViewer } from "@/components/photos/photo-viewer";
 import { PlanList, type PlanActions } from "@/components/plan/plan-list";
 import { ProcedureRowContent } from "@/components/procedures/procedure-row";
 import { useQuickRide } from "@/components/rides/quick-ride";
@@ -26,6 +35,7 @@ import type {
   AttachmentVM,
   BikePageVM,
   PartItemVM,
+  PhotoVM,
   ReplacePartInput,
   ReplacePartVM,
   TimelineItemVM,
@@ -193,6 +203,23 @@ function BikeScreenContent({
   const photoUploads = useUploads(bikeOwner);
   const documentUploads = useUploads(bikeOwner);
 
+  // Selects a tab, then focuses an element of it and scrolls to it.
+  const goTo = (tab: BikeTabId, target: string) => {
+    tabs?.select(tab);
+    requestAnimationFrame(() => {
+      const el = document.getElementById(target);
+      el?.focus({ preventScroll: true });
+      el?.scrollIntoView({ block: "center" });
+    });
+  };
+  const showRecord = () => goTo("record", "bike-record-title");
+
+  // The purchase day, in the cover: it sits in the record, a tab of its own on a phone.
+  const { purchasedOn, boughtUsed } = vm.record.purchase;
+  const boughtOn = purchasedOn
+    ? `${boughtUsed ? "Acheté d'occasion" : "Acheté"} le ${formatDate(purchasedOn, { year: "always" })}`
+    : null;
+
   // "Voir dans l'historique" from the viewer: open the right tab, then focus the element (shown
   // even when the filters or "Voir plus" hid it).
   const showOrigin = (photo: AttachmentVM) => {
@@ -201,18 +228,14 @@ function BikeScreenContent({
     const tab = kind === "bike" ? "record" : kind === "component" ? "components" : "history";
     if (kind === "ride" || kind === "maintenance_event")
       history.reveal(kind === "ride" ? "ride" : "maintenance", id);
-    tabs?.select(tab);
-    const target =
+    goTo(
+      tab,
       kind === "bike"
         ? "bike-record-title"
         : kind === "component"
           ? "bike-components-title"
-          : `${kind === "ride" ? "ride" : "maintenance"}-${id}`;
-    requestAnimationFrame(() => {
-      const el = document.getElementById(target);
-      el?.focus({ preventScroll: true });
-      el?.scrollIntoView({ block: "center" });
-    });
+          : `${kind === "ride" ? "ride" : "maintenance"}-${id}`,
+    );
   };
 
   return (
@@ -223,15 +246,18 @@ function BikeScreenContent({
       >
         <span className="absolute inset-0 bg-[linear-gradient(to_top,var(--photo-shade),transparent_62%)]" />
         {coverUploads.enabled ? (
-          <UploadButton
-            single
-            variant="secondary"
-            onFiles={(files) => coverUploads.add(files, true)}
-            className="absolute top-3 right-3 h-[34px] gap-1.5 rounded-full border-0 bg-photo-glass px-3 text-[13px] leading-none text-on-photo shadow-none backdrop-blur-md hover:bg-photo-glass pointer-coarse:h-11"
-          >
-            <Camera className="size-4" aria-hidden />
-            {bike.cover.photoUrl ? "Changer la photo" : "Ajouter une photo"}
-          </UploadButton>
+          <div className="absolute top-3 right-3 flex gap-2">
+            <CoverFramingButton photos={vm.photos} />
+            <UploadButton
+              single
+              variant="secondary"
+              onFiles={(files) => coverUploads.add(files, true)}
+              className={GLASS_BUTTON}
+            >
+              <Camera className="size-4" aria-hidden />
+              {bike.cover.photoUrl ? "Changer la photo" : "Ajouter une photo"}
+            </UploadButton>
+          </div>
         ) : null}
         <div className="absolute inset-x-4 bottom-3.5 text-on-photo md:bottom-5 md:left-6">
           <div className="flex flex-wrap gap-1.5">
@@ -255,6 +281,17 @@ function BikeScreenContent({
             ]
               .filter(Boolean)
               .join(" · ")}
+          </p>
+          <p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-sm opacity-90">
+            {boughtOn ? <span>{boughtOn}</span> : null}
+            {/* Below 1024 px the record is a tab, the fifth of a scrolling bar: a way in from here. */}
+            <button
+              type="button"
+              onClick={showRecord}
+              className="relative font-semibold underline underline-offset-2 lg:hidden pointer-coarse:after:absolute pointer-coarse:after:-inset-3"
+            >
+              Voir la fiche du vélo
+            </button>
           </p>
         </div>
       </BikeCover>
@@ -599,6 +636,28 @@ function BikeScreenContent({
         onSubmit={async (input, item) => actions.onReplacePart?.(input, item)}
       />
     </PhotoViewerProvider>
+  );
+}
+
+const GLASS_BUTTON =
+  "h-[34px] gap-1.5 rounded-full border-0 bg-photo-glass px-3 text-[13px] leading-none text-on-photo shadow-none backdrop-blur-md hover:bg-photo-glass pointer-coarse:h-11";
+
+/** "Cadrer" on the cover (D-103): the viewer, straight on the framing of the bike's cover. */
+function CoverFramingButton({ photos }: { photos: PhotoVM[] }) {
+  const viewer = usePhotoViewer();
+  const cover = photos.find((p) => p.isCover && p.origin.kind === "bike");
+  if (!viewer || !cover?.frame) return null;
+  return (
+    <Button
+      variant="secondary"
+      className={GLASS_BUTTON}
+      onClick={() =>
+        viewer.open({ title: "Photo principale", photos: [cover] }, cover.id, { framing: true })
+      }
+    >
+      <Crop className="size-4" aria-hidden />
+      Cadrer
+    </Button>
   );
 }
 

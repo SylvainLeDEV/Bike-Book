@@ -495,7 +495,8 @@ included); it opens "Modifier la tâche", which can reopen it. Cancelled tasks a
 
 Status: **Built** in phase 1 feature 10 (2026-10-27, migration `0010_attachments`, which also adds
 `bikes.cover_attachment_id` and `inventory_items.photo_attachment_id` by `ALTER TABLE … ADD
-COLUMN`, D-57). Decisions D-45, D-72 to D-76.
+COLUMN`, D-57). Decisions D-45, D-72 to D-76; framing (focus point and zoom) on 2026-11-05, D-103,
+migration `0019_photo_framing`.
 
 | Field | Type | Notes |
 |-------|------|-------|
@@ -510,6 +511,8 @@ COLUMN`, D-57). Decisions D-45, D-72 to D-76.
 | `width_px`, `height_px` | integer, nullable | Images only, in pixels, as displayed (EXIF orientation applied); null for a PDF |
 | `taken_at` | timestamp, nullable | Images only: EXIF `DateTimeOriginal` with `OffsetTimeOriginal` (without an offset, read in `TZ`); else the file's `lastModified`, sent by the client as its own field (the body does not carry it); else the upload time (H-11). A date before 1990 or in the future is not believed. Editable; without a time, noon. Null for a PDF. Galleries sort on it |
 | `caption` | text, nullable | 200 characters at most. Without one, the alternative text is generated from the linked element ("Photo de l'entretien « … »"): nothing more to store |
+| `focus_x_pct`, `focus_y_pct` | integer, default 50 | Images only (D-103): where the subject is, in percent of the width and of the height from the top left, 0 to 100 (checked by the app, no CHECK). Every cropped frame (cards, banner, tiles, pastilles) centres the photo on it as far as the photo allows. 50/50 = the middle, as before. Set by "Cadrer" or the MCP's `update_attachment`; ignored for a PDF. Added by migration `0019_photo_framing` (`ALTER TABLE`, D-57) |
+| `zoom_pct` | integer, default 100 | Images only (D-103): how much cropped frames enlarge the photo around the focus point, 100 (none) to 300 (checked by the app) |
 | `created_at`, `updated_at` | timestamp | Instants, UTC epoch milliseconds: the upload, the last edit |
 
 <a id="attachment-values"></a>**Values of `kind`**
@@ -525,8 +528,10 @@ COLUMN`, D-57). Decisions D-45, D-72 to D-76.
 Files live on disk, never in the database. The original is kept byte for byte, EXIF and GPS
 included (D-72); the position is never stored in a column. Derived copies (WebP, EXIF
 orientation applied, **no metadata**) go to `cache/<storage path without extension>/`
-(`thumb.webp`, 320 px square; `display.webp`, 1600 px inside): they are regenerated on demand, so
-they are left out of the backups.
+(`thumb-full.webp`, the whole photo with its short side at 480 px, since D-103 — the page crops it
+around the focus point; `display.webp`, 1600 px inside): they are regenerated on demand, so they
+are left out of the backups. The square `thumb.webp` of D-76 is removed when its replacement is
+made.
 
 Accepted formats (D-73): JPEG, PNG and WebP for photos, PDF for documents. HEIC is refused with
 its own message; everything else as an unsupported format. Type checked from the content, 25 MB

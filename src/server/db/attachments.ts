@@ -8,6 +8,7 @@ import type {
   RideType,
 } from "@/lib/enums";
 import type { LocalDate } from "@/lib/format";
+import { clampFraming, type Framing } from "@/lib/framing";
 import { allowedKinds, becomesCover, canBeCover, keepsCover } from "@/server/domain/attachments";
 import { removeStoredFiles } from "@/server/files/storage";
 import type { AccessContext } from "./access-context";
@@ -46,15 +47,31 @@ export type Attachment = {
   heightPx: number | null;
   takenAt: number | null;
   caption: string | null;
+  /** Images only: where every cropped frame centres, and its zoom (D-103). */
+  framing: Framing;
   createdAt: number;
 };
 
-export type AttachmentData = Omit<Attachment, "id" | "owner" | "createdAt">;
+export type AttachmentData = Omit<Attachment, "id" | "owner" | "createdAt" | "framing">;
 
 export type AttachmentPatch = {
   caption?: string | null;
   kind?: AttachmentKind;
   takenAt?: number;
+  /** Images only (D-103). */
+  framing?: Framing;
+};
+
+/** What a cover needs to be shown framed (bikes and workshop items, D-75, D-103). */
+export type CoverPhoto = Framing & { widthPx: number | null; heightPx: number | null };
+
+/** The columns of a `CoverPhoto`, for the queries that join a cover's attachment. */
+export const coverPhotoColumns = {
+  focusXPct: attachments.focusXPct,
+  focusYPct: attachments.focusYPct,
+  zoomPct: attachments.zoomPct,
+  widthPx: attachments.widthPx,
+  heightPx: attachments.heightPx,
 };
 
 type Outcome<T = object> = ({ ok: true } & T) | { ok: false; reason: "not_found" | "invalid" };
@@ -110,6 +127,7 @@ function toAttachment(row: AttachmentRow): Attachment {
     heightPx: row.heightPx,
     takenAt: row.takenAt?.getTime() ?? null,
     caption: row.caption,
+    framing: { focusXPct: row.focusXPct, focusYPct: row.focusYPct, zoomPct: row.zoomPct },
     createdAt: row.createdAt.getTime(),
   };
 }
@@ -549,8 +567,8 @@ export function getAttachment(ctx: AccessContext, attachmentId: number): Attachm
 }
 
 /**
- * Changes the caption, the kind or the date taken. An attachment that stops being a photo is no
- * longer a cover (D-75); a PDF never becomes a photo.
+ * Changes the caption, the kind, the date taken or the framing. An attachment that stops being a
+ * photo is no longer a cover (D-75); a PDF never becomes a photo, nor has a framing (D-103).
  */
 export function updateAttachment(
   ctx: AccessContext,
@@ -565,13 +583,16 @@ export function updateAttachment(
     if (patch.kind && !allowedKinds(isImage).includes(patch.kind)) {
       return { ok: false, reason: "invalid" };
     }
-    if (patch.takenAt != null && !isImage) return { ok: false, reason: "invalid" };
+    if ((patch.takenAt != null || patch.framing) && !isImage) {
+      return { ok: false, reason: "invalid" };
+    }
     const row = tx
       .update(attachments)
       .set({
         ...(patch.caption === undefined ? {} : { caption: patch.caption }),
         ...(patch.kind ? { kind: patch.kind } : {}),
         ...(patch.takenAt == null ? {} : { takenAt: new Date(patch.takenAt) }),
+        ...(patch.framing ? clampFraming(patch.framing) : {}),
       })
       .where(eq(attachments.id, attachmentId))
       .returning()

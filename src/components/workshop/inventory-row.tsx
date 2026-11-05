@@ -7,6 +7,7 @@ import { bikesText } from "@/lib/display";
 import { formatInteger, plural } from "@/lib/format";
 import { PRODUCT_LEVEL_LABELS, UNIT_LABELS } from "@/lib/labels";
 import type { BikeRef, InventoryRowVM, ItemStockVM, ProductLevel } from "@/lib/view-models";
+import { FramedImage } from "@/components/photos/framed-image";
 
 const LEVEL_BARS: Record<ProductLevel, number> = { full: 3, started: 2, low: 1, empty: 0 };
 
@@ -142,9 +143,10 @@ export function InventoryRowContent({
   return (
     <>
       {row.photoUrl ? (
-        // The item's photo (D-75), else its category icon.
-        // eslint-disable-next-line @next/next/no-img-element -- served by the uploads handler
-        <img src={row.photoUrl} alt="" className="row-span-2 size-9 rounded-[10px] object-cover" />
+        // The item's photo (D-75), framed (D-103), else its category icon.
+        <span className="relative row-span-2 size-9 overflow-hidden rounded-[10px] bg-surface-2">
+          <FramedImage src={row.photoUrl} frame={row.photoFrame} />
+        </span>
       ) : (
         <CategoryIcon category={row.category} className="row-span-2" />
       )}

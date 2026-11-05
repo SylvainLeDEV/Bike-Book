@@ -8,6 +8,7 @@ import {
   ChevronRight,
   ClipboardList,
   Cog,
+  Crop,
   Download,
   Image as ImageIcon,
   ListChecks,
@@ -25,13 +26,16 @@ import { useAttachmentService } from "@/components/attachments/service";
 import { Button } from "@/components/ui/button";
 import { formatDate } from "@/lib/format";
 import { ATTACHMENT_KIND_LABELS } from "@/lib/labels";
+import type { PhotoFrame } from "@/lib/framing";
 import type { AttachmentVM, PhotoOrigin } from "@/lib/view-models";
+import { FramingEditor } from "./framing-editor";
 
 /*
  * Full-screen photo viewer (D-45): previous and next by buttons, arrow keys and swipe, Escape
  * closes, and the focus returns to the thumbnail that opened it, even if a re-render replaced
  * it. "Modifier" edits the caption, kind, date taken and cover, and deletes after a
- * confirmation (feature 10), through the attachment service: read-only without one.
+ * confirmation (feature 10); "Cadrer" sets where the cropped frames centre (D-103); both
+ * through the attachment service: read-only without one.
  */
 
 /** Images only: PDFs open in a new tab instead. */
@@ -44,7 +48,10 @@ export type PhotoViewerActions = {
   onChanged?: () => void;
 };
 
-type ViewerContextValue = { open: (sequence: PhotoSequence, photoId: number) => void };
+type ViewerContextValue = {
+  /** `framing`: opens straight on "Cadrer" (the bike page's cover). */
+  open: (sequence: PhotoSequence, photoId: number, options?: { framing?: boolean }) => void;
+};
 const ViewerContext = React.createContext<ViewerContextValue | null>(null);
 
 export function usePhotoViewer() {
@@ -79,24 +86,29 @@ export function PhotoViewerProvider({
   const [sequence, setSequence] = React.useState<PhotoSequence | null>(null);
   const [index, setIndex] = React.useState(0);
   const [editing, setEditing] = React.useState(false);
+  const [framing, setFraming] = React.useState(false);
   const [announcement, setAnnouncement] = React.useState("");
   const opener = React.useRef<HTMLElement | null>(null);
   const captionRef = React.useRef<HTMLHeadingElement>(null);
   const swipeStart = React.useRef<{ x: number; y: number } | null>(null);
   const service = useAttachmentService();
 
-  const open = React.useCallback((next: PhotoSequence, photoId: number) => {
-    opener.current = document.activeElement as HTMLElement | null;
-    setSequence(next);
-    setIndex(
-      Math.max(
-        0,
-        next.photos.findIndex((p) => p.id === photoId),
-      ),
-    );
-    setEditing(false);
-    setAnnouncement("");
-  }, []);
+  const open = React.useCallback(
+    (next: PhotoSequence, photoId: number, options: { framing?: boolean } = {}) => {
+      opener.current = document.activeElement as HTMLElement | null;
+      setSequence(next);
+      setIndex(
+        Math.max(
+          0,
+          next.photos.findIndex((p) => p.id === photoId),
+        ),
+      );
+      setEditing(false);
+      setFraming(options.framing ?? false);
+      setAnnouncement("");
+    },
+    [],
+  );
 
   const photos = sequence?.photos ?? [];
   const photo = photos[index];
@@ -109,6 +121,7 @@ export function PhotoViewerProvider({
       if (next < 0 || next >= sequence.photos.length) return;
       setIndex(next);
       setEditing(false);
+      setFraming(false);
       const p = sequence.photos[next];
       setAnnouncement(`Photo ${next + 1} sur ${sequence.photos.length} : ${p.caption ?? p.alt}`);
     },
@@ -151,6 +164,19 @@ export function PhotoViewerProvider({
     focusCaption();
   }
 
+  function framed(frame: PhotoFrame) {
+    if (!sequence || !photo) return;
+    actions.onChanged?.();
+    setSequence({
+      ...sequence,
+      photos: sequence.photos.map((p) => (p.id === photo.id ? { ...p, frame } : p)),
+    });
+    setFraming(false);
+    setAnnouncement("Cadrage enregistré");
+    focusCaption();
+  }
+
+  const framingPhoto = framing && service && photo?.frame ? photo : null;
   const OriginIcon = photo ? ORIGIN_ICONS[photo.origin.kind] : Bike;
 
   return (
@@ -179,7 +205,7 @@ export function PhotoViewerProvider({
             }}
             onKeyDown={(event) => {
               const typing = (event.target as HTMLElement).matches("input, textarea, select");
-              if (typing) return;
+              if (typing || framingPhoto) return;
               if (event.key === "ArrowLeft") {
                 event.preventDefault();
                 go(-1);
@@ -208,7 +234,20 @@ export function PhotoViewerProvider({
               </Dialog.Close>
             </div>
 
-            {photo ? (
+            {framingPhoto?.frame ? (
+              <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain lg:grid lg:grid-cols-[minmax(0,1fr)_360px] lg:overflow-hidden">
+                <FramingEditor
+                  key={framingPhoto.id}
+                  photo={framingPhoto}
+                  frame={framingPhoto.frame}
+                  onSaved={framed}
+                  onCancel={() => {
+                    setFraming(false);
+                    focusCaption();
+                  }}
+                />
+              </div>
+            ) : photo ? (
               <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain lg:grid lg:grid-cols-[minmax(0,1fr)_360px] lg:overflow-hidden">
                 <div
                   className="relative mx-auto aspect-[4/3] max-h-[62dvh] w-full touch-pan-y bg-surface-2 select-none lg:grid lg:aspect-auto lg:h-full lg:max-h-none lg:place-items-center lg:p-6"
@@ -348,6 +387,12 @@ export function PhotoViewerProvider({
                   </ul>
 
                   <div className="flex flex-wrap gap-2">
+                    {service && photo.frame && !editing ? (
+                      <Button variant="secondary" size="sm" onClick={() => setFraming(true)}>
+                        <Crop />
+                        Cadrer
+                      </Button>
+                    ) : null}
                     <Button variant="ghost" size="sm" asChild>
                       <a href={photo.downloadUrl} download={photo.name}>
                         <Download />

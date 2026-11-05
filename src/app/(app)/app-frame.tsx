@@ -17,6 +17,7 @@ import {
   deleteAttachmentAction,
   listAttachmentsAction,
   setAttachmentCoverAction,
+  setAttachmentFramingAction,
   updateAttachmentAction,
 } from "@/server/actions/attachments";
 import { saveBikeAction } from "@/server/actions/bikes";
@@ -62,6 +63,7 @@ export function AppFrame({
         return result;
       },
       setCover: setAttachmentCoverAction,
+      setFraming: setAttachmentFramingAction,
       changed: () => router.refresh(),
     }),
     [router, toast],

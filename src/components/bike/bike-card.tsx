@@ -25,8 +25,13 @@ export function BikeCard({
 }) {
   const active = card.status === "active";
   const StatusIcon = BIKE_STATUS_ICONS[card.status];
+  const monthFigures = (
+    <span className="num text-[15px] font-semibold whitespace-nowrap text-fg">
+      {formatDistance(card.monthDistanceM)} · {formatDuration(card.monthDurationS)}
+    </span>
+  );
   return (
-    <div className="relative shrink-0 grow-0 basis-[80%] snap-start transition-transform has-[a:hover]:-translate-y-0.5 md:basis-auto">
+    <div className="@container relative shrink-0 grow-0 basis-[80%] snap-start transition-transform has-[a:hover]:-translate-y-0.5 md:basis-auto">
       <Link
         href={href}
         className="block overflow-hidden rounded-card border border-border bg-surface text-inherit shadow-(--shadow-sm) transition-shadow hover:shadow-(--shadow-md)"
@@ -49,14 +54,14 @@ export function BikeCard({
             </span>
           </span>
         </BikeCover>
-        <span className="flex min-h-[46px] items-center justify-between gap-2 px-3.5 py-2.5 text-[13px] text-fg-muted">
+        <span className="flex min-h-[46px] flex-wrap items-center justify-between gap-x-2 gap-y-1 px-3.5 py-2.5 text-[13px] text-fg-muted">
           {active ? (
             <>
+              {/* The card's own width decides (the dashboard's carousel cards are narrow): the
+                  figures take their own line below 24rem, so they never wrap mid-figure. */}
               <span>
-                Ce mois ·{" "}
-                <span className="num text-[15px] font-semibold text-fg">
-                  {formatDistance(card.monthDistanceM)} · {formatDuration(card.monthDurationS)}
-                </span>
+                Ce mois
+                <span className="hidden @min-[24rem]:inline"> · {monthFigures}</span>
               </span>
               {card.alert ? (
                 <RuleStatusBadge
@@ -66,6 +71,7 @@ export function BikeCard({
               ) : (
                 <RuleStatusBadge status="ok" />
               )}
+              <span className="basis-full @min-[24rem]:hidden">{monthFigures}</span>
             </>
           ) : (
             <span>

@@ -1,6 +1,7 @@
 import "server-only";
 import { slotLabel } from "@/lib/display";
 import { localDateOf, localTimeOf, type LocalDate } from "@/lib/format";
+import { photoFrame } from "@/lib/framing";
 import { RIDE_TYPE_LABELS } from "@/lib/labels";
 import type { AttachmentVM, PhotoOrigin, PhotoVM } from "@/lib/view-models";
 import {
@@ -104,6 +105,13 @@ export function attachmentVM(
     origin,
     bikeName,
     isCover: coverId === attachment.id,
+    frame: isImage
+      ? photoFrame({
+          ...attachment.framing,
+          widthPx: attachment.widthPx,
+          heightPx: attachment.heightPx,
+        })
+      : null,
   };
 }
 

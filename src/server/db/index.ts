@@ -120,6 +120,7 @@ export {
   type AttachmentData,
   type AttachmentOwner,
   type AttachmentPatch,
+  type CoverPhoto,
   type OwnerDescription,
 } from "./attachments";
 export {
