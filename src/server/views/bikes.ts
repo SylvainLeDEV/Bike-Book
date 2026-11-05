@@ -42,9 +42,11 @@ import {
   type AccessContext,
   type Bike,
   type MaintenanceEvent,
+  type Ride,
 } from "@/server/db";
 import { isListedFirst, trackingStartOn } from "@/server/domain/bikes";
 import { computeTotalCost, eventCostCents } from "@/server/domain/cost";
+import { ridingSince } from "@/server/domain/rides";
 import { rideWear, usageBetween } from "@/server/domain/wear";
 import { getEnv } from "@/server/env";
 import { today } from "@/server/time";
@@ -72,24 +74,28 @@ export const SUSPENSION_DISCIPLINES: Discipline[] = ["xc", "trail", "enduro", "d
 
 export { bikeRef, taskRow } from "./refs";
 
-export function bikeCard(bike: Bike): BikeCardVM {
+/** A bike's card (Accueil, Vélos): `rides` are the bike's, this month's riding is read from them. */
+export function bikeCard(bike: Bike, rides: Ride[]): BikeCardVM {
+  const monthStart = startOfLocalDay(`${today().slice(0, 7)}-01`, getEnv().timeZone);
+  const month = ridingSince(rides, monthStart);
   return {
     bike: bikeRef(bike),
     discipline: bike.discipline,
     isElectric: bike.isElectric,
     status: bike.status,
     statusChangedOn: bike.statusChangedOn,
-    monthDistanceM: 0,
-    monthDurationS: 0,
+    monthDistanceM: month.distanceM,
+    monthDurationS: month.durationS,
     alert: null,
   };
 }
 
 export function getBikesPageVM(ctx: AccessContext): BikesPageVM {
+  const card = (bike: Bike) => bikeCard(bike, listRides(ctx, { bikeId: bike.id }));
   const bikes = listBikes(ctx);
   return {
-    active: bikes.filter((bike) => isListedFirst(bike.status)).map(bikeCard),
-    others: bikes.filter((bike) => !isListedFirst(bike.status)).map(bikeCard),
+    active: bikes.filter((bike) => isListedFirst(bike.status)).map(card),
+    others: bikes.filter((bike) => !isListedFirst(bike.status)).map(card),
   };
 }
 
