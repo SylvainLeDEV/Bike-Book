@@ -21,7 +21,8 @@ in batches (D-97), runs and deletes for mistakes (D-98), photos and PDFs through
 links (D-99); then the answers fixed after a real-use test (D-100, ready for 0.4.1). Phase 2 started the same
 day (D-101): the Garmin Connect import through the Personal API (key in Paramètres, activity type
 → bike, "À classer", every 6 hours, expiry warnings). On 2026-11-05, "Cadrer" (D-103): a focus
-point and a zoom on each photo, which every cropped frame centres on.
+point and a zoom on each photo, which every cropped frame centres on. On 2026-11-06, "Reporter"
+to a day the owner picks, and "Réactiver" (D-105).
 
 ## Read first
 

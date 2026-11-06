@@ -12,6 +12,7 @@ import {
   PackageX,
   Pencil,
   Plus,
+  RotateCcw,
 } from "lucide-react";
 import { BikeCover } from "@/components/bike-cover";
 import { CATEGORY_ICONS } from "@/components/icons";
@@ -33,7 +34,10 @@ import { ActionButton } from "./action-button";
 
 export type PlanActions = {
   onRuleDone?: (rule: RuleRowVM) => void | Promise<void>;
+  /** "Reporter" until a day; on a snoozed rule, "Changer la date" (D-105). */
   onRuleSnooze?: (rule: RuleRowVM) => void | Promise<void>;
+  /** "Réactiver" a snoozed rule: back in the due list at once (D-105). */
+  onRuleReactivate?: (rule: RuleRowVM) => void | Promise<void>;
   onTaskDone?: (task: TaskRowVM) => void | Promise<void>;
   /** "Modifier la tâche": its fields and its attachments (feature 10). */
   onTaskEdit?: (task: TaskRowVM) => void;
@@ -117,7 +121,7 @@ function Lead({ rule, withBike }: { rule: RuleRowVM; withBike: boolean }) {
 const rowClasses =
   "grid grid-cols-[44px_minmax(0,1fr)] gap-x-3 px-4 py-3.5 md:grid-cols-[44px_minmax(0,1fr)_auto]";
 const actionsClasses =
-  "col-start-2 mt-3 flex gap-2 md:col-start-3 md:row-start-1 md:mt-0 md:ml-2 md:flex-col md:self-center";
+  "col-start-2 mt-3 flex flex-wrap gap-2 md:col-start-3 md:row-start-1 md:mt-0 md:ml-2 md:flex-col md:self-center";
 
 function RuleRow({
   rule,
@@ -144,6 +148,7 @@ function RuleRow({
   const used = formatQuantity(rule.used);
   const interval = formatQuantity(rule.interval);
   const stock = rule.stock;
+  const snoozed = rule.status === "snoozed";
 
   return (
     <li className={rowClasses}>
@@ -238,11 +243,23 @@ function RuleRow({
             size="sm"
             action={actions.onRuleSnooze}
             payload={rule}
-            aria-label={`Reporter : ${rule.title}, ${rule.bike.name}`}
+            aria-label={`${snoozed ? "Changer la date du report" : "Reporter"} : ${rule.title}, ${rule.bike.name}`}
           >
             <CalendarClock />
-            Reporter
+            {snoozed ? "Changer la date" : "Reporter"}
           </ActionButton>
+          {snoozed && actions.onRuleReactivate ? (
+            <ActionButton
+              variant="ghost"
+              size="sm"
+              action={actions.onRuleReactivate}
+              payload={rule}
+              aria-label={`Réactiver : ${rule.title}, ${rule.bike.name}`}
+            >
+              <RotateCcw />
+              Réactiver
+            </ActionButton>
+          ) : null}
         </div>
       ) : null}
     </li>

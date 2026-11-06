@@ -101,6 +101,7 @@ export function evaluateBikeRules(input: BikeRulesInput): EvaluatedRule[] {
           lastReset.kind === "start" || lastReset.at <= bike.trackingStartAt
             ? null
             : localDateOf(lastReset.at, timeZone),
+        snoozeEndsOn: evaluation.status === "snoozed" ? rule.snoozeEndsOn : null,
         stock: null,
       };
       return { rule, evaluation, row };

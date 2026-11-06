@@ -17,9 +17,11 @@ export function useDemoPlanActions(initialTasks: TaskRowVM[]) {
     onRuleDone: (rule) =>
       toast(`Entretien noté : ${rule.title}`, { undo: () => toast("Entretien retiré") }),
     onRuleSnooze: (rule) =>
-      toast(`Rappel reporté de 2 semaines : ${rule.title}`, {
+      toast(`Reporté de 2 semaines : ${rule.title}`, {
         undo: () => toast("Report annulé"),
       }),
+    onRuleReactivate: (rule) =>
+      toast(`Réactivé : ${rule.title}`, { undo: () => toast("Report rétabli") }),
     onTaskDone: (task) => {
       setDoneIds((ids) => [...ids, task.id]);
       toast(`Tâche faite : ${task.title}`, {

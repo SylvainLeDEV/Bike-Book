@@ -114,6 +114,8 @@ export type RuleRowVM = {
   /** Projection from the last 8 weeks (Estimate); null when there is not enough riding. */
   etaDays: number | null;
   lastDoneOn: LocalDate | null;
+  /** "Reporté jusqu'au …" (D-105): the day it comes back, set only while status is snoozed. */
+  snoozeEndsOn?: LocalDate | null;
   /** The workshop part, else product, this slot uses on the bike; tools are never shown (D-85). */
   stock: ({ itemId: number; name: string; state: RebuyState | null } & ItemStockVM) | null;
   /** The procedure ("fiche") it is done with (D-86). */

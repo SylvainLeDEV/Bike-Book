@@ -13,7 +13,7 @@ import {
   OctagonAlert,
   Package,
   PackageMinus,
-  Pause,
+  CalendarClock,
   Route,
   ShoppingCart,
   SprayCan,
@@ -61,7 +61,7 @@ export const RULE_STATUS_ICONS: Record<RuleStatus, LucideIcon> = {
   ok: CircleCheck,
   due_soon: Clock,
   overdue: OctagonAlert,
-  snoozed: Pause,
+  snoozed: CalendarClock,
 };
 
 export const REBUY_STATE_ICONS: Record<RebuyState, LucideIcon> = {

@@ -2,14 +2,14 @@
 
 import { refresh } from "next/cache";
 import { z } from "zod";
-import { addDays, isLocalDate, startOfLocalDay } from "@/lib/format";
+import { formatDate, isLocalDate, startOfLocalDay } from "@/lib/format";
 import type { SaveRuleResult } from "@/lib/view-models";
 import { requireAccessContext } from "@/server/auth/context";
 import { createRule, getBike, listRules, snoozeRule, updateRule } from "@/server/db";
 import { trackingStartOn } from "@/server/domain/bikes";
 import { getEnv } from "@/server/env";
 import { today } from "@/server/time";
-import { ruleInputSchema, toRuleData } from "./rule-input";
+import { ruleInputSchema, snoozeUntilSchema, toRuleData } from "./rule-input";
 
 const id = z.number().int().positive();
 
@@ -45,24 +45,40 @@ export async function saveRuleAction(
   return { ok: true, message: `Règle enregistrée : ${data.title}` };
 }
 
-const SNOOZE_DAYS = 14;
-
-/** "Reporter": snoozes a rule for two weeks; the answer carries what "Annuler" restores. */
+/**
+ * "Reporter" until a day the owner chose, or "Réactiver" (`until` null) (D-105); the answer
+ * carries what "Annuler" restores.
+ */
 export async function snoozeRuleAction(
   ruleId: unknown,
+  until: unknown,
 ): Promise<
   { ok: true; message: string; previous: string | null } | { ok: false; message: string }
 > {
   const ctx = await requireAccessContext();
-  const parsed = id.safeParse(ruleId);
-  if (!parsed.success) return { ok: false, message: "Règle introuvable." };
-  const outcome = snoozeRule(ctx, parsed.data, addDays(today(), SNOOZE_DAYS));
+  const day = today();
+  const parsed = z
+    .object({ ruleId: id, until: snoozeUntilSchema(day).nullable() })
+    .safeParse({ ruleId, until });
+  if (!parsed.success) {
+    const issue = parsed.error.issues[0];
+    return {
+      ok: false,
+      message: issue?.path[0] === "until" ? issue.message : "Règle introuvable.",
+    };
+  }
+  const end = parsed.data.until;
+  const outcome = snoozeRule(ctx, parsed.data.ruleId, end);
   if (!outcome.ok) return { ok: false, message: "Règle introuvable." };
   refresh();
-  return { ok: true, message: "Rappel reporté de 2 semaines", previous: outcome.previous };
+  return {
+    ok: true,
+    message: end ? `Reporté au ${formatDate(end, { year: "auto", today: day })}` : "Réactivé",
+    previous: outcome.previous,
+  };
 }
 
-/** "Annuler" after "Reporter" (D-60): puts the previous snooze back. */
+/** "Annuler" after "Reporter" or "Réactiver" (D-60): puts the previous snooze back. */
 export async function undoSnoozeAction(
   ruleId: unknown,
   previous: unknown,
@@ -75,5 +91,5 @@ export async function undoSnoozeAction(
     return { message: "Rien à annuler." };
   }
   refresh();
-  return { message: "Report annulé" };
+  return { message: parsed.data.previous ? "Report rétabli" : "Report annulé" };
 }

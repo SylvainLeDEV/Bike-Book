@@ -1,7 +1,7 @@
 import "server-only";
 import { z } from "zod";
 import { COMPONENT_TYPE_CODES, type ComponentTypeCode } from "@/lib/enums";
-import { endOfLocalDay, isLocalDate, type LocalDate } from "@/lib/format";
+import { addDays, endOfLocalDay, isLocalDate, type LocalDate } from "@/lib/format";
 import { cleanName } from "@/lib/names";
 import type { RuleInput } from "@/lib/view-models";
 import type { RuleData } from "@/server/db";
@@ -14,6 +14,21 @@ export function lastDoneOnSchema(today: LocalDate) {
     .string()
     .refine(isLocalDate, "Date invalide.")
     .refine((date) => date <= today, "La date ne peut pas être dans le futur.");
+}
+
+/** At most ten years ahead: a mistyped year is refused rather than hiding a rule for good. */
+export const SNOOZE_MAX_DAYS = 3650;
+
+/** "Reporter" (D-105): the day the rule comes back, after today. */
+export function snoozeUntilSchema(today: LocalDate) {
+  return z
+    .string({ error: "Date invalide." })
+    .refine(isLocalDate, "Date invalide.")
+    .refine((date) => date > today, "Choisis un jour après aujourd'hui.")
+    .refine(
+      (date) => date <= addDays(today, SNOOZE_MAX_DAYS),
+      "Choisis un jour dans les dix prochaines années.",
+    );
 }
 
 /**

@@ -318,6 +318,19 @@ describe("update_rule and snooze_rule", () => {
     expect(past.structuredContent.errors).toEqual([
       { field: "until", message: "Choisis un jour après aujourd'hui." },
     ]);
+    const far = await callTool(token, "snooze_rule", {
+      rule_id: ruleId,
+      until: addDays(today(), 4000),
+      dry_run: false,
+    });
+    expect(far.structuredContent.errors).toEqual([
+      { field: "until", message: "Choisis un jour dans les dix prochaines années." },
+    ]);
+    const listed = await callTool(token, "list_rules", { bike_id: bikeId });
+    expect(listed.structuredContent.rules[0]).toMatchObject({
+      status: "snoozed",
+      snoozed_until: addDays(today(), 14),
+    });
     await callTool(token, "snooze_rule", { rule_id: ruleId, until: null, dry_run: false });
     expect((await callTool(token, "list_due_work", {})).structuredContent.rules).toHaveLength(1);
   });

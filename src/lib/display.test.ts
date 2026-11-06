@@ -54,6 +54,14 @@ describe("ruleNote", () => {
     expect(ruleNote(rule({ dueOn: "2027-09-26" }), "2026-10-25")).toBe(fr("Le 26~septembre~2027"));
   });
 
+  it("gives the day a snoozed rule comes back (D-105)", () => {
+    const snoozed = rule({ status: "snoozed", dueOn: "2026-07-24", snoozeEndsOn: "2027-01-15" });
+    expect(ruleNote(snoozed, "2026-11-06")).toBe(fr("Reporté jusqu'au 15~janvier~2027"));
+    expect(ruleNote({ ...snoozed, snoozeEndsOn: "2026-12-01" }, "2026-11-06")).toBe(
+      fr("Reporté jusqu'au 1er~décembre"),
+    );
+  });
+
   it("falls back on the projection, then on nothing", () => {
     expect(ruleNote(rule({ etaDays: 5 }), "2026-10-25")).toBe(fr("≈~dans 5~jours"));
     expect(ruleNote(rule({}), "2026-10-25")).toBeNull();

@@ -267,7 +267,8 @@ served. `add_workshop_item` validates with `itemInputSchema` and writes through 
 
 **Edits (D-94).** `update_task` (`taskSchema`, `updateTask`), `update_rule` (the rule as the sheet
 edits it, `ruleFormInput`, then `ruleInputSchema` and `updateRule`; its slot never changes) and
-`snooze_rule` (`snoozeRule`). Only the fields given change; null clears.
+`snooze_rule` (`snoozeRule`; its day checked by `snoozeUntilSchema`, as the app's "Reporter"
+sheet, D-105). Only the fields given change; null clears.
 
 **Maintenance done (D-93).** `record_maintenance` is the maintenance sheet (`maintenanceSchema`,
 `createMaintenanceEvent`): a line with `rule_id` restarts that rule, and takes the app's own line

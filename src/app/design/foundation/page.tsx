@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Archive, Pause, Plus, ShoppingCart, TrendingUp, Wrench } from "lucide-react";
+import { Archive, Plus, ShoppingCart, TrendingUp, Wrench } from "lucide-react";
 import { BikeLine } from "@/components/bike-cover";
 import { EmptyState } from "@/components/empty-state";
 import { useQuickRide } from "@/components/rides/quick-ride";
@@ -229,10 +229,7 @@ export default function FoundationPage() {
                 <RuleStatusBadge status="ok" />
                 <RuleStatusBadge status="due_soon" />
                 <RuleStatusBadge status="overdue" />
-                <Badge>
-                  <Pause aria-hidden />
-                  En pause
-                </Badge>
+                <RuleStatusBadge status="snoozed" />
                 <Badge variant="outline">
                   <TrendingUp aria-hidden />
                   Estimation

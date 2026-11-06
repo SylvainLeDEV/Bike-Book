@@ -182,6 +182,15 @@ export function addDays(date: LocalDate, days: number): LocalDate {
   return fromUtcDays(toUtcDays(date) + days);
 }
 
+/** The same day `months` later, or that month's last day: 31 January + 1 month = 28 February. */
+export function addMonths(date: LocalDate, months: number): LocalDate {
+  const { year, month, day } = parseLocalDate(date);
+  const first = new Date(Date.UTC(year, month - 1 + months, 1));
+  const lastDay = new Date(Date.UTC(first.getUTCFullYear(), first.getUTCMonth() + 1, 0));
+  first.setUTCDate(Math.min(day, lastDay.getUTCDate()));
+  return first.toISOString().slice(0, 10);
+}
+
 /** 0 = Sunday … 6 = Saturday. */
 export function weekdayOf(date: LocalDate): number {
   return new Date(toUtcDays(date) * 86_400_000).getUTCDay();

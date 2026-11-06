@@ -181,6 +181,20 @@ describe("rule engine", () => {
     ).toBe("overdue");
   });
 
+  it("shows a snoozed rule done since as up to date (D-105)", () => {
+    const snoozed = { ...lowerLegs, intervalWearS: H, snoozeEndsOn: "2026-07-01" };
+    const rides = [ride("2026-06-10T10:00:00Z", { movingTimeS: 2 * H })];
+    const doneAgain = { ...done, at: T("2026-06-15T21:59:59.999Z"), eventId: 8, on: "2026-06-15" };
+    const evaluation = evaluateRule(snoozed, {
+      ...base,
+      rides,
+      resets: [done, doneAgain],
+      now: T("2026-06-20T10:00:00Z"),
+      today: "2026-06-20",
+    });
+    expect(evaluation).toMatchObject({ status: "ok", ratio: 0 });
+  });
+
   it("projects the due day from the pace of the last 8 weeks (an estimate)", () => {
     const chain = {
       ...lowerLegs,

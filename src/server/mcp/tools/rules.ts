@@ -1,8 +1,8 @@
 import "server-only";
 import { z } from "zod";
 import { COMPONENT_TYPE_CODES } from "@/lib/enums";
-import { addDays, isLocalDate, startOfLocalDay } from "@/lib/format";
-import { ruleInputSchema, toRuleData } from "@/server/actions/rule-input";
+import { addDays, startOfLocalDay } from "@/lib/format";
+import { ruleInputSchema, snoozeUntilSchema, toRuleData } from "@/server/actions/rule-input";
 import {
   atomically,
   createRule,
@@ -60,6 +60,9 @@ function describeFullRule(
     warn_ratio: rule.warnRatio,
     reset_on_replacement: rule.resetOnReplacement,
     active: rule.active,
+    /** "Reporter" (D-105): the day a snooze ends, after today; it hides the rule while due. */
+    snoozed_until:
+      rule.snoozeEndsOn != null && rule.snoozeEndsOn > today() ? rule.snoozeEndsOn : null,
     notes: rule.notes,
   };
 }
@@ -79,7 +82,7 @@ const listRulesTool = defineTool({
   title: "Règles d'entretien d'un vélo",
   kind: "read",
   description:
-    "A bike's maintenance rules, in the order they were created: title, the part type and end it applies to (component_type_code null: the whole bike; position null: every part of the type), intervals (metres, seconds of wear, days), status now (ok, due_soon, overdue, snoozed; null when inactive), the day it counts from and, for day-based ones, the day it falls due. Read it before add_rule to avoid a duplicate.",
+    'A bike\'s maintenance rules, in the order they were created: title, the part type and end it applies to (component_type_code null: the whole bike; position null: every part of the type), intervals (metres, seconds of wear, days), status now (ok, due_soon, overdue, snoozed; null when inactive), snoozed_until (the day a snooze ends, as "Reporter"), the day it counts from and, for day-based ones, the day it falls due. Read it before add_rule to avoid a duplicate.',
   input: z.strictObject({
     bike_id: z.number().describe("The bike (list_bikes)."),
     ...pageInput,
@@ -342,7 +345,7 @@ const snoozeRuleTool = defineTool({
   title: "Reporter une règle",
   kind: "write",
   description:
-    'Snoozes a maintenance rule, as "Reporter" in "À prévoir": it leaves the due list until that day (status snoozed), then comes back if still due. until: the day, YYYY-MM-DD, after today (default: in 14 days, as the app); null cancels a snooze. Call with dry_run true first.',
+    'Snoozes a maintenance rule, as "Reporter" in "À prévoir": while it is due (overdue or due soon) it leaves the due list until that day (status snoozed), then comes back if still due; done before, it is simply up to date. until: the day, YYYY-MM-DD, after today and within ten years (default: in 14 days); null cancels a snooze ("Réactiver"). Call with dry_run true first.',
   input: z.strictObject({
     rule_id: z.number().describe("The rule (list_due_work, list_rules)."),
     until: z.string().nullable().optional(),
@@ -353,14 +356,10 @@ const snoozeRuleTool = defineTool({
     if (!found) return notFound("rule_id", "Règle introuvable.");
     const day = today();
     const end = until === undefined ? addDays(day, SNOOZE_DAYS) : until;
-    if (end != null && (!isLocalDate(end) || end <= day)) {
+    const checked = snoozeUntilSchema(day).nullable().safeParse(end);
+    if (!checked.success) {
       return refused(
-        [
-          {
-            field: "until",
-            message: isLocalDate(end) ? "Choisis un jour après aujourd'hui." : "Date invalide.",
-          },
-        ],
+        [{ field: "until", message: checked.error.issues[0]?.message ?? "Date invalide." }],
         "The snooze was refused; nothing was written.",
       );
     }
@@ -382,7 +381,7 @@ const snoozeRuleTool = defineTool({
         : `The rule "${rule.title}" is ${what}.`,
       {
         dry_run: dryRun,
-        rule: { ...after, snoozed_until: end },
+        rule: after,
         warnings: [],
         bike_url: bikeUrl(bike.id),
       },

@@ -123,14 +123,10 @@ export function evaluateRule(
   );
   const ratio = driving.used / driving.interval;
 
-  const snoozed = rule.snoozeEndsOn != null && today < rule.snoozeEndsOn;
-  const status: RuleStatus = snoozed
-    ? "snoozed"
-    : ratio >= 1
-      ? "overdue"
-      : ratio >= rule.warnRatio
-        ? "due_soon"
-        : "ok";
+  // A snooze ("Reporter", D-105) only hides a rule that is due: done since, it is up to date.
+  const real: RuleStatus = ratio >= 1 ? "overdue" : ratio >= rule.warnRatio ? "due_soon" : "ok";
+  const snoozed = rule.snoozeEndsOn != null && today < rule.snoozeEndsOn && real !== "ok";
+  const status: RuleStatus = snoozed ? "snoozed" : real;
 
   // Pace: average daily usage over the last 8 weeks.
   const pace = usageBetween(rides, now - PACE_WINDOW_DAYS * DAY_MS, now);

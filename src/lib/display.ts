@@ -114,6 +114,9 @@ export function movementTitle(
  * "Dépassé de 6 h 20", "Le 1er novembre", "≈ dans 5 jours".
  */
 export function ruleNote(rule: RuleRowVM, today: LocalDate): string | null {
+  if (rule.status === "snoozed" && rule.snoozeEndsOn) {
+    return `Reporté jusqu'au ${formatDate(rule.snoozeEndsOn, { year: "auto", today })}`;
+  }
   if (rule.status === "overdue") {
     const over: Quantity = {
       unit: rule.used.unit,

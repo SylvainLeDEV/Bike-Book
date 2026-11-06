@@ -28,7 +28,7 @@ import {
   undoMaintenanceAction,
   updateMaintenanceAction,
 } from "@/server/actions/maintenance";
-import { saveRuleAction, snoozeRuleAction, undoSnoozeAction } from "@/server/actions/rules";
+import { saveRuleAction } from "@/server/actions/rules";
 import {
   createSetupAction,
   deleteSetupAction,
@@ -63,7 +63,7 @@ export function BikeView({
   const toast = useToast();
   const router = useRouter();
   const pathname = usePathname();
-  const snooze = useSnooze(snoozeRuleAction, undoSnoozeAction);
+  const snooze = useSnooze(page.vm.today);
   const taskSheet = useTaskSheet();
   const taskDone = useTaskDone();
   const quickRide = useQuickRide();
@@ -146,7 +146,8 @@ export function BikeView({
               const edit = page.edits.maintenance[item.id];
               if (edit) setMaintenance({ open: true, prefill: null, edit });
             },
-            onRuleSnooze: (rule) => snooze(rule.id, rule.title),
+            onRuleSnooze: (rule) => snooze.open(rule),
+            onRuleReactivate: (rule) => snooze.reactivate(rule),
             onTaskDone: (task) => taskDone(task.id, task.title),
             onTaskEdit: (task) => taskSheet.edit(task),
             workshopItemHref: (id) => `/workshop?item=${id}`,
@@ -217,6 +218,7 @@ export function BikeView({
           return result;
         }}
       />
+      {snooze.sheet}
       <RulesSheet
         open={rulesOpen}
         onOpenChange={setRulesOpen}

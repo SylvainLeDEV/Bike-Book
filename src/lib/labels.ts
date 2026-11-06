@@ -97,7 +97,7 @@ export const RULE_STATUS_LABELS: Record<RuleStatus, string> = {
   ok: "À jour",
   due_soon: "Bientôt",
   overdue: "En retard",
-  snoozed: "En pause",
+  snoozed: "Reporté",
 };
 
 export const BIKE_STATUS_LABELS: Record<BikeStatus, string> = {

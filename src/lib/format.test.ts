@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   addDays,
+  addMonths,
   daysBetween,
   formatCount,
   formatDate,
@@ -130,6 +131,14 @@ describe("calendar dates", () => {
     expect(daysBetween("2024-03-14", "2026-10-25")).toBe(955);
     expect(addDays("2026-10-25", 7)).toBe("2026-11-01");
     expect(addDays("2024-02-28", 1)).toBe("2024-02-29");
+  });
+
+  it("adds months, keeping the day or the month's last one", () => {
+    expect(addMonths("2026-11-06", 1)).toBe("2026-12-06");
+    expect(addMonths("2026-11-06", 3)).toBe("2027-02-06");
+    expect(addMonths("2026-01-31", 1)).toBe("2026-02-28");
+    expect(addMonths("2024-01-31", 1)).toBe("2024-02-29");
+    expect(addMonths("2026-12-31", -1)).toBe("2026-11-30");
   });
 
   it("projects in approximate words", () => {

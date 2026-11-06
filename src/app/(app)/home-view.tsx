@@ -7,7 +7,6 @@ import { DashboardScreen } from "@/components/dashboard/dashboard-screen";
 import { PageBody, Topbar } from "@/components/shell/topbar";
 import { useToast } from "@/components/ui/toast";
 import type { DashboardVM } from "@/lib/view-models";
-import { snoozeRuleAction, undoSnoozeAction } from "@/server/actions/rules";
 import { startRunAction } from "@/server/actions/runs";
 import { useSnooze } from "./use-snooze";
 import { useTaskDone } from "./use-task-done";
@@ -15,7 +14,7 @@ import { useTaskDone } from "./use-task-done";
 export function HomeView({ vm }: { vm: DashboardVM }) {
   const bikeSheet = useBikeSheet();
   const router = useRouter();
-  const snooze = useSnooze(snoozeRuleAction, undoSnoozeAction);
+  const snooze = useSnooze(vm.today);
   const taskSheet = useTaskSheet();
   const taskDone = useTaskDone();
   const toast = useToast();
@@ -28,7 +27,8 @@ export function HomeView({ vm }: { vm: DashboardVM }) {
           actions={{
             // The maintenance sheet lives on the bike page: open it there, prefilled.
             onRuleDone: (rule) => router.push(`/bikes/${rule.bike.id}?done=${rule.id}`),
-            onRuleSnooze: (rule) => snooze(rule.id, rule.title),
+            onRuleSnooze: (rule) => snooze.open(rule),
+            onRuleReactivate: (rule) => snooze.reactivate(rule),
             onTaskDone: (task) => taskDone(task.id, task.title),
             onTaskEdit: (task) => taskSheet.edit(task),
             onAddTask: () => taskSheet.open(),
@@ -57,6 +57,7 @@ export function HomeView({ vm }: { vm: DashboardVM }) {
           onAddBike={() => bikeSheet.open()}
         />
       </PageBody>
+      {snooze.sheet}
     </>
   );
 }

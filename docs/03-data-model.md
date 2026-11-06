@@ -457,13 +457,14 @@ are computed by `src/server/domain/rules.ts`, never stored (D-50, D-65).
 | `reset_on_replacement` | boolean, required, default `true` | Fitting a new part in the slot restarts the counter. Always false for a bike-level rule |
 | `counter_start_at` | timestamp, required | Counter start while the rule has never been done: the part's fitting for a rule from a template, the end of the "last done" day typed in the sheet, else the start of tracking |
 | `active` | boolean, required, default `true` | `false`: set aside, not shown in "À prévoir"; rules are never deleted |
-| `snooze_ends_on` | date, nullable | Snoozed until this date ("Reporter": 14 days): the rule shows its real status again from that day |
+| `snooze_ends_on` | date, nullable | Snoozed until this date ("Reporter", a day after today and within ten years, D-105): while the rule is due it shows `snoozed`, then its real status again from that day; null: not snoozed ("Réactiver") |
 | `procedure_id` | FK `procedures`, nullable, `ON DELETE SET NULL` | The procedure it is done with (D-86), chosen in the "Règles" sheet; "À prévoir" shows "Fiche : …" |
 | `notes` | text | |
 | `created_at`, `updated_at` | timestamp | |
 
 Computed status values: `ok` (ratio < `warn_ratio`), `due_soon` (≥ `warn_ratio`), `overdue` (≥ 1),
-`snoozed` (before `snooze_ends_on`).
+`snoozed` (before `snooze_ends_on`, and only while it would be `due_soon` or `overdue`: a rule
+done during its snooze is `ok`, D-105).
 
 ### `tasks` — "what's coming", one-off
 
@@ -1124,7 +1125,7 @@ Counters:
   - *ratio* = the highest of `distance / interval_distance`, `time / interval_wear`,
     `days / interval_days`.
   - *status* = `ok` (ratio < `warn_ratio`), `due_soon` (≥ `warn_ratio`), `overdue` (≥ 1), or
-    `snoozed`.
+    `snoozed` (a due rule before `snooze_ends_on`).
   - *ETA* = what remains, divided by the average daily usage over the last 8 weeks. Shown as
     "≈ in 3 weeks". A simple linear projection, its quality is an **Estimate**.
 
