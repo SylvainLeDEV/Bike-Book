@@ -1,6 +1,6 @@
 {
   "name": "bike-book",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "private": true,
   "description": "Self-hosted web app to track bikes: rides, maintenance, components and upcoming service.",
   "license": "UNLICENSED",

@@ -349,6 +349,7 @@ in the logs (D-28): the container exits instead of answering HTTP 500.
 | `AUTH_SECRET` | Yes in production (D-28) | Signs session cookies. At least 32 characters (`openssl rand -base64 32`); the `.env.example` placeholder is refused. Development uses a built-in insecure default |
 | `ALLOW_SIGNUP` | No (default `false`) | `false`: only the first-launch setup screen creates an account. `true`: anyone who reaches the app can create an account with its own workspace (D-27). Later, new users come by invitation |
 | `PUBLIC_URL` | Yes in production (D-28) | Origin users type, e.g. `http://bikes.lan`. Better Auth's base URL: origin check on sign-in, and session cookies get `Secure` only when it starts with `https://`. Open the app at exactly this origin, or sign-in is refused |
+| `TRUSTED_ORIGINS` | No (D-104) | Other origins accepted at sign-in besides `PUBLIC_URL`, comma-separated (e.g. `http://192.168.1.20:3000` to also open the app by IP and port). Each origin has its own session (cookies are tied to the host). Links built by the app (MCP, upload links) keep using `PUBLIC_URL` |
 | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | No | Phase 1.5 notifications (D-18) |
 | `ICS_FEED_TOKEN` | No | Secret part of the calendar feed URL (D-18) |
 | `GARMIN_SYNC_INTERVAL_H` | No (default `6`) | Hours between two automatic Garmin imports; `0` turns them off ("Synchroniser maintenant" stays). The key itself is typed in Paramètres, encrypted in the database (D-101), never in the environment |

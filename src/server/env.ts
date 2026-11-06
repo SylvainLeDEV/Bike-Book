@@ -44,6 +44,16 @@ const envSchema = z.object({
   DATA_DIR: z.string().trim().min(1).default("./data"),
   AUTH_SECRET: z.string().min(32, "AUTH_SECRET must be at least 32 characters").optional(),
   PUBLIC_URL: httpUrl.optional(),
+  TRUSTED_ORIGINS: z
+    .string()
+    .transform((value) =>
+      value
+        .split(",")
+        .map((origin) => origin.trim())
+        .filter(Boolean),
+    )
+    .pipe(z.array(httpUrl))
+    .optional(),
   ALLOW_SIGNUP: booleanString.default(false),
   TZ: z
     .string()
@@ -82,6 +92,8 @@ export type Env = {
   dataDir: string;
   authSecret: string;
   publicUrl: string;
+  /** Other origins accepted at sign-in besides `publicUrl` (e.g. the server's IP and port). */
+  trustedOrigins: string[];
   allowSignup: boolean;
   /** Display time zone (H-02): instants are shown, and "today" is computed, in this zone. */
   timeZone: string;
@@ -124,6 +136,7 @@ export function parseEnv(source: Record<string, string | undefined>): Env {
     dataDir: env.DATA_DIR,
     authSecret: env.AUTH_SECRET ?? DEV_AUTH_SECRET,
     publicUrl: env.PUBLIC_URL ?? DEV_PUBLIC_URL,
+    trustedOrigins: [...new Set(env.TRUSTED_ORIGINS ?? [])],
     allowSignup: env.ALLOW_SIGNUP,
     // Without TZ, the zone of the process (UTC in most containers).
     timeZone: env.TZ ?? Intl.DateTimeFormat().resolvedOptions().timeZone,

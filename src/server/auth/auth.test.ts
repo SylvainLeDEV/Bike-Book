@@ -58,4 +58,17 @@ describe("auth", () => {
     });
     expect(await errorCode(wrong)).toBe("INVALID_EMAIL_OR_PASSWORD");
   });
+
+  it("trusts its base URL plus the extra origins, and nothing else", async () => {
+    const auth = createAuth({
+      ...baseOptions,
+      allowSignup: false,
+      trustedOrigins: ["http://192.168.1.20:3000"],
+    });
+    const { trustedOrigins } = await auth.$context;
+
+    expect(trustedOrigins).toContain("http://localhost:3000");
+    expect(trustedOrigins).toContain("http://192.168.1.20:3000");
+    expect(trustedOrigins).not.toContain("http://evil.example");
+  });
 });

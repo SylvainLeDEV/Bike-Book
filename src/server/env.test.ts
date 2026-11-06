@@ -40,6 +40,16 @@ describe("parseEnv", () => {
     expect(() => parseEnv({ PUBLIC_URL: "ftp://bikes.lan" })).toThrow(/http\(s\) URL/);
   });
 
+  it("parses TRUSTED_ORIGINS as a list of origins, none by default", () => {
+    expect(parseEnv({}).trustedOrigins).toEqual([]);
+    expect(
+      parseEnv({
+        TRUSTED_ORIGINS: "http://192.168.1.20:3000/, http://bike.home ,http://bike.home",
+      }).trustedOrigins,
+    ).toEqual(["http://192.168.1.20:3000", "http://bike.home"]);
+    expect(() => parseEnv({ TRUSTED_ORIGINS: "192.168.1.20:3000" })).toThrow(/http\(s\) URL/);
+  });
+
   it("parses ALLOW_SIGNUP and treats empty values as unset", () => {
     expect(parseEnv({ ALLOW_SIGNUP: "true" }).allowSignup).toBe(true);
     expect(parseEnv({ ALLOW_SIGNUP: "1" }).allowSignup).toBe(true);

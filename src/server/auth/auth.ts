@@ -12,14 +12,23 @@ type AuthOptions = {
   baseURL: string;
   secret: string;
   allowSignup: boolean;
+  /** Origins accepted besides `baseURL`, e.g. the IP and port the app is also reached on. */
+  trustedOrigins?: string[];
   plugins?: BetterAuthPlugin[];
 };
 
-export function createAuth({ baseURL, secret, allowSignup, plugins = [] }: AuthOptions) {
+export function createAuth({
+  baseURL,
+  secret,
+  allowSignup,
+  trustedOrigins = [],
+  plugins = [],
+}: AuthOptions) {
   return betterAuth({
     appName: "Bike-Book",
     baseURL,
     secret,
+    trustedOrigins,
     database: createAuthAdapter(),
     emailAndPassword: {
       enabled: true,
@@ -62,6 +71,7 @@ export function getAuth(): Auth {
     const env = getEnv();
     auth = createAuth({
       baseURL: env.publicUrl,
+      trustedOrigins: env.trustedOrigins,
       secret: env.authSecret,
       allowSignup: env.allowSignup,
       // Lets Server Actions set the session cookie. Must stay the last plugin.
