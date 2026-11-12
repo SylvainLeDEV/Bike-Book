@@ -558,6 +558,11 @@ Backing up is the operator's job (D-12); the app makes it easy:
     to nothing. A cropped `<img>` with `object-cover` would ignore the owner's framing: every
     cropped photo goes through `FramedImage`. Thumbnails are whole photos since D-103, so a copy
     cut on the server would break the framing too.
+16. **`createMcpHandler` warns when built with `responseMode: "json"`.** It writes a
+    `console.warn` on stdout each time (**Verified 2026-11-12** in `@modelcontextprotocol/server`
+    2.4.0): built per request, it printed one line per MCP call into the logs. `http.ts` builds it
+    once per process and hands each request's access context to the factory through
+    `requestInfo`.
 
 ## Local development
 

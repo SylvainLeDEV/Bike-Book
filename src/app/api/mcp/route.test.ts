@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { generateToken, issueToken } from "@/server/auth/tokens";
 import { revokeApiToken } from "@/server/db";
 import { createTestContext } from "@/test/context";
@@ -127,5 +127,34 @@ describe("POST /api/mcp (D-90)", () => {
     );
     expect(status).toBe(200);
     expect(body.result.structuredContent).toEqual({ bikes: [], next_cursor: null });
+  });
+
+  it("keeps each 2026-07-28 call in its caller's workspace, without a warning per call", async () => {
+    const warn = vi.spyOn(console, "warn");
+    const alice = issueToken(createTestContext("Alice"), "Mac").token;
+    const bob = issueToken(createTestContext("Bob"), "Mac").token;
+    const call = (token: string, name: string, args: Record<string, unknown>) =>
+      rpc(token, "tools/call", { name, arguments: args }, { modern: true });
+
+    const created = await call(alice, "create_bike", {
+      name: "Spectral",
+      discipline: "enduro",
+      dry_run: false,
+    });
+    expect(created.body.result.isError).toBeFalsy();
+    const [mine, theirs] = await Promise.all([
+      call(alice, "list_bikes", {}),
+      call(bob, "list_bikes", {}),
+    ]);
+    expect(mine.body.result.structuredContent.bikes).toHaveLength(1);
+    expect(theirs.body.result.structuredContent.bikes).toEqual([]);
+
+    // The SDK warns when its handler is built with responseMode "json": once per process at
+    // most (http.ts builds it once), never once per call (04, pitfall 16).
+    const responseModeWarnings = warn.mock.calls.filter(([message]) =>
+      String(message).includes("responseMode"),
+    );
+    expect(responseModeWarnings.length).toBeLessThanOrEqual(1);
+    warn.mockRestore();
   });
 });
