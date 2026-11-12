@@ -26,7 +26,7 @@ entry, a few entries, the restore, then the full entry.
 - [x] Dockerfile (non-root, health check) and a local compose file (done 2026-10-24)
 - [x] CI: lint and tests on each push; build the image and push it to GHCR on each `v*` tag (written 2026-10-24, not run on GitHub yet)
 - [x] Deploy the image on the target host, behind its reverse proxy (done 2026-10-25 with 0.1.0; installation-specific steps are kept outside this repository)
-- [ ] Backups of the data directory in place, restore tested once (D-89: a backup holding the first real entries, restored to a separate copy, before the full entry; an export ZIP after each entry session until then)
+- [x] Backups of the data directory in place, restore tested once (D-89: a backup holding the first real entries, restored to a separate copy, before the full entry; an export ZIP after each entry session until then) (done 2026-11-12: the day's backup restored to a separate, isolated copy; app healthy, database integrity ok, same rows and same uploaded files as the live app; installation-specific steps are kept outside this repository)
 - [ ] Check through the proxy: a form submit (Server Actions origin check) and a 10 MB upload (the upload route exists since feature 10, 2026-10-27: still to test once deployed, with a 25 MB file too), and a photo from a real iPhone; first thing after deploying, before any entry (D-89)
 - [x] Health check monitored (done 2026-10-25: probed directly and through the proxy, alert on failure)
 
