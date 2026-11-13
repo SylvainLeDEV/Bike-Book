@@ -7,6 +7,7 @@ import {
   createBike,
   createComponent,
   createItem,
+  deletePurchaseLink,
   getComponent,
   listInventory,
   receiveItem,
@@ -18,6 +19,7 @@ import {
   undoReceive,
   undoReplacement,
   updateItem,
+  updatePurchaseLink,
   type AccessContext,
   type BikeData,
 } from "./index";
@@ -197,6 +199,77 @@ describe("workshop", () => {
     expect(item(ctx, id).archivedAt).toBe(NOW);
   });
 
+  it("re-prices a link already there, edits and deletes links (D-106)", () => {
+    const { ctx, bikeId } = setup("Links");
+    const id = pads(ctx, bikeId);
+    const [first] = item(ctx, id).links;
+
+    // The same page again: the link takes the new price, no second link.
+    const again = addPurchaseLink(ctx, id, {
+      shop: null,
+      url: "https://shop.example.com/pads",
+      priceCents: 1990,
+      notedOn: "2026-11-13",
+    });
+    expect(again).toEqual({ ok: true, linkId: first.id, updated: true });
+    expect(item(ctx, id).links).toMatchObject([
+      {
+        id: first.id,
+        shop: { name: "Rayon Libre" },
+        priceCents: 1990,
+        priceNotedOn: "2026-11-13",
+      },
+    ]);
+    // The same shop without a page is one link too; another page is a new one.
+    const shop = { name: "Cycles du Lac", kind: "physical" as const };
+    const inStore = addPurchaseLink(ctx, id, {
+      shop,
+      url: null,
+      priceCents: 2500,
+      notedOn: "2026-11-13",
+    });
+    expect(inStore).toMatchObject({ ok: true, updated: false });
+    expect(
+      addPurchaseLink(ctx, id, { shop, url: null, priceCents: 2400, notedOn: "2026-11-14" }),
+    ).toMatchObject({ ok: true, updated: true });
+    expect(item(ctx, id).links.map((l) => l.priceCents)).toEqual([1990, 2400]);
+
+    // A purchase through the first link, then its link is edited and deleted.
+    const bought = receiveItem(ctx, id, {
+      quantity: 1,
+      unitCostCents: 1990,
+      purchaseLinkId: first.id,
+      at: NOW,
+    });
+    if (!bought.ok) throw new Error(bought.reason);
+    const link = { shop: null, url: "https://other.example/pads", notedOn: "2026-11-20" };
+    expect(updatePurchaseLink(ctx, first.id, { ...link, priceCents: 1990 })).toEqual({
+      ok: true,
+      itemId: id,
+    });
+    // Same price: its day is kept; the shop is cleared, the page changed.
+    expect(item(ctx, id).links[0]).toMatchObject({
+      shop: null,
+      url: "https://other.example/pads",
+      priceCents: 1990,
+      priceNotedOn: "2026-11-13",
+    });
+    updatePurchaseLink(ctx, first.id, { ...link, priceCents: 1890 });
+    expect(item(ctx, id).links[0]).toMatchObject({ priceCents: 1890, priceNotedOn: "2026-11-20" });
+    updatePurchaseLink(ctx, first.id, { ...link, priceCents: null });
+    expect(item(ctx, id).links[0]).toMatchObject({ priceCents: null, priceNotedOn: null });
+
+    expect(deletePurchaseLink(ctx, first.id)).toEqual({ ok: true, itemId: id });
+    expect(item(ctx, id).links.map((l) => l.id)).toEqual([inStore.ok && inStore.linkId]);
+    // The purchase stays, with its price; it no longer points to a link.
+    expect(item(ctx, id).movements.at(-1)).toMatchObject({
+      kind: "purchase",
+      unitCostCents: 1990,
+      purchaseLinkId: null,
+    });
+    expect(deletePurchaseLink(ctx, first.id)).toEqual({ ok: false, reason: "not_found" });
+  });
+
   it("replaces a part from stock in one transaction, undone as a whole", () => {
     const { ctx, bikeId } = setup("Stock");
     const id = pads(ctx, bikeId, 1);
@@ -294,6 +367,14 @@ describe("workshop", () => {
         notedOn: "2026-10-25",
       }),
     ).toEqual({ ok: false, reason: "not_found" });
+    const [ownLink] = item(owner, id).links;
+    const link = { shop: null, url: "https://x.example", priceCents: 1, notedOn: "2026-10-25" };
+    expect(updatePurchaseLink(intruder, ownLink.id, link)).toEqual({
+      ok: false,
+      reason: "not_found",
+    });
+    expect(deletePurchaseLink(intruder, ownLink.id)).toEqual({ ok: false, reason: "not_found" });
+    expect(item(owner, id).links).toHaveLength(1);
     const ownMove = addMovement(owner, id, move);
     if (!ownMove.ok) throw new Error(ownMove.reason);
     expect(undoMovement(intruder, ownMove.movementId)).toEqual({ ok: false, reason: "not_found" });

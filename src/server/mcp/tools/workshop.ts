@@ -15,14 +15,15 @@ import {
   itemData,
   itemInputSchema,
   newItem,
-  pageUrl,
-  priceCents,
+  purchaseLinkSchema,
+  toPurchaseLink,
 } from "@/server/actions/workshop-input";
 import {
   addMovement,
   addPurchaseLink,
   atomically,
   createItem,
+  deletePurchaseLink,
   getBike,
   listInventory,
   previewWrite,
@@ -31,6 +32,7 @@ import {
   setRestock,
   setToolOwned,
   updateItem,
+  updatePurchaseLink,
   type AccessContext,
 } from "@/server/db";
 import {
@@ -129,10 +131,13 @@ export function describeItem(item: InventoryItemVM, ids: Ids = "real") {
     rebuy_state: item.state,
     rebuy_label: item.state ? REBUY_STATE_LABELS[item.state] : null,
     last_unit_cost_cents: item.lastUnitCostCents,
+    /** link_id: update_workshop_item's update_link and remove_link (D-106). */
     purchase_links: item.purchaseLinks.map((link) => ({
+      link_id: link.id,
       shop_name: link.shopName,
       url: link.url,
       price_cents: link.priceCents,
+      price_noted_on: link.priceNotedOn,
     })),
     rules_served: item.rulesServed.map((rule) => ({
       rule_id: rule.ruleId,
@@ -573,7 +578,7 @@ const updateWorkshopItemTool = defineTool({
   title: "Modifier un objet de l'atelier",
   kind: "write",
   description:
-    'Changes a workshop item\'s description, as "Modifier l\'objet": only the fields given change; null clears a text. Its kind never changes, and its stock is changed with update_stock, never here. bike_ids: "all" or a list of bikes. add_link adds a purchase link (a shop, an https page, a price noted today). Call with dry_run true first.',
+    'Changes a workshop item\'s description, as "Modifier l\'objet": only the fields given change; null clears a text. Its kind never changes, and its stock is changed with update_stock, never here. bike_ids: "all" or a list of bikes. Purchase links (a shop or an https page, a price noted today): add_link adds one, or gives its new price to the link already on that page (or that shop without a page); update_link changes one (link_id from purchase_links; only the fields given change, null clears); remove_link deletes one (purchases made through it keep their price). Call with dry_run true first.',
   input: z.strictObject({
     item_id: z.number().describe("The workshop item (list_workshop_items)."),
     name: z.string().optional(),
@@ -597,6 +602,15 @@ const updateWorkshopItemTool = defineTool({
         price_cents: z.number().nullable().optional(),
       })
       .optional(),
+    update_link: z
+      .strictObject({
+        link_id: z.number().describe("purchase_links[].link_id of this item."),
+        shop_name: z.string().nullable().optional(),
+        url: z.string().nullable().optional(),
+        price_cents: z.number().nullable().optional(),
+      })
+      .optional(),
+    remove_link: z.number().optional().describe("purchase_links[].link_id of this item."),
     // Refused with a pointer to update_stock rather than rejected as unknown.
     quantity: z.unknown().optional(),
     containers: z.unknown().optional(),
@@ -604,7 +618,17 @@ const updateWorkshopItemTool = defineTool({
     owned: z.unknown().optional(),
     dry_run: dryRunInput,
   }),
-  run: (ctx, { item_id: itemId, dry_run: dryRun, add_link: link, ...args }) => {
+  run: (
+    ctx,
+    {
+      item_id: itemId,
+      dry_run: dryRun,
+      add_link: link,
+      update_link: change,
+      remove_link: removeId,
+      ...args
+    },
+  ) => {
     const REFUSED = "The item was refused; nothing was written.";
     const item = findItem(ctx, itemId);
     if (!item)
@@ -659,42 +683,54 @@ const updateWorkshopItemTool = defineTool({
     if (!parsed.success) return refused(fieldErrorsOf(parsed.error.issues, "", RENAME), REFUSED);
 
     const linkInput = link
-      ? z
-          .object({
-            shopName: z
-              .string()
-              .trim()
-              .max(100, "100 caractères au maximum.")
-              .nullable()
-              .transform((value) => value || null),
-            url: pageUrl,
-            priceCents,
-          })
-          .refine((l) => l.shopName || l.url, {
-            error: "Indique la boutique ou l'adresse de la page.",
-          })
-          .safeParse({
-            shopName: link.shop_name ?? null,
-            url: link.url ?? null,
-            priceCents: link.price_cents ?? null,
-          })
+      ? purchaseLinkSchema.safeParse({
+          shopName: link.shop_name ?? null,
+          url: link.url ?? null,
+          priceCents: link.price_cents ?? null,
+        })
       : null;
     if (linkInput && !linkInput.success) {
       return refused(fieldErrorsOf(linkInput.error.issues, "add_link"), REFUSED);
     }
+    const linkOf = (linkId: number) => item.purchaseLinks.find((l) => l.id === linkId);
+    const edited = change ? linkOf(change.link_id) : undefined;
+    if (change && !edited) {
+      return refused(
+        [{ field: "update_link.link_id", message: "Lien d'achat introuvable." }],
+        REFUSED,
+      );
+    }
+    if (removeId !== undefined && !linkOf(removeId)) {
+      return refused([{ field: "remove_link", message: "Lien d'achat introuvable." }], REFUSED);
+    }
+    const changeInput =
+      change && edited
+        ? purchaseLinkSchema.safeParse({
+            shopName: change.shop_name === undefined ? edited.shop : change.shop_name,
+            url: change.url === undefined ? edited.url : change.url,
+            priceCents: change.price_cents === undefined ? edited.priceCents : change.price_cents,
+          })
+        : null;
+    if (changeInput && !changeInput.success) {
+      return refused(fieldErrorsOf(changeInput.error.issues, "update_link"), REFUSED);
+    }
 
+    const warnings: string[] = [];
     const write = () => {
       if (!updateItem(ctx, item.id, itemData(parsed.data)).ok) {
         throw new ToolRefusal([{ field: "bike_ids", message: "Vélo introuvable." }], REFUSED);
       }
+      if (removeId !== undefined) deletePurchaseLink(ctx, removeId);
+      if (changeInput?.success) {
+        updatePurchaseLink(ctx, change!.link_id, toPurchaseLink(changeInput.data, today()));
+      }
       if (linkInput?.success) {
-        const l = linkInput.data;
-        addPurchaseLink(ctx, item.id, {
-          shop: l.shopName ? { name: l.shopName, kind: l.url ? "online" : "physical" } : null,
-          url: l.url,
-          priceCents: l.priceCents,
-          notedOn: today(),
-        });
+        const added = addPurchaseLink(ctx, item.id, toPurchaseLink(linkInput.data, today()));
+        if (added.ok && added.updated) {
+          warnings.push(
+            `add_link: this page (or shop) was already linked; link ${added.linkId} took the new price instead of a second link.`,
+          );
+        }
       }
       return describeItem(findItem(ctx, item.id)!);
     };
@@ -704,7 +740,7 @@ const updateWorkshopItemTool = defineTool({
       dryRun
         ? `Dry run: would change "${after.name}". Nothing was written.`
         : `Changed "${after.name}" (item ${item.id}).`,
-      { dry_run: dryRun, item: after, before: describeItem(item), warnings: [] },
+      { dry_run: dryRun, item: after, before: describeItem(item), warnings },
     );
   },
 });

@@ -672,6 +672,12 @@ A tool is ordered one at a time, and only when it is not owned: a broken tool is
 The last purchase date and the last price paid come from the movements, not from the link. A
 part taken from stock costs its last purchase price (D-38).
 
+A link is edited and deleted from its sheet (D-106): a changed price sets `price_noted_on` to
+today, an unchanged one keeps it, no price clears it. Adding a link to a page the item already
+links (same `url`), or to the same shop without a page, updates that link's price instead of
+inserting a second one. Deleting a link is a hard delete: its purchases keep `unit_cost_cents`,
+their `purchase_link_id` becomes null (`on delete set null`).
+
 **Rules meet items through the slot type:** an item with a component type serves the rules of
 that slot on its bikes. A rule's row shows one of them (D-85): a part, else a product, one to
 rebuy first; never a tool. "En stock pour ce vélo" lists the parts and products serving the bike,

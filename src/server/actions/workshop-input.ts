@@ -99,6 +99,28 @@ export function itemOpening(input: ItemInput) {
   }
 }
 
+/**
+ * The link sheet ("Ajouter un lien d'achat", "Modifier le lien d'achat", D-67, D-106) and the
+ * MCP's `add_link` and `update_link`: a shop or a page, a price typed by hand.
+ */
+export const purchaseLinkSchema = z
+  .object({ shopName: text(100), url: pageUrl, priceCents })
+  .refine((link) => link.shopName || link.url, {
+    error: "Indique la boutique ou l'adresse de la page.",
+  });
+
+/** A link as the data-access layer stores it: the shop is online when it has a page. */
+export function toPurchaseLink(link: z.output<typeof purchaseLinkSchema>, today: LocalDate) {
+  return {
+    shop: link.shopName
+      ? { name: link.shopName, kind: link.url ? ("online" as const) : ("physical" as const) }
+      : null,
+    url: link.url,
+    priceCents: link.priceCents,
+    notedOn: today,
+  };
+}
+
 /** Everything `createItem` needs for a new item: its description, first stock and link. */
 export function newItem(input: ItemInput, at: number, today: LocalDate) {
   const link = input.link && (input.link.shopName || input.link.url) ? input.link : null;

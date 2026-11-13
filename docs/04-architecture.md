@@ -264,6 +264,10 @@ served. `add_workshop_item` validates with `itemInputSchema` and writes through 
 `to_rebuy` gives `rebuy_reason` in snake_case from `rebuyRows` (`rule`, `to_order`, `ordered`,
 `low_stock`), and `include_archived` adds the archived items (`archivedItems` in
 `src/server/views/workshop.ts`: built as the others, serving no rule; the app lists none).
+Since D-106: `purchase_links` carry `link_id` and `price_noted_on`; `update_workshop_item` takes
+`update_link` (`updatePurchaseLink`) and `remove_link` (`deletePurchaseLink`), and `add_link` on a
+page already linked re-prices that link (`addPurchaseLink` answers `updated`), with a warning.
+The link sheet and the MCP share `purchaseLinkSchema` and `toPurchaseLink` (`workshop-input.ts`).
 
 **Edits (D-94).** `update_task` (`taskSchema`, `updateTask`), `update_rule` (the rule as the sheet
 edits it, `ruleFormInput`, then `ruleInputSchema` and `updateRule`; its slot never changes) and

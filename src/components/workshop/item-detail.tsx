@@ -80,6 +80,8 @@ export type ItemActions = {
   onCorrectStock?: (item: InventoryItemVM) => void;
   onEditBikes?: (item: InventoryItemVM) => void;
   onAddLink?: (item: InventoryItemVM) => void;
+  /** "Modifier le lien d'achat": its shop, price and page, or "Supprimer le lien" (D-106). */
+  onEditLink?: (item: InventoryItemVM, link: PurchaseLinkVM) => void;
   onArchive?: (item: InventoryItemVM) => void;
 };
 
@@ -680,22 +682,33 @@ export function ItemDetail({
           <Card asChild className="overflow-hidden">
             <ul className="m-0 list-none divide-y divide-border p-0">
               {item.purchaseLinks.map((link) => (
-                <li key={link.id} className="flex min-h-[60px] items-center gap-3 py-2.5 pr-2 pl-4">
-                  <span className="grid size-9 shrink-0 place-items-center rounded-[10px] bg-surface-2 text-fg-muted [&_svg]:size-[18px]">
-                    {link.url ? <Globe aria-hidden /> : <Store aria-hidden />}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-[14.5px] font-semibold">{link.shopName}</p>
-                    <p className="text-[13px] text-fg-muted">{linkMeta(link, today)}</p>
-                  </div>
-                  <span className="grid justify-items-end gap-0.5 num text-[17px] leading-none font-semibold whitespace-nowrap">
-                    {link.priceCents != null ? formatMoney(link.priceCents) : "—"}
-                    {link === cheapest ? (
-                      <span className="font-sans text-xs leading-tight font-medium text-fg-muted">
-                        le moins cher
+                <li key={link.id} className="flex min-h-[60px] items-center gap-1 pr-2">
+                  {/* The row opens "Modifier le lien d'achat" (D-106); the page has its own button. */}
+                  <button
+                    type="button"
+                    className="flex min-h-[60px] min-w-0 flex-1 items-center gap-3 py-2.5 pr-2 pl-4 text-left text-inherit transition-colors hover:bg-[color-mix(in_oklch,var(--surface-2),var(--surface)_40%)] focus-visible:-outline-offset-3 disabled:pointer-events-none"
+                    disabled={!actions.onEditLink}
+                    onClick={() => actions.onEditLink?.(item, link)}
+                  >
+                    <span className="grid size-9 shrink-0 place-items-center rounded-[10px] bg-surface-2 text-fg-muted [&_svg]:size-[18px]">
+                      {link.url ? <Globe aria-hidden /> : <Store aria-hidden />}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-[14.5px] font-semibold">{link.shopName}</span>
+                      <span className="block text-[13px] text-fg-muted">
+                        {linkMeta(link, today)}
                       </span>
-                    ) : null}
-                  </span>
+                    </span>
+                    <span className="grid justify-items-end gap-0.5 num text-[17px] leading-none font-semibold whitespace-nowrap">
+                      {link.priceCents != null ? formatMoney(link.priceCents) : "—"}
+                      {link === cheapest ? (
+                        <span className="font-sans text-xs leading-tight font-medium text-fg-muted">
+                          le moins cher
+                        </span>
+                      ) : null}
+                    </span>
+                    <span className="sr-only">, modifier le lien</span>
+                  </button>
                   {link.url ? (
                     <Button variant="ghost" size="icon" asChild>
                       <a
@@ -725,6 +738,9 @@ export function ItemDetail({
           </Card>
         )}
         <p className="mt-2 hint">
+          {item.purchaseLinks.length && actions.onEditLink
+            ? "Touche un lien pour changer son prix ou le supprimer. "
+            : null}
           Prix notés à la main : l&apos;app ne contacte jamais les boutiques.
         </p>
       </Section>

@@ -201,6 +201,7 @@ function itemVM(
     return {
       id: link.id,
       shopName: link.shop?.name ?? (link.url ? urlHost(link.url) : "Boutique"),
+      shop: link.shop?.name ?? null,
       shopKind: link.shop?.kind ?? (link.url ? "online" : "physical"),
       url: link.url,
       priceCents: link.priceCents,

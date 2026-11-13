@@ -11,6 +11,7 @@ import {
   addMovement,
   addPurchaseLink,
   createItem,
+  deletePurchaseLink,
   listInventory,
   receiveItem,
   setItemArchived,
@@ -19,6 +20,7 @@ import {
   undoMovement,
   undoReceive,
   updateItem,
+  updatePurchaseLink,
   type InventoryItem,
   type RestockFields,
 } from "@/server/db";
@@ -39,8 +41,8 @@ import {
   itemId as id,
   itemInputSchema,
   newItem,
-  pageUrl,
-  priceCents,
+  purchaseLinkSchema,
+  toPurchaseLink,
 } from "./workshop-input";
 
 // The workshop's actions (feature 8, D-33 to D-42; products and tools, D-85). Stock moves by
@@ -331,38 +333,50 @@ export async function restockAction(
   };
 }
 
-/** "Ajouter un lien d'achat" (D-09: shown, never fetched). */
+const LINK_NOT_FOUND = { ok: false, error: "Lien d'achat introuvable." } as const;
+
+function parseLink(input: unknown) {
+  const parsed = purchaseLinkSchema.safeParse(input);
+  return parsed.success
+    ? ({ ok: true, link: toPurchaseLink(parsed.data, today()) } as const)
+    : ({ ok: false, error: parsed.error.issues[0]?.message ?? "Saisie invalide." } as const);
+}
+
+/**
+ * "Ajouter un lien d'achat" (D-09: shown, never fetched). A page already linked takes the new
+ * price instead of being added twice (D-106).
+ */
 export async function addLinkAction(itemId: unknown, input: unknown): Promise<Result> {
   const ctx = await requireAccessContext();
-  const parsed = z
-    .object({
-      itemId: id,
-      shopName: z
-        .string()
-        .trim()
-        .max(100, "100 caractères au maximum.")
-        .nullable()
-        .transform((value) => value || null),
-      url: pageUrl,
-      priceCents,
-    })
-    .refine((link) => link.shopName || link.url, {
-      error: "Indique la boutique ou l'adresse de la page.",
-    })
-    .safeParse({ itemId, ...(typeof input === "object" && input ? input : {}) });
-  if (!parsed.success) {
-    return { ok: false, error: parsed.error.issues[0]?.message ?? "Saisie invalide." };
-  }
-  const link = parsed.data;
-  const outcome = addPurchaseLink(ctx, link.itemId, {
-    shop: link.shopName ? { name: link.shopName, kind: link.url ? "online" : "physical" } : null,
-    url: link.url,
-    priceCents: link.priceCents,
-    notedOn: today(),
-  });
+  const item = id.safeParse(itemId);
+  if (!item.success) return NOT_FOUND;
+  const parsed = parseLink(input);
+  if (!parsed.ok) return parsed;
+  const outcome = addPurchaseLink(ctx, item.data, parsed.link);
   if (!outcome.ok) return NOT_FOUND;
   refresh();
-  return { ok: true, message: "Lien d'achat ajouté" };
+  return { ok: true, message: outcome.updated ? "Lien d'achat mis à jour" : "Lien d'achat ajouté" };
+}
+
+/** "Modifier le lien d'achat" (D-106): the shop, the page, the price as typed now. */
+export async function updateLinkAction(linkId: unknown, input: unknown): Promise<Result> {
+  const ctx = await requireAccessContext();
+  const link = id.safeParse(linkId);
+  if (!link.success) return LINK_NOT_FOUND;
+  const parsed = parseLink(input);
+  if (!parsed.ok) return parsed;
+  if (!updatePurchaseLink(ctx, link.data, parsed.link).ok) return LINK_NOT_FOUND;
+  refresh();
+  return { ok: true, message: "Lien d'achat modifié" };
+}
+
+/** "Supprimer le lien" (D-106), confirmed in the sheet (D-70); purchases keep their price. */
+export async function deleteLinkAction(linkId: unknown): Promise<Result> {
+  const ctx = await requireAccessContext();
+  const link = id.safeParse(linkId);
+  if (!link.success || !deletePurchaseLink(ctx, link.data).ok) return LINK_NOT_FOUND;
+  refresh();
+  return { ok: true, message: "Lien d'achat supprimé" };
 }
 
 /** "Archiver": the item leaves the workshop; its history stays (never deleted). */

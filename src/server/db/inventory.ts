@@ -582,37 +582,137 @@ export function undoReceive(
   });
 }
 
-/** Adds a purchase link (a shop, a page, a price typed by hand; never fetched, D-09). */
+/** A purchase link as typed in the link sheet: a shop or a page, a price typed by hand. */
+export type PurchaseLinkInput = {
+  shop: { name: string; kind: ShopKind } | null;
+  url: string | null;
+  priceCents: number | null;
+  /** The day a price typed now is noted on (today). */
+  notedOn: LocalDate;
+};
+
+/** A link of an item of the caller's workspace. */
+function ownedLink(tx: Tx, ctx: AccessContext, linkId: number) {
+  return tx
+    .select({
+      id: purchaseLinks.id,
+      itemId: purchaseLinks.itemId,
+      priceCents: purchaseLinks.priceCents,
+      priceNotedOn: purchaseLinks.priceNotedOn,
+    })
+    .from(purchaseLinks)
+    .innerJoin(inventoryItems, eq(inventoryItems.id, purchaseLinks.itemId))
+    .where(and(eq(purchaseLinks.id, linkId), eq(inventoryItems.workspaceId, ctx.workspace.id)))
+    .get();
+}
+
+/** The day a link's price was noted after an edit: today when it changed, kept otherwise. */
+function notedOnAfter(
+  before: { priceCents: number | null; priceNotedOn: LocalDate | null },
+  priceCents: number | null,
+  today: LocalDate,
+): LocalDate | null {
+  if (priceCents == null) return null;
+  return priceCents === before.priceCents ? (before.priceNotedOn ?? today) : today;
+}
+
+/**
+ * Adds a purchase link (a shop, a page, a price typed by hand; never fetched, D-09). A link to
+ * the same page, or to the same shop without a page, is the same link: it takes the new price
+ * (and the shop when one is given) rather than being added twice (D-106).
+ */
 export function addPurchaseLink(
   ctx: AccessContext,
   itemId: number,
-  link: {
-    shop: { name: string; kind: ShopKind } | null;
-    url: string | null;
-    priceCents: number | null;
-    notedOn: LocalDate;
-  },
-): Outcome<{ linkId: number }> {
+  link: PurchaseLinkInput,
+): Outcome<{ linkId: number; updated: boolean }> {
   return getDb().transaction((tx) => {
     if (!ownedItem(tx, ctx, itemId)) return { ok: false, reason: "not_found" };
-    const count = tx
-      .select({ id: purchaseLinks.id })
+    const shopId = resolveShopId(tx, ctx, link.shop);
+    const existing = tx
+      .select({
+        id: purchaseLinks.id,
+        shopId: purchaseLinks.shopId,
+        url: purchaseLinks.url,
+        priceCents: purchaseLinks.priceCents,
+        priceNotedOn: purchaseLinks.priceNotedOn,
+      })
       .from(purchaseLinks)
       .where(eq(purchaseLinks.itemId, itemId))
-      .all().length;
+      .orderBy(asc(purchaseLinks.sortOrder), asc(purchaseLinks.id))
+      .all();
+    const same = existing.find((row) =>
+      link.url ? row.url === link.url : row.url == null && row.shopId === shopId,
+    );
+    if (same) {
+      tx.update(purchaseLinks)
+        .set({
+          shopId: shopId ?? same.shopId,
+          ...(link.priceCents != null
+            ? {
+                priceCents: link.priceCents,
+                priceNotedOn: notedOnAfter(same, link.priceCents, link.notedOn),
+              }
+            : {}),
+        })
+        .where(eq(purchaseLinks.id, same.id))
+        .run();
+      return { ok: true, linkId: same.id, updated: true };
+    }
     const { id } = tx
       .insert(purchaseLinks)
       .values({
         itemId,
-        shopId: resolveShopId(tx, ctx, link.shop),
+        shopId,
         url: link.url,
         priceCents: link.priceCents,
         priceNotedOn: link.priceCents != null ? link.notedOn : null,
-        sortOrder: count,
+        sortOrder: existing.length,
       })
       .returning({ id: purchaseLinks.id })
       .get();
-    return { ok: true, linkId: id };
+    return { ok: true, linkId: id, updated: false };
+  });
+}
+
+/**
+ * "Modifier le lien d'achat" (D-106): the shop, the page and the price as typed now. A changed
+ * price is noted today; an unchanged one keeps its day.
+ */
+export function updatePurchaseLink(
+  ctx: AccessContext,
+  linkId: number,
+  link: PurchaseLinkInput,
+): Outcome<{ itemId: number }> {
+  return getDb().transaction((tx) => {
+    const before = ownedLink(tx, ctx, linkId);
+    if (!before) return { ok: false, reason: "not_found" };
+    tx.update(purchaseLinks)
+      .set({
+        shopId: resolveShopId(tx, ctx, link.shop),
+        url: link.url,
+        priceCents: link.priceCents,
+        priceNotedOn: notedOnAfter(before, link.priceCents, link.notedOn),
+      })
+      .where(eq(purchaseLinks.id, linkId))
+      .run();
+    return { ok: true, itemId: before.itemId };
+  });
+}
+
+/**
+ * "Supprimer le lien" (D-106): the link goes; the purchases made through it keep their price
+ * (their `purchase_link_id` is set to null by the foreign key).
+ */
+export function deletePurchaseLink(
+  ctx: AccessContext,
+  linkId: number,
+): Outcome<{ itemId: number }> {
+  return getDb().transaction((tx) => {
+    const before = ownedLink(tx, ctx, linkId);
+    if (!before) return { ok: false, reason: "not_found" };
+    tx.delete(purchaseLinks).where(eq(purchaseLinks.id, linkId)).run();
+    return { ok: true, itemId: before.itemId };
   });
 }
 

@@ -654,8 +654,8 @@ const SPECTRAL_HISTORY: TimelineItemVM[] = [
 
 // --- Workshop (parts only in phase 1) -------------------------------------------------------------
 
-const RAYON = { shopName: "Rayon Libre", shopKind: "online" as const };
-const CYCLES = { shopName: "Cycles du Lac", shopKind: "physical" as const };
+const RAYON = { shopName: "Rayon Libre", shop: "Rayon Libre", shopKind: "online" as const };
+const CYCLES = { shopName: "Cycles du Lac", shop: "Cycles du Lac", shopKind: "physical" as const };
 
 function item(
   fields: Partial<PartItemVM> &

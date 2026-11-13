@@ -621,7 +621,10 @@ export type SaveBikeResult =
 
 export type PurchaseLinkVM = {
   id: number;
+  /** What the row shows: the shop, else the page's host. */
   shopName: string;
+  /** The shop as typed, for "Modifier le lien d'achat"; null when the link only has a page. */
+  shop: string | null;
   shopKind: ShopKind;
   /** Shown and opened in a new tab, never fetched by the server (D-09). */
   url: string | null;

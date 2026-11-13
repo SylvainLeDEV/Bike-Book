@@ -22,7 +22,8 @@ links (D-99); then the answers fixed after a real-use test (D-100, ready for 0.4
 day (D-101): the Garmin Connect import through the Personal API (key in Paramètres, activity type
 → bike, "À classer", every 6 hours, expiry warnings). On 2026-11-05, "Cadrer" (D-103): a focus
 point and a zoom on each photo, which every cropped frame centres on. On 2026-11-06, "Reporter"
-to a day the owner picks, and "Réactiver" (D-105).
+to a day the owner picks, and "Réactiver" (D-105). On 2026-11-13, purchase links edited and
+deleted, and a page linked again takes the new price (D-106).
 
 ## Read first
 
@@ -102,6 +103,8 @@ to a day the owner picks, and "Réactiver" (D-105).
   procedure's part type and names each rule's slot; `rebuy_reason` in snake_case (`to_order`);
   `include_archived` on `list_workshop_items`; one key per thing (`delete_ride`'s `ride`,
   `create_rides`' `after` shaped as `before`); `update_run_steps` answers the steps only.
+  Since D-106: `purchase_links` carry `link_id`; `update_workshop_item` takes `update_link` and
+  `remove_link`, and `add_link` on a page already linked gives it the new price.
   Summaries and warnings are in English for the assistant (said in the server instructions),
   one language per warning; French only for the app's own words and `errors[].message`.
 - **Garmin import (D-101):** the Personal API (read-only); the key typed in Paramètres, encrypted

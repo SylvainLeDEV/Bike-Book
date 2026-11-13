@@ -203,6 +203,67 @@ describe("update_workshop_item", () => {
     expect(badLink.structuredContent.errors[0]).toMatchObject({ field: "add_link.url" });
     expect(quantityOf(ctx, chain)).toBe(3);
   });
+
+  it("re-prices, edits and removes purchase links (D-106)", async () => {
+    const { token } = garage("Edit links");
+    const grease = await addItem(token, {
+      kind: "product",
+      name: "Graisse spéciale",
+      category: "wheels",
+      containers: 0,
+      link: { shop_name: "Rayon Libre", url: "https://shop.example/graisse", price_cents: null },
+    });
+    const listed = await callTool(token, "list_workshop_items", { query: "Graisse spéciale" });
+    const [link] = listed.structuredContent.items[0].purchase_links;
+    expect(link).toMatchObject({ shop_name: "Rayon Libre", price_cents: null });
+
+    // The same page again: its price, not a second link (a dry run first writes nothing).
+    const same = { url: "https://shop.example/graisse", price_cents: 1199 };
+    const preview = await callTool(token, "update_workshop_item", {
+      item_id: grease,
+      add_link: same,
+      dry_run: true,
+    });
+    expect(preview.structuredContent.item.purchase_links).toEqual([
+      expect.objectContaining({ link_id: link.link_id, price_cents: 1199 }),
+    ]);
+    expect(preview.structuredContent.warnings[0]).toContain("already linked");
+    const repriced = await callTool(token, "update_workshop_item", {
+      item_id: grease,
+      add_link: same,
+      dry_run: false,
+    });
+    expect(repriced.structuredContent.item.purchase_links).toEqual([
+      expect.objectContaining({
+        link_id: link.link_id,
+        shop_name: "Rayon Libre",
+        price_cents: 1199,
+      }),
+    ]);
+
+    const edited = await callTool(token, "update_workshop_item", {
+      item_id: grease,
+      update_link: { link_id: link.link_id, price_cents: 1095 },
+      dry_run: false,
+    });
+    expect(edited.structuredContent.item.purchase_links[0]).toMatchObject({
+      shop_name: "Rayon Libre",
+      url: "https://shop.example/graisse",
+      price_cents: 1095,
+    });
+    const unknown = await callTool(token, "update_workshop_item", {
+      item_id: grease,
+      remove_link: 999_999,
+      dry_run: false,
+    });
+    expect(unknown.structuredContent.errors[0]).toMatchObject({ field: "remove_link" });
+    const removed = await callTool(token, "update_workshop_item", {
+      item_id: grease,
+      remove_link: link.link_id,
+      dry_run: false,
+    });
+    expect(removed.structuredContent.item.purchase_links).toEqual([]);
+  });
 });
 
 describe("update_task", () => {

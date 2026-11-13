@@ -5,13 +5,14 @@ import { useRouter } from "next/navigation";
 import { ProcedureSheet } from "@/components/procedures/procedure-sheet";
 import { useToast } from "@/components/ui/toast";
 import { AddItemSheet, type AddItemPrefill } from "@/components/workshop/add-item-sheet";
-import { AddLinkSheet, CorrectStockSheet } from "@/components/workshop/item-sheets";
+import { CorrectStockSheet, LinkSheet } from "@/components/workshop/item-sheets";
 import { WorkshopScreen, type WorkshopActions } from "@/components/workshop/workshop-screen";
 import type {
   AddItemInput,
   ComponentTypeOption,
   InventoryItemVM,
   ProcedureVM,
+  PurchaseLinkVM,
   WorkshopVM,
 } from "@/lib/view-models";
 import type { WorkshopView as WorkshopAddress } from "@/lib/workshop-filter";
@@ -19,12 +20,14 @@ import {
   addLinkAction,
   archiveItemAction,
   correctStockAction,
+  deleteLinkAction,
   moveItemAction,
   restockAction,
   saveItemAction,
   setLevelAction,
   setOwnedAction,
   undoWorkshopAction,
+  updateLinkAction,
   type UndoToken,
 } from "@/server/actions/workshop";
 import { startRunAction } from "@/server/actions/runs";
@@ -98,7 +101,11 @@ export function WorkshopView({
     n: number;
   } | null>(null);
   const [counting, setCounting] = React.useState<InventoryItemVM | null>(null);
-  const [linking, setLinking] = React.useState<InventoryItemVM | null>(null);
+  /** The link sheet: an item, and the link being edited (null adds one, D-106). */
+  const [linking, setLinking] = React.useState<{
+    item: InventoryItemVM;
+    link: PurchaseLinkVM | null;
+  } | null>(null);
 
   /** A change with "Annuler" (D-60). */
   const withUndo = (
@@ -126,7 +133,8 @@ export function WorkshopView({
     onEditThreshold: edit,
     onEditBikes: edit,
     onCorrectStock: setCounting,
-    onAddLink: setLinking,
+    onAddLink: (item) => setLinking({ item, link: null }),
+    onEditLink: (item, link) => setLinking({ item, link }),
     onArchive: async (item) => withUndo(await archiveItemAction(item.id)),
     onNewProcedure: () => setProcedureSheet({ open: true, editing: null }),
     procedure: {
@@ -216,12 +224,23 @@ export function WorkshopView({
           return null;
         }}
       />
-      <AddLinkSheet
-        item={linking}
+      <LinkSheet
+        item={linking?.item ?? null}
+        link={linking?.link ?? null}
         onOpenChange={(open) => !open && setLinking(null)}
-        onSubmit={async (link) => {
+        onSubmit={async (input) => {
           if (!linking) return null;
-          const result = await addLinkAction(linking.id, link);
+          const result = linking.link
+            ? await updateLinkAction(linking.link.id, input)
+            : await addLinkAction(linking.item.id, input);
+          if (!result.ok) return result.error;
+          setLinking(null);
+          toast(result.message);
+          return null;
+        }}
+        onDelete={async () => {
+          if (!linking?.link) return null;
+          const result = await deleteLinkAction(linking.link.id);
           if (!result.ok) return result.error;
           setLinking(null);
           toast(result.message);

@@ -183,6 +183,7 @@ export default function DesignWorkshopPage() {
     onCorrectStock: later("Corriger le stock après un comptage"),
     onEditBikes: later("Choisir les vélos"),
     onAddLink: later("Ajouter un lien d'achat"),
+    onEditLink: later("Modifier le lien d'achat"),
     onArchive: (item) =>
       toast(`Objet archivé : ${item.name}`, { undo: () => toast("Archivage annulé") }),
   };
@@ -243,6 +244,7 @@ export default function DesignWorkshopPage() {
                     shopName:
                       input.link.shopName ??
                       (input.link.url ? new URL(input.link.url).host : "Boutique"),
+                    shop: input.link.shopName,
                     shopKind: input.link.url ? "online" : "physical",
                     url: input.link.url,
                     priceCents: input.link.priceCents,
