@@ -10,7 +10,7 @@ import {
 import { byUrgency } from "@/server/domain/rules";
 import { getEnv } from "@/server/env";
 import { today } from "@/server/time";
-import { bikeCard } from "./bikes";
+import { bikeAlert, bikeCard } from "./bikes";
 import { taskRow } from "./refs";
 import { timeline } from "./timeline";
 import { runRows } from "./runs";
@@ -30,14 +30,7 @@ export function getDashboardVM(ctx: AccessContext): DashboardVM {
       .map((entry) => entry.row)
       .filter((row) => row.status === "overdue" || row.status === "due_soon");
     rules.push(...rows);
-    const worst = rows.some((row) => row.status === "overdue") ? "overdue" : rows[0]?.status;
-    cards.push({
-      ...bikeCard(bike, garage.rides.get(bike.id) ?? []),
-      alert:
-        worst === "overdue" || worst === "due_soon"
-          ? { status: worst, count: rows.filter((row) => row.status === worst).length }
-          : null,
-    });
+    cards.push({ ...bikeCard(bike, garage.rides.get(bike.id) ?? []), alert: bikeAlert(rows) });
   }
   rules.sort(byUrgency);
   const rebuy = rebuyRows(garage.items);

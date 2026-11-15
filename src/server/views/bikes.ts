@@ -1,6 +1,6 @@
 import "server-only";
 import { procedureRow, procedureServes } from "@/lib/procedures";
-import type { Discipline } from "@/lib/enums";
+import type { Discipline, RuleStatus } from "@/lib/enums";
 import { daysBetween, localDateOf, startOfLocalDay, type LocalDate } from "@/lib/format";
 import { RIDE_TYPE_LABELS } from "@/lib/labels";
 import type {
@@ -24,7 +24,6 @@ import type {
 } from "@/lib/view-models";
 import {
   getBike,
-  listBikes,
   listComponents,
   listComponentTypes,
   listDoneTasks,
@@ -90,12 +89,28 @@ export function bikeCard(bike: Bike, rides: Ride[]): BikeCardVM {
   };
 }
 
+/**
+ * The card's pill: the bike's overdue rules, else its due-soon ones, else none ("À jour").
+ * Snoozed rules are left out, as on the dashboard (D-105).
+ */
+export function bikeAlert(rows: { status: RuleStatus }[]): BikeCardVM["alert"] {
+  for (const status of ["overdue", "due_soon"] as const) {
+    const count = rows.filter((row) => row.status === status).length;
+    if (count > 0) return { status, count };
+  }
+  return null;
+}
+
+/** "Vélos": the same cards as the dashboard's, so a bike reads the same on both. */
 export function getBikesPageVM(ctx: AccessContext): BikesPageVM {
-  const card = (bike: Bike) => bikeCard(bike, listRides(ctx, { bikeId: bike.id }));
-  const bikes = listBikes(ctx);
+  const garage = loadGarage(ctx);
+  const card = (bike: Bike): BikeCardVM => ({
+    ...bikeCard(bike, garage.rides.get(bike.id) ?? listRides(ctx, { bikeId: bike.id })),
+    alert: bikeAlert((garage.rules.get(bike.id) ?? []).map((entry) => entry.row)),
+  });
   return {
-    active: bikes.filter((bike) => isListedFirst(bike.status)).map(card),
-    others: bikes.filter((bike) => !isListedFirst(bike.status)).map(card),
+    active: garage.bikes.filter((bike) => isListedFirst(bike.status)).map(card),
+    others: garage.bikes.filter((bike) => !isListedFirst(bike.status)).map(card),
   };
 }
 
