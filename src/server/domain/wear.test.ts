@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { componentCounter, rideWear, usageBetween, type RideUsage } from "./wear";
+import { componentCounter, odometerAt, rideWear, usageBetween, type RideUsage } from "./wear";
 
 const H = 3600;
 let nextId = 1;
@@ -77,5 +77,41 @@ describe("componentCounter", () => {
     const old = { installedAt: 0, removedAt: fittedAt, initialDistanceM: 0, initialWearS: 0 };
     const atFitting = ride({ startedAt: fittedAt, distanceM: 1000 });
     expect(componentCounter(old, [morning, atFitting, evening]).distanceM).toBe(30_000);
+  });
+});
+
+describe("odometerAt (D-107)", () => {
+  const bike = { initialDistanceM: 1_000_000, initialWearS: 50 * H };
+  const rides = [
+    ride({ startedAt: Date.parse("2026-06-10T08:00:00Z"), distanceM: 40_000, movingTimeS: 2 * H }),
+    ride({
+      startedAt: Date.parse("2026-06-12T08:00:00Z"),
+      liftAssisted: true,
+      distanceM: 30_000,
+      descentDistanceM: 12_000,
+      totalTimeS: 6 * H,
+      descentTimeS: H,
+    }),
+    ride({ startedAt: Date.parse("2026-06-14T08:00:00Z"), distanceM: 50_000, movingTimeS: 3 * H }),
+  ];
+
+  it("adds the counters before tracking to the wear of the rides started before the instant", () => {
+    expect(odometerAt(bike, rides, Date.parse("2026-06-13T20:00:00Z"))).toEqual({
+      distanceM: 1_052_000,
+      wearS: 53 * H,
+      rideCount: 2,
+    });
+  });
+
+  it("leaves out a ride that starts at the instant itself", () => {
+    expect(odometerAt(bike, rides, Date.parse("2026-06-14T08:00:00Z")).rideCount).toBe(2);
+  });
+
+  it("is the counters before tracking when no ride came before", () => {
+    expect(odometerAt(bike, rides, Date.parse("2026-06-01T00:00:00Z"))).toEqual({
+      distanceM: 1_000_000,
+      wearS: 50 * H,
+      rideCount: 0,
+    });
   });
 });

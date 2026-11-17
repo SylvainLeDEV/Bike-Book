@@ -1118,6 +1118,11 @@ late.
 Counters:
 
 - **Bike**: `bike.initial_*` + the sum over all rides of the bike.
+- **Bike at an instant** (D-107): the same sum over the rides that started before that instant,
+  and how many. The history shows it under each maintenance event (at its instant, D-61) and each
+  done task with a bike (at `done_at`): "À 3 504 km · 160 h · 96 sorties". Computed when shown,
+  never stored, so a ride added later for an earlier day moves the counters of what came after.
+  `list_maintenance` answers it as `odometer` (`distance_m`, `wear_s`, `ride_count`).
 - **Component**: `component.initial_*` + the sum over its bike's rides with
   `installed_at ≤ started_at < removed_at`. Timestamps rather than dates, so a part fitted at
   18:00 does not count that morning's ride. A ride entered without a time starts at noon; a

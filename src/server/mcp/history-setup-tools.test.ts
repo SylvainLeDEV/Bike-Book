@@ -122,6 +122,21 @@ describe("list_maintenance and update_maintenance", () => {
     ]);
     const recent = await callTool(token, "list_maintenance", { from: addDays(today(), -30) });
     expect(recent.structuredContent.events).toHaveLength(2);
+
+    // Each event carries the bike's counters then (D-107): a ride between the two counts once.
+    await callTool(token, "create_ride", {
+      bike_id: enduro,
+      on: addDays(today(), -50),
+      ride_type: "enduro",
+      duration_s: 7200,
+      distance_m: 30_000,
+      dry_run: false,
+    });
+    const counted = await callTool(token, "list_maintenance", { bike_id: enduro });
+    expect(counted.structuredContent.events.map((e: { odometer: unknown }) => e.odometer)).toEqual([
+      { distance_m: 30_000, wear_s: 7200, ride_count: 1 },
+      { distance_m: 0, wear_s: 0, ride_count: 0 },
+    ]);
   });
 
   it("update_maintenance changes only the fields given and keeps the replacements", async () => {

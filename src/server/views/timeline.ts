@@ -17,11 +17,30 @@ import type { Component, MaintenanceEvent, MaintenanceItem, Ride, Run, Task } fr
 import { eventCostCents } from "@/server/domain/cost";
 import { rideDurationS, shownWearS } from "@/server/domain/rides";
 import { eventInstant } from "@/server/domain/time";
+import { odometerAt } from "@/server/domain/wear";
 import { isPhoto } from "./attachments";
 import { taskRow, type BikeRefSource } from "./refs";
 
 /** A done task as the history shows it (D-77): at the local date of `done_at`. */
 export type DoneTask = Task & { doneAt: number };
+
+/** What each line of an event did to which part, once per part and action (D-107). */
+export function eventParts(
+  event: MaintenanceEvent,
+  components: Component[],
+): NonNullable<MaintenanceItemVM["parts"]> {
+  const parts = new Map(components.map((part) => [part.id, part]));
+  const seen = new Set<string>();
+  return event.items.flatMap((line) => {
+    const part = line.componentId == null ? undefined : parts.get(line.componentId);
+    if (!part) return [];
+    const slot = slotLabel(part.typeCode, part.position);
+    const key = `${line.action}:${slot}`;
+    if (seen.has(key)) return [];
+    seen.add(key);
+    return [{ action: line.action, slot }];
+  });
+}
 
 /** A maintenance event as the history shows it. */
 export function maintenanceEntry(event: MaintenanceEvent, bikeName: string): MaintenanceItemVM {
@@ -77,6 +96,18 @@ export function taskEntry(task: DoneTask, bikeName: string | null, timeZone: str
   };
 }
 
+export type TimelineExtras = {
+  /** The bike page's attachments by element (feature 10): thumbnails and documents of entries. */
+  attachments?: Map<string, AttachmentVM[]>;
+  /**
+   * The bikes' counters before tracking, given only when `rides` holds every ride of these bikes:
+   * each event and done task then gets its bike's counters at its instant (D-107).
+   */
+  counters?: Map<number, { initialDistanceM: number; initialWearS: number }>;
+  /** The bikes' parts, removed ones included: each event names the parts its lines touched. */
+  components?: Component[];
+};
+
 /**
  * Rides, maintenance events and done tasks, newest first, ordered by the instants the counters
  * use (D-61): a replacement recorded in the evening comes after that day's ride. A done task sits
@@ -88,12 +119,19 @@ export function timeline(
   tasks: DoneTask[],
   bikeNames: Map<number, string>,
   timeZone: string,
-  /** The bike page's attachments by element (feature 10): thumbnails and documents of entries. */
-  attachments?: Map<string, AttachmentVM[]>,
+  { attachments, counters, components }: TimelineExtras = {},
 ): TimelineItemVM[] {
   const attach = <T extends TimelineItemVM>(item: T, key: string): T => {
     const list = attachments?.get(key) ?? [];
     return { ...item, photos: list.filter(isPhoto), documents: list.filter((a) => !isPhoto(a)) };
+  };
+  const ridesByBike = new Map<number, Ride[]>();
+  for (const ride of rides)
+    ridesByBike.set(ride.bikeId, [...(ridesByBike.get(ride.bikeId) ?? []), ride]);
+  /** The bike's counters at `at`, when the timeline has all its rides (D-107). */
+  const odometer = (bikeId: number | null, at: number) => {
+    const bike = bikeId == null ? undefined : counters?.get(bikeId);
+    return bike ? { odometer: odometerAt(bike, ridesByBike.get(bikeId!) ?? [], at) } : {};
   };
   const entries = [
     ...rides.map((ride) => ({
@@ -103,17 +141,31 @@ export function timeline(
         `ride:${ride.id}`,
       ) as TimelineItemVM,
     })),
-    ...events.map((event) => ({
-      at: eventInstant(event.performedOn, event.createdAt, timeZone),
-      item: attach(
-        maintenanceEntry(event, bikeNames.get(event.bikeId) ?? ""),
-        `maintenance_event:${event.id}`,
-      ) as TimelineItemVM,
-    })),
+    ...events.map((event) => {
+      const at = eventInstant(event.performedOn, event.createdAt, timeZone);
+      return {
+        at,
+        item: attach(
+          {
+            ...maintenanceEntry(event, bikeNames.get(event.bikeId) ?? ""),
+            ...(components ? { parts: eventParts(event, components) } : {}),
+            ...odometer(event.bikeId, at),
+          },
+          `maintenance_event:${event.id}`,
+        ) as TimelineItemVM,
+      };
+    }),
     ...tasks.map((task) => ({
       at: task.doneAt,
       item: attach(
-        taskEntry(task, task.bikeId == null ? null : (bikeNames.get(task.bikeId) ?? ""), timeZone),
+        {
+          ...taskEntry(
+            task,
+            task.bikeId == null ? null : (bikeNames.get(task.bikeId) ?? ""),
+            timeZone,
+          ),
+          ...odometer(task.bikeId, task.doneAt),
+        },
         `task:${task.id}`,
       ) as TimelineItemVM,
     })),

@@ -2,6 +2,7 @@ import "server-only";
 import type { ActivityVM, TimelineEdits } from "@/lib/view-models";
 import {
   listBikes,
+  listComponents,
   listDoneTasks,
   listMaintenanceEvents,
   listRides,
@@ -26,7 +27,11 @@ export function getActivityPage(ctx: AccessContext): { vm: ActivityVM; edits: Ti
   return {
     vm: {
       today: today(),
-      items: timeline(rides, events, tasks, names, timeZone),
+      // Every ride is here, so each entry gets its bike's counters then (D-107).
+      items: timeline(rides, events, tasks, names, timeZone, {
+        counters: new Map(bikes.map((bike) => [bike.id, bike])),
+        components: bikes.flatMap((bike) => listComponents(ctx, bike.id)),
+      }),
       rideCount: rides.length,
       maintenanceCount: events.length,
       doneTaskCount: tasks.length,

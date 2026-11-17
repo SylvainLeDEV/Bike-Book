@@ -68,3 +68,24 @@ export function componentCounter(
     rideIds: usage.rideIds,
   };
 }
+
+/** The bike's counters at one instant (D-107): what its page's totals showed then. */
+export type Odometer = Wear & { rideCount: number };
+
+/**
+ * The bike's counters at `at` (D-107): its counters before tracking plus the wear of its rides
+ * that started before `at`, and how many. Same sums as the bike page's totals, so an entry made
+ * today reads the totals shown at the top of the page.
+ */
+export function odometerAt(
+  bike: { initialDistanceM: number; initialWearS: number },
+  rides: RideUsage[],
+  at: number,
+): Odometer {
+  const usage = usageBetween(rides, null, at);
+  return {
+    distanceM: bike.initialDistanceM + usage.distanceM,
+    wearS: bike.initialWearS + usage.wearS,
+    rideCount: usage.rideIds.length,
+  };
+}

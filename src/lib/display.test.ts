@@ -9,6 +9,7 @@ import {
   movementTitle,
   initialsOf,
   maskSerial,
+  odometerText,
   rideFigures,
   ruleNote,
   serialEnd,
@@ -202,5 +203,16 @@ describe("formatTorque", () => {
     expect(formatTorque(6.8)).toBe(fr("6,8~N·m"));
     expect(formatTorque(25)).toBe(fr("25~N·m"));
     expect(formatTorque(6.75)).toBe(fr("6,75~N·m"));
+  });
+});
+
+describe("odometerText (D-107)", () => {
+  it("gives the bike's distance, wear hours and rides then", () => {
+    expect(odometerText({ distanceM: 3_504_200, wearS: 160 * 3600 + 900, rideCount: 96 })).toBe(
+      "À 3\u202f504\u00a0km · 160\u00a0h · 96\u00a0sorties",
+    );
+    expect(odometerText({ distanceM: 0, wearS: 0, rideCount: 1 })).toBe(
+      "À 0\u00a0km · 0\u00a0h · 1\u00a0sortie",
+    );
   });
 });

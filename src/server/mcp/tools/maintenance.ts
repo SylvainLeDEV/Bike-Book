@@ -20,6 +20,7 @@ import {
   listBikes,
   listComponents,
   listMaintenanceEvents,
+  listRides,
   listRules,
   listSuspensionSpecs,
   previewWrite,
@@ -32,6 +33,7 @@ import {
 } from "@/server/db";
 import { inSlot } from "@/server/domain/rules";
 import { eventInstant } from "@/server/domain/time";
+import { odometerAt } from "@/server/domain/wear";
 import { getEnv } from "@/server/env";
 import { today } from "@/server/time";
 import { doneLine } from "@/server/views/rules";
@@ -467,7 +469,7 @@ const listMaintenanceTool = defineTool({
   title: "Historique d'entretien",
   kind: "read",
   description:
-    "The maintenance history, newest first: each event's bike (id and name), day, title, who did it, costs, time spent (labor_time_s, a run's), and its lines (action, part, the rule it fulfilled, a part replaced with the new one fitted, measures). Filters: bike_id, from and to (days, both included), component_id (lines on that part, as removed or fitted), rule_id (the times that rule was done), query (title, notes and lines' descriptions, ignoring case and accents). Answers \"when did I last…?\".",
+    "The maintenance history, newest first: each event's bike (id and name), day, title, who did it, costs, time spent (labor_time_s, a run's), and its lines (action, part, the rule it fulfilled, a part replaced with the new one fitted, measures). Filters: bike_id, from and to (days, both included), component_id (lines on that part, as removed or fitted), rule_id (the times that rule was done), query (title, notes and lines' descriptions, ignoring case and accents). Each event has odometer: the bike's counters at that moment (distance_m, wear_s, ride_count, the bike page's totals then, counters before tracking included), to compare two events (\"how many km did the pads last?\"). Answers \"when did I last…?\".",
   input: z.strictObject({
     bike_id: z.number().optional().describe("Only this bike (list_bikes)."),
     from: z.string().optional().describe("First day, YYYY-MM-DD."),
@@ -514,6 +516,12 @@ const listMaintenanceTool = defineTool({
           ).includes(words)),
     );
     const { items, next_cursor } = paginate(events, (event) => String(event.id), page);
+    const { timeZone } = getEnv();
+    const rides = new Map<number, ReturnType<typeof listRides>>();
+    const ridesOf = (id: number) => {
+      if (!rides.has(id)) rides.set(id, listRides(ctx, { bikeId: id }));
+      return rides.get(id)!;
+    };
     return answer(`${items.length} of ${events.length} maintenance events.`, {
       events: items.map((event) => {
         // `bike` replaces `bike_id` here: the list spans bikes (D-100).
@@ -523,7 +531,24 @@ const listMaintenanceTool = defineTool({
           titles,
           "real",
         );
-        return { bike: { id: eventBikeId, name: names.get(eventBikeId) ?? "" }, ...described };
+        const bike = bikes.find((b) => b.id === eventBikeId);
+        const odometer = bike
+          ? odometerAt(
+              bike,
+              ridesOf(bike.id),
+              eventInstant(event.performedOn, event.createdAt, timeZone),
+            )
+          : null;
+        return {
+          bike: { id: eventBikeId, name: names.get(eventBikeId) ?? "" },
+          ...described,
+          // The bike's counters then (D-107), as the history shows them.
+          odometer: odometer && {
+            distance_m: odometer.distanceM,
+            wear_s: odometer.wearS,
+            ride_count: odometer.rideCount,
+          },
+        };
       }),
       next_cursor,
     });

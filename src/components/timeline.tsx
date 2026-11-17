@@ -1,8 +1,8 @@
 import { cn } from "cn";
-import { Check, ChevronRight, Info, Paperclip, Wrench } from "lucide-react";
+import { Check, ChevronRight, Gauge, Info, Paperclip, Wrench } from "lucide-react";
 import { RIDE_TYPE_ICONS } from "@/components/icons";
 import { PhotoThumbs } from "@/components/photos/photo-thumbs";
-import { maintenanceFigures, rideFigures } from "@/lib/display";
+import { maintenanceFigures, odometerText, rideFigures } from "@/lib/display";
 import {
   formatDate,
   formatDayLabel,
@@ -10,7 +10,7 @@ import {
   formatMonthYear,
   type LocalDate,
 } from "@/lib/format";
-import { CONDITIONS_LABELS, RIDE_TYPE_LABELS } from "@/lib/labels";
+import { CONDITIONS_LABELS, MAINTENANCE_ACTION_LABELS, RIDE_TYPE_LABELS } from "@/lib/labels";
 import type { TimelineItemVM } from "@/lib/view-models";
 
 function Tag({
@@ -84,6 +84,14 @@ function TimelineEntry({
         : "Modifier l'entretien";
 
   const tags: React.ReactNode[] = [];
+  // The parts each line touched (D-107): two events with the same title tell front from rear.
+  if (item.kind === "maintenance")
+    for (const part of item.parts ?? [])
+      tags.push(
+        <Tag key={`p${part.action}${part.slot}`}>
+          {MAINTENANCE_ACTION_LABELS[part.action]} · {part.slot}
+        </Tag>,
+      );
   if (isRide && item.conditions) tags.push(<Tag key="c">{CONDITIONS_LABELS[item.conditions]}</Tag>);
   if (isRide && item.wearS != null)
     tags.push(
@@ -152,6 +160,15 @@ function TimelineEntry({
         </h4>
         {figures ? (
           <p className="mt-0.5 num text-base leading-[1.35] font-medium">{figures}</p>
+        ) : null}
+        {item.kind !== "ride" && item.odometer ? (
+          <p className="mt-0.5 flex items-center gap-1.5 num text-[13px] text-fg-muted">
+            <Gauge className="size-[14px] shrink-0" aria-hidden />
+            <span>
+              <span className="sr-only">Compteur du vélo : </span>
+              {odometerText(item.odometer)}
+            </span>
+          </p>
         ) : null}
         {tags.length ? <div className="mt-2 flex flex-wrap gap-1.5">{tags}</div> : null}
         {showPhotos ? (

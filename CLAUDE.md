@@ -23,7 +23,8 @@ day (D-101): the Garmin Connect import through the Personal API (key in Paramèt
 → bike, "À classer", every 6 hours, expiry warnings). On 2026-11-05, "Cadrer" (D-103): a focus
 point and a zoom on each photo, which every cropped frame centres on. On 2026-11-06, "Reporter"
 to a day the owner picks, and "Réactiver" (D-105). On 2026-11-13, purchase links edited and
-deleted, and a page linked again takes the new price (D-106).
+deleted, and a page linked again takes the new price (D-106). On 2026-11-17, the bike's counters
+(km, hours, rides) on each maintenance event and done task of the history, and the parts each event touched (D-107).
 
 ## Read first
 
@@ -103,6 +104,7 @@ deleted, and a page linked again takes the new price (D-106).
   procedure's part type and names each rule's slot; `rebuy_reason` in snake_case (`to_order`);
   `include_archived` on `list_workshop_items`; one key per thing (`delete_ride`'s `ride`,
   `create_rides`' `after` shaped as `before`); `update_run_steps` answers the steps only.
+  Since D-107: `list_maintenance` answers each event's `odometer` (the bike's counters then).
   Since D-106: `purchase_links` carry `link_id`; `update_workshop_item` takes `update_link` and
   `remove_link`, and `add_link` on a page already linked gives it the new price.
   Summaries and warnings are in English for the assistant (said in the server instructions),

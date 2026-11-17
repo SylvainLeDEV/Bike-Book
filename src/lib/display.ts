@@ -11,6 +11,7 @@ import {
   formatDuration,
   formatElevation,
   formatEta,
+  formatHours,
   formatMoney,
   withUnit,
   type LocalDate,
@@ -30,6 +31,7 @@ import type {
   InventoryUnit,
   ItemStockVM,
   MovementVM,
+  OdometerVM,
   Quantity,
   RideItemVM,
   RuleRowVM,
@@ -149,6 +151,15 @@ export function maintenanceFigures(costCents: number | null, performedBy: "self"
   const cost = costCents != null ? formatMoney(costCents) : null;
   const who = performedBy === "self" ? "fait maison" : null;
   return [cost, who].filter(Boolean).join(" · ");
+}
+
+/** The bike's counters when an entry was done (D-107): "À 3 504 km · 160 h · 96 sorties". */
+export function odometerText(odometer: OdometerVM): string {
+  return [
+    `À ${formatDistance(odometer.distanceM)}`,
+    formatHours(odometer.wearS),
+    formatCount(odometer.rideCount, "sortie", "sorties"),
+  ].join(" · ");
 }
 
 /** Bikes an item serves, in words: "Tous les vélos", "Spectral · Le Lourd", "3 vélos". */

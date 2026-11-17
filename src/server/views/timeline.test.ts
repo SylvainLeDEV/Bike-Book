@@ -196,6 +196,32 @@ describe("timeline", () => {
     expect(items[3]).toMatchObject({ kind: "task", bikeName: null, on: "2026-10-23" });
   });
 
+  it("gives events and done tasks their bike's counters and parts when asked (D-107)", () => {
+    const pads = part(11, { typeCode: "brake_pads", position: "front" });
+    const padsEvent = {
+      ...event,
+      items: [
+        item({ action: "inspected", componentId: 11 }),
+        item({ id: 2, action: "inspected", componentId: 11 }),
+      ],
+    };
+    const items = timeline([ride], [padsEvent], [pump, pivots], new Map([[2, "Spectral"]]), TZ, {
+      counters: new Map([[2, { initialDistanceM: 100_000, initialWearS: 3600 }]]),
+      components: [pads],
+    });
+    const byKey = new Map(items.map((entry) => [`${entry.kind}:${entry.id}`, entry]));
+    // The ride of the 24th counts for the task done that afternoon, not for the event of the 23rd.
+    expect(byKey.get("task:1")).toMatchObject({
+      odometer: { distanceM: 130_000, wearS: 3600 + 7200, rideCount: 1 },
+    });
+    expect(byKey.get("maintenance:5")).toMatchObject({
+      odometer: { distanceM: 100_000, wearS: 3600, rideCount: 0 },
+      parts: [{ action: "inspected", slot: "Plaquettes avant" }],
+    });
+    // A general task has no bike, so no counters.
+    expect(byKey.get("task:2")).not.toHaveProperty("odometer");
+  });
+
   it("dates a done task in the configured time zone and opens it as 'Modifier la tâche'", () => {
     const late = task(3, { doneAt: Date.parse("2026-10-24T22:30:00Z") }); // 00:30 on the 25th
     expect(timeline([], [], [late], new Map([[2, "Spectral"]]), TZ)[0]?.on).toBe("2026-10-25");

@@ -209,6 +209,9 @@ export type RideItemVM = {
   documents: AttachmentVM[];
 };
 
+/** The bike's counters when an entry was done (D-107): its page's totals at that instant. */
+export type OdometerVM = { distanceM: number; wearS: number; rideCount: number };
+
 export type MaintenanceItemVM = {
   kind: "maintenance";
   id: number;
@@ -221,6 +224,10 @@ export type MaintenanceItemVM = {
   note: string | null;
   /** The time spent, typed at the end of a run (D-87). */
   laborTimeS?: number | null;
+  /** What each line did to which part: "Contrôlé", "Plaquettes avant" (D-107). */
+  parts?: { action: MaintenanceAction; slot: string }[];
+  /** The bike's counters then; left out where the timeline lacks the bike's rides (D-107). */
+  odometer?: OdometerVM;
   documents: AttachmentVM[];
   photos: PhotoVM[];
 };
@@ -235,6 +242,8 @@ export type TaskItemVM = {
   bikeName: string | null;
   title: string;
   note: string | null;
+  /** The bike's counters when it was done; never for a general task (D-107). */
+  odometer?: OdometerVM;
   documents: AttachmentVM[];
   photos: PhotoVM[];
 };

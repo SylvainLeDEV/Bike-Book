@@ -316,14 +316,11 @@ export function getBikePage(ctx: AccessContext, bikeId: number): BikePage | null
         .sort((a, b) => a.title.localeCompare(b.title, "fr")),
       total: bikeProcedures.length,
     },
-    history: timeline(
-      rides,
-      events,
-      doneTasks,
-      new Map([[bike.id, bike.name]]),
-      timeZone,
-      attachments.byOwner,
-    ),
+    history: timeline(rides, events, doneTasks, new Map([[bike.id, bike.name]]), timeZone, {
+      attachments: attachments.byOwner,
+      counters: new Map([[bike.id, bike]]),
+      components,
+    }),
     record: {
       identity: {
         brand: bike.brand,
