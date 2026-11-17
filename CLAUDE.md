@@ -24,7 +24,8 @@ day (D-101): the Garmin Connect import through the Personal API (key in Paramèt
 point and a zoom on each photo, which every cropped frame centres on. On 2026-11-06, "Reporter"
 to a day the owner picks, and "Réactiver" (D-105). On 2026-11-13, purchase links edited and
 deleted, and a page linked again takes the new price (D-106). On 2026-11-17, the bike's counters
-(km, hours, rides) on each maintenance event and done task of the history, and the parts each event touched (D-107).
+(km, hours, rides) on each maintenance event and done task of the history, and the parts each event touched (D-107); the same day, dated tasks ranked with the rules
+under "À prévoir", late or due within 7 days (D-108).
 
 ## Read first
 

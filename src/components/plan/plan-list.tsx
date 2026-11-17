@@ -29,6 +29,7 @@ import {
 import { formatItemStock, formatQuantity, ruleNote } from "@/lib/display";
 import { formatDate, type LocalDate } from "@/lib/format";
 import { REBUY_STATE_LABELS } from "@/lib/labels";
+import { planEntries, type TaskStatus } from "@/lib/plan";
 import type { ProcedureRef, RuleRowVM, RunRowVM, TaskRowVM } from "@/lib/view-models";
 import { ActionButton } from "./action-button";
 
@@ -268,11 +269,14 @@ function RuleRow({
 
 function TaskRow({
   task,
+  status,
   today,
   withBike,
   actions,
 }: {
   task: TaskRowVM;
+  /** From its due date (D-108): late or due soon shows the rules' badge. */
+  status: TaskStatus;
   today: LocalDate;
   withBike: boolean;
   actions: PlanActions;
@@ -293,6 +297,8 @@ function TaskRow({
           </span>
           {task.run ? (
             <RunningBadge />
+          ) : status === "overdue" || status === "due_soon" ? (
+            <RuleStatusBadge status={status} />
           ) : (
             <Badge>
               <ListChecks aria-hidden />
@@ -399,7 +405,7 @@ function RunRow({
   );
 }
 
-/** "À prévoir": rules first (most urgent first), then one-off tasks (D-34). */
+/** "À prévoir": rules and dated tasks by urgency, undated tasks last, then runs (D-108). */
 export function PlanList({
   rules,
   tasks,
@@ -422,24 +428,26 @@ export function PlanList({
   return (
     <Card asChild className={cn("overflow-hidden", className)}>
       <ul data-focus-scope className="m-0 list-none divide-y divide-border p-0">
-        {rules.map((rule) => (
-          <RuleRow
-            key={`r${rule.id}`}
-            rule={rule}
-            today={today}
-            withBike={withBike}
-            actions={actions}
-          />
-        ))}
-        {tasks.map((task) => (
-          <TaskRow
-            key={`t${task.id}`}
-            task={task}
-            today={today}
-            withBike={withBike}
-            actions={actions}
-          />
-        ))}
+        {planEntries(rules, tasks, today).map((entry) =>
+          entry.kind === "rule" ? (
+            <RuleRow
+              key={`r${entry.rule.id}`}
+              rule={entry.rule}
+              today={today}
+              withBike={withBike}
+              actions={actions}
+            />
+          ) : (
+            <TaskRow
+              key={`t${entry.task.id}`}
+              task={entry.task}
+              status={entry.status}
+              today={today}
+              withBike={withBike}
+              actions={actions}
+            />
+          ),
+        )}
         {runs.map((run) => (
           <RunRow key={`s${run.id}`} run={run} withBike={withBike} actions={actions} />
         ))}

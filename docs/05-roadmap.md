@@ -86,6 +86,7 @@ weeks of real use.
 - [x] The MCP handler built once: no `responseMode` warning per MCP call in the logs (pitfall 16, found in MyCairn's production logs) (done 2026-11-12, release 0.6.3)
 - [x] Purchase links edited and deleted from their row, and a page linked again takes the new price instead of a second row; the MCP's `update_link` and `remove_link` (D-106, found in real use) (done 2026-11-13, release 0.6.4)
 - [x] The bike's counters (km, wear hours, rides) on each maintenance event and done task in the history, and the parts each event touched; `list_maintenance`'s `odometer` (D-107, found in real use) (done 2026-11-17, release 0.6.6)
+- [x] Dated tasks ranked with the rules under "À prévoir": overdue once their day has passed, due soon within 7 days, the rules' badge (D-108, found in real use) (done 2026-11-17)
 - [ ] The gap since the previous time of the same rule ("+1 820 km depuis le dernier contrôle"), after D-107
 - [x] The Vélos page shows each bike's overdue and due-soon count like the dashboard, instead of "À jour" on every card (found in real use) (done 2026-11-15, release 0.6.5)
 - [x] Workshop: products (four levels plus containers, D-36) and tools (D-33), before the procedures so their material links to the stock (D-82); built directly in the app from the mockup, no `/design` screen and no demo data (done 2026-11-01, D-85: Pièces · Produits · Outils · À racheter, levels and possession recorded as movements, the view kept in the address; no migration)

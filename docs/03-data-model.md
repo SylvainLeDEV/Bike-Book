@@ -470,9 +470,11 @@ done during its snooze is `ok`, D-105).
 
 Status: **Built** in phase 1 feature 7 (2026-10-26, migration `0007_tasks`, D-66).
 
-One-off to-dos only (D-34), shown under "À prévoir" after the rules: all of them on the
-dashboard, a bike's own on its page. Same row as a rule without the wear bar, a neutral "Tâche"
-badge, the due date or "Sans échéance", and "Fait" with undo. Parts to buy live in the workshop
+One-off to-dos only (D-34), shown under "À prévoir": all of them on the dashboard, a bike's own
+on its page, ranked with the rules by their due date (D-108): overdue once `due_on` has passed,
+due soon from 7 days before, undated ones last. Same row as a rule without the wear bar, the
+rules' badge when late or due soon (else a neutral "Tâche"), the due date or "Sans échéance",
+and "Fait" with undo. Parts to buy live in the workshop
 (D-33). A done task moves to the history, placed at `done_at` (D-77): the bike page's history
 (its bike's tasks), Activité and the dashboard's recent activity (all of them, general ones
 included); it opens "Modifier la tâche", which can reopen it. Cancelled tasks are not shown.
