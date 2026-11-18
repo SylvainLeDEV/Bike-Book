@@ -824,6 +824,8 @@ export type QuickRideInput = {
   distanceM: number | null;
   elevationGainM: number | null;
   conditions: RideConditions | null;
+  /** The ride's name (a Garmin activity's, or typed); null: lists show the place, else the type. */
+  title: string | null;
   location: string | null;
   notes: string | null;
   /** "HH:MM", local time; null: the ride starts at noon (D-61). */

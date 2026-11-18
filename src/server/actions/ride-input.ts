@@ -31,6 +31,12 @@ export function quickRideSchema(today: LocalDate) {
       distanceM: optionalInt(2_000_000, "Distance invalide."),
       elevationGainM: optionalInt(30_000, "Dénivelé invalide."),
       conditions: z.enum(RIDE_CONDITIONS).nullable(),
+      title: z
+        .string()
+        .trim()
+        .max(120, "120 caractères au maximum.")
+        .nullable()
+        .transform((value) => value || null),
       location: z
         .string()
         .trim()
@@ -76,7 +82,7 @@ export function toRideData(input: QuickRideInput, timeZone: string): RideData {
   return {
     bikeId: input.bikeId,
     startedAt: rideStartInstant(input.on, time, timeZone),
-    title: null,
+    title: input.title,
     location: input.location,
     rideType: input.rideType,
     liftAssisted: park,

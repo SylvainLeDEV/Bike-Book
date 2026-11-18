@@ -274,6 +274,21 @@ describe("ride tools", () => {
     });
     expect(moved.structuredContent.before).toMatchObject({ distance_m: 30_000 });
 
+    // The title (D-109): kept when not given, changed when given, cleared with null.
+    const named = await callTool(token, "update_ride", {
+      ride_id: rideId,
+      title: "Sortie avec Julien",
+      dry_run: false,
+    });
+    expect(named.structuredContent.ride).toMatchObject({
+      title: "Sortie avec Julien",
+      distance_m: 32_000,
+    });
+    await callTool(token, "update_ride", { ride_id: rideId, notes: "Sec", dry_run: false });
+    expect(listRides(ctx)[0]).toMatchObject({ title: "Sortie avec Julien", notes: "Sec" });
+    await callTool(token, "update_ride", { ride_id: rideId, title: null, dry_run: false });
+    expect(listRides(ctx)[0]?.title).toBeNull();
+
     // Switching to a bike park day keeps the duration typed as its total time.
     const park = await callTool(token, "update_ride", {
       ride_id: rideId,

@@ -235,7 +235,8 @@ engine, and the dry run warns when one would start overdue or due soon.
 
 **Rides (D-92).** `list_rides` (newest first; `totals` over the whole filtered list),
 `create_ride` (the quick entry's `quickRideSchema` and `toRideData`), `update_ride` (the ride as
-"Modifier la sortie" edits it, `rideForm`, the fields given replacing its own), `delete_ride`.
+"Modifier la sortie" edits it, `rideForm`, the fields given replacing its own, `title` included
+since D-109), `delete_ride`.
 Writes answer `rules_made_due` (rules whose status the ride moves to due soon or overdue, from
 the rule engine before and after the write) and warn about a ride of the same bike starting
 within ±30 minutes (`ridesNear` in `src/server/domain/rides.ts`).

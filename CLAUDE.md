@@ -25,7 +25,8 @@ point and a zoom on each photo, which every cropped frame centres on. On 2026-11
 to a day the owner picks, and "Réactiver" (D-105). On 2026-11-13, purchase links edited and
 deleted, and a page linked again takes the new price (D-106). On 2026-11-17, the bike's counters
 (km, hours, rides) on each maintenance event and done task of the history, and the parts each event touched (D-107); the same day, dated tasks ranked with the rules
-under "À prévoir", late or due within 7 days (D-108).
+under "À prévoir", late or due within 7 days (D-108). On 2026-11-18, a ride's title typed and
+edited in the ride sheet, a Garmin ride's name kept unless changed (D-109).
 
 ## Read first
 
@@ -106,6 +107,7 @@ under "À prévoir", late or due within 7 days (D-108).
   `include_archived` on `list_workshop_items`; one key per thing (`delete_ride`'s `ride`,
   `create_rides`' `after` shaped as `before`); `update_run_steps` answers the steps only.
   Since D-107: `list_maintenance` answers each event's `odometer` (the bike's counters then).
+  Since D-109: `create_ride`, `update_ride` and `create_rides` take a ride's `title`.
   Since D-106: `purchase_links` carry `link_id`; `update_workshop_item` takes `update_link` and
   `remove_link`, and `add_link` on a page already linked gives it the new price.
   Summaries and warnings are in English for the assistant (said in the server instructions),

@@ -188,6 +188,7 @@ export function rideForm(ride: Ride, timeZone: string): QuickRideInput {
     distanceM: ride.distanceM,
     elevationGainM: ride.elevationGainM,
     conditions: ride.conditions,
+    title: ride.title,
     location: ride.location,
     notes: ride.notes,
     startTime: time === "12:00" ? null : time,

@@ -14,6 +14,7 @@ const trail: QuickRideInput = {
   distanceM: 38_000,
   elevationGainM: 1620,
   conditions: "dry",
+  title: null,
   location: "  Massif des Bauges ",
   notes: "",
   startTime: null,
@@ -62,6 +63,15 @@ describe("quick ride input", () => {
     expect(new Date(data.startedAt).toISOString()).toBe("2026-10-24T10:00:00.000Z");
     const morning = toRideData({ ...trail, startTime: "08:30" }, "Europe/Paris");
     expect(new Date(morning.startedAt).toISOString()).toBe("2026-10-24T06:30:00.000Z");
+  });
+
+  it("keeps a title, trimmed, at most 120 characters; an empty one is none (D-109)", () => {
+    const named = parse({ ...trail, title: "  Sortie avec Julien " });
+    if (!named.success) throw new Error("expected valid");
+    expect(toRideData(named.data, "Europe/Paris").title).toBe("Sortie avec Julien");
+    const blank = parse({ ...trail, title: "   " });
+    expect(blank.success && blank.data.title).toBeNull();
+    expect(error({ ...trail, title: "x".repeat(121) })).toBe("120 caractères au maximum.");
   });
 
   it("makes a bike park day lift-assisted, with its descent time and runs", () => {

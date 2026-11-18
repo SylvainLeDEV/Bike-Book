@@ -143,6 +143,13 @@ const rideFields = {
     .nullable()
     .optional()
     .describe("dry, wet, mud, dust, snow, mixed."),
+  title: z
+    .string()
+    .nullable()
+    .optional()
+    .describe(
+      'The ride\'s name, to find it again: "Sortie avec Julien", 120 characters at most; null: lists show the location, else the ride type.',
+    ),
   location: z
     .string()
     .nullable()
@@ -194,6 +201,7 @@ function formInput(base: QuickRideInput, args: RideArgs & { bike_id?: number }):
     distanceM: pick(args.distance_m, base.distanceM),
     elevationGainM: pick(args.elevation_gain_m, base.elevationGainM),
     conditions: pick(args.conditions, base.conditions),
+    title: pick(args.title, base.title),
     location: pick(args.location, base.location),
     notes: pick(args.notes, base.notes),
     startTime: pick(args.start_time, base.startTime),
@@ -224,6 +232,7 @@ function newRideInput(bikeId: number, args: RideArgs) {
     distanceM: null,
     elevationGainM: null,
     conditions: null,
+    title: null,
     location: null,
     notes: null,
     startTime: null,
@@ -365,7 +374,7 @@ const updateRideTool = defineTool({
   title: "Modifier une sortie",
   kind: "write",
   description:
-    'Changes a ride, as "Modifier la sortie": only the fields given change, bike_id moves it to another bike. Changing the duration drops a moving time recorded before (the app keeps one duration). Switching to or from bike_park keeps the duration typed. The answer gives the rules the change makes due. Call with dry_run true first.',
+    'Changes a ride, as "Modifier la sortie": only the fields given change (the title of a Garmin ride too: it is never imported again), bike_id moves it to another bike. Changing the duration drops a moving time recorded before (the app keeps one duration). Switching to or from bike_park keeps the duration typed. The answer gives the rules the change makes due. Call with dry_run true first.',
   input: z.strictObject({
     ride_id: z.number().describe("The ride (list_rides)."),
     bike_id: z.number().optional().describe("Another bike of the workspace (list_bikes)."),

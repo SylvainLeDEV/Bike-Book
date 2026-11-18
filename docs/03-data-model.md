@@ -326,7 +326,7 @@ of duration clears `moving_time_s`.
 | `id` | integer PK | |
 | `bike_id` | FK `bikes`, required | The ride inherits the workspace through its bike (D-25) |
 | `started_at` | timestamp, required | Noon local time when only a date was typed, else the time given (D-61) |
-| `title` | text, nullable | Not typed in the quick entry: lists show the place, else the ride type |
+| `title` | text, nullable | The Garmin activity's name, or typed in the ride sheet's "Titre" (120 characters at most, D-109); null: lists show the place, else the ride type |
 | `location` | text, nullable | Free text, offered again from previous rides ("Les Gets", "Salève") |
 | `ride_type` | enum, required | See [values](#ride-values) |
 | `lift_assisted` | boolean, required, default `false` | Lifts or shuttles: wear counts the descent only (D-13). The quick entry sets it for `bike_park` (D-64) |

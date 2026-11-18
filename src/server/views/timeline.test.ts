@@ -76,10 +76,15 @@ describe("rideForm", () => {
       distanceM: 30_000,
       elevationGainM: 200,
       conditions: "dry",
+      title: null,
       location: "Massif des Bauges",
       notes: null,
       startTime: null,
     });
+    // The sheet is filled with the current title, so saving it unchanged keeps it (D-109).
+    expect(rideForm({ ...ride, title: "Boucle gravel du dimanche" }, TZ).title).toBe(
+      "Boucle gravel du dimanche",
+    );
     expect(rideForm({ ...ride, startedAt: Date.parse("2026-10-24T06:30:00Z") }, TZ).startTime).toBe(
       "08:30",
     );

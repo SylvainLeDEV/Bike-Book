@@ -99,6 +99,7 @@ describe("rides", () => {
     if (!created.ok) throw new Error("ride");
     const edit = {
       ...ride(other.bikeId, "2026-10-09T10:00:00Z"),
+      title: "Imported title",
       location: null,
       distanceM: 30_000,
       conditions: null,
@@ -119,6 +120,14 @@ describe("rides", () => {
     // A new "Durée" replaces the moving time, which would still be shown and counted.
     expect(updateRide(ctx, created.rideId, { ...edit, totalTimeS: 5400 })).toEqual({ ok: true });
     expect(listRides(ctx)[0]).toMatchObject({ totalTimeS: 5400, movingTimeS: null });
+
+    // The sheet shows the title (D-109): a new one replaces it, an empty one clears it.
+    expect(updateRide(ctx, created.rideId, { ...edit, title: "Sortie avec Julien" })).toEqual({
+      ok: true,
+    });
+    expect(listRides(ctx)[0]).toMatchObject({ title: "Sortie avec Julien", distanceM: 30_000 });
+    expect(updateRide(ctx, created.rideId, { ...edit, title: null })).toEqual({ ok: true });
+    expect(listRides(ctx)[0]?.title).toBeNull();
   });
 
   it("keeps each workspace's rides to itself", () => {

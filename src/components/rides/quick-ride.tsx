@@ -187,6 +187,19 @@ function toHoursMinutes(seconds: number | null): { h: string; m: string } {
   return { h: h ? String(h) : "", m: String(minutes % 60) };
 }
 
+const kmText = (metres: number | null) => (metres == null ? "" : decimalText(metres / 1000, 2));
+
+/**
+ * The seconds a duration field sends: its exact value while it still shows the one it opened
+ * with (an import has seconds, the sheet minutes), else what is typed (D-109).
+ */
+function secondsOf(typed: { h: string; m: string }, exact: number | null | undefined) {
+  const shown = toHoursMinutes(exact ?? null);
+  return exact != null && typed.h === shown.h && typed.m === shown.m
+    ? exact
+    : toSeconds(typed.h, typed.m);
+}
+
 function QuickRideForm({
   vm,
   initialBikeId,
@@ -227,13 +240,12 @@ function QuickRideForm({
   const [total, setTotal] = React.useState(() => toHoursMinutes(initial?.totalTimeS ?? null));
   const [descent, setDescent] = React.useState(() => toHoursMinutes(initial?.descentTimeS ?? null));
   const [runs, setRuns] = React.useState(initial?.runsCount?.toString() ?? "");
-  const [distance, setDistance] = React.useState(
-    initial?.distanceM == null ? "" : decimalText(initial.distanceM / 1000, 2),
-  );
+  const [distance, setDistance] = React.useState(kmText(initial?.distanceM ?? null));
   const [elevation, setElevation] = React.useState(initial?.elevationGainM?.toString() ?? "");
   const [conditions, setConditions] = React.useState<RideConditions | null>(
     initial?.conditions ?? null,
   );
+  const [title, setTitle] = React.useState(initial?.title ?? "");
   const [location, setLocation] = React.useState(initial?.location ?? "");
   const [notes, setNotes] = React.useState(initial?.notes ?? "");
   const [startTime, setStartTime] = React.useState(initial?.startTime ?? "");
@@ -248,9 +260,11 @@ function QuickRideForm({
     event.preventDefault();
     if (bikeId == null) return;
     const next: Errors = {};
-    const durationS = park ? null : toSeconds(duration.h, duration.m);
-    const totalS = park ? toSeconds(total.h, total.m) : null;
-    const descentS = park ? toSeconds(descent.h, descent.m) : null;
+    // Untouched fields keep their exact values: saving a Garmin ride to rename it changes nothing
+    // else (D-109), not even its moving time, dropped when the duration changes.
+    const durationS = park ? null : secondsOf(duration, initial?.durationS);
+    const totalS = park ? secondsOf(total, initial?.totalTimeS) : null;
+    const descentS = park ? secondsOf(descent, initial?.descentTimeS) : null;
     if (!park && (durationS == null || !(durationS > 0)))
       next.duration = "Indique une durée, même approximative.";
     if (park && (totalS == null || !(totalS > 0)))
@@ -277,9 +291,15 @@ function QuickRideForm({
         totalTimeS: totalS,
         descentTimeS: descentS,
         runsCount: park && Number.isFinite(runsCount) ? runsCount : null,
-        distanceM: km == null ? null : Math.round(km * 1000),
+        distanceM:
+          initial && distance === kmText(initial.distanceM)
+            ? initial.distanceM
+            : km == null
+              ? null
+              : Math.round(km * 1000),
         elevationGainM: elevationM == null ? null : Math.round(elevationM),
         conditions,
+        title: title.trim() || null,
         location: location.trim() || null,
         notes: notes.trim() || null,
         startTime: startTime || null,
@@ -494,16 +514,28 @@ function QuickRideForm({
 
         <details
           className="group border-t border-border pt-1"
-          open={Boolean(initial?.location || initial?.notes || initial?.startTime) || undefined}
+          open={
+            Boolean(initial?.title || initial?.location || initial?.notes || initial?.startTime) ||
+            undefined
+          }
         >
           <summary className="flex min-h-11 list-none items-center gap-2 text-[14.5px] font-semibold [&::-webkit-details-marker]:hidden">
             <ChevronRight
               className="size-[18px] transition-transform group-open:rotate-90"
               aria-hidden
             />
-            Plus de détails <span className="hint">lieu, heure, notes</span>
+            Plus de détails <span className="hint">titre, lieu, heure, notes</span>
           </summary>
           <div className="grid gap-4 pt-1.5">
+            <Field label="Titre" hint="Facultatif : sans titre, la sortie prend le nom du lieu.">
+              <Input
+                autoComplete="off"
+                maxLength={120}
+                placeholder="Ex. Sortie avec Julien"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+              />
+            </Field>
             <div className="grid gap-2">
               <Field label="Lieu">
                 <Input

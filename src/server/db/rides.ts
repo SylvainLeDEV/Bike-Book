@@ -24,11 +24,11 @@ export type Ride = RideUsage & {
 
 export type RideData = Omit<Ride, "id" | "source">;
 
-/** What the ride sheet edits: the fields an import fills but the sheet does not show stay as they are. */
-export type RideEdit = Omit<
-  RideData,
-  "title" | "movingTimeS" | "descentDistanceM" | "elevationLossM"
->;
+/**
+ * What the ride sheet edits: the fields an import fills but the sheet does not show stay as they
+ * are. The title is shown, filled with the current one (D-109).
+ */
+export type RideEdit = Omit<RideData, "movingTimeS" | "descentDistanceM" | "elevationLossM">;
 
 const rideColumns = {
   id: rides.id,
@@ -143,6 +143,7 @@ export function updateRide(
       .set({
         bikeId: data.bikeId,
         startedAt: new Date(data.startedAt),
+        title: data.title,
         location: data.location,
         rideType: data.rideType,
         liftAssisted: data.liftAssisted,
