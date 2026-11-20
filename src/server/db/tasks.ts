@@ -1,11 +1,12 @@
 import "server-only";
-import { and, asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, or } from "drizzle-orm";
 import type { TaskStatus } from "@/lib/enums";
 import type { LocalDate } from "@/lib/format";
 import type { AccessContext } from "./access-context";
+import { attachmentPaths, withFileCleanup } from "./attachments";
 import { getDb, type Tx } from "./client";
 import { ownsProcedure } from "./procedures";
-import { bikes, tasks } from "./schema";
+import { attachments, bikes, procedureRuns, procedureRunSteps, tasks } from "./schema";
 
 // One-off tasks of the workspace (feature 7, D-34).
 
@@ -176,4 +177,51 @@ export function updateTask(
     tx.update(tasks).set(data).where(eq(tasks.id, taskId)).run();
     return { ok: true };
   });
+}
+
+/**
+ * The runs that go with a deleted task: one in progress (as "Abandonner le suivi") and a general
+ * task's (no bike, so no event to keep). A bike's done run keeps its event and loses the link.
+ */
+function runsDeletedWith(taskId: number) {
+  return and(
+    eq(procedureRuns.taskId, taskId),
+    or(eq(procedureRuns.status, "in_progress"), isNull(procedureRuns.bikeId)),
+  );
+}
+
+/**
+ * "Supprimer la tâche" (D-110): an open task not needed after all goes for good, with its
+ * attachments and the runs above, their photos with them. A done task stays in the history.
+ */
+export function deleteTask(
+  ctx: AccessContext,
+  taskId: number,
+): { ok: true } | { ok: false; reason: "not_found" } {
+  const files = attachmentPaths((tx) =>
+    or(
+      eq(attachments.taskId, taskId),
+      inArray(
+        attachments.procedureRunStepId,
+        tx
+          .select({ id: procedureRunSteps.id })
+          .from(procedureRunSteps)
+          .innerJoin(procedureRuns, eq(procedureRuns.id, procedureRunSteps.runId))
+          .where(runsDeletedWith(taskId)),
+      ),
+    ),
+  );
+  return withFileCleanup(files, () =>
+    getDb().transaction((tx) => {
+      const task = tx
+        .select({ id: tasks.id, status: tasks.status })
+        .from(tasks)
+        .where(and(eq(tasks.id, taskId), eq(tasks.workspaceId, ctx.workspace.id)))
+        .get();
+      if (!task || task.status !== "open") return { ok: false, reason: "not_found" } as const;
+      tx.delete(procedureRuns).where(runsDeletedWith(taskId)).run();
+      tx.delete(tasks).where(eq(tasks.id, taskId)).run();
+      return { ok: true } as const;
+    }),
+  );
 }

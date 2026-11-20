@@ -355,6 +355,43 @@ describe("set_task_done", () => {
   });
 });
 
+describe("delete_task (D-110)", () => {
+  it("describes on a dry run, deletes an open task, and refuses a done one", async () => {
+    const { ctx, token } = garage("Delete task");
+    const bikeId = addBike(ctx);
+    const add = async (title: string) =>
+      (await callTool(token, "add_task", { bike_id: bikeId, title, dry_run: false }))
+        .structuredContent.task.id as number;
+    const grease = await add("Graissage chaîne");
+    const pivots = await add("Pivots");
+    await callTool(token, "set_task_done", { task_id: pivots, dry_run: false });
+
+    const preview = await callTool(token, "delete_task", { task_id: grease, dry_run: true });
+    expect(preview.structuredContent).toMatchObject({
+      dry_run: true,
+      task: { id: grease, title: "Graissage chaîne", bike: { id: bikeId } },
+      attachment_count: 0,
+      run_in_progress_id: null,
+    });
+    expect(listOpenTasks(ctx)).toHaveLength(1);
+
+    const done = await callTool(token, "delete_task", { task_id: pivots, dry_run: false });
+    expect(done.isError).toBe(true);
+    expect(done.structuredContent.errors).toEqual([
+      { field: "task_id", message: "Une tâche faite ne peut pas être supprimée." },
+    ]);
+
+    const other = garage("Intruder");
+    const foreign = await callTool(other.token, "delete_task", { task_id: grease, dry_run: false });
+    expect(foreign.structuredContent.errors[0].field).toBe("task_id");
+
+    const deleted = await callTool(token, "delete_task", { task_id: grease, dry_run: false });
+    expect(deleted.isError).toBeFalsy();
+    expect(listOpenTasks(ctx)).toEqual([]);
+    expect(listDoneTasks(ctx)).toHaveLength(1);
+  });
+});
+
 describe("workspace boundary (D-93 tools)", () => {
   it("a token of workspace A changes nothing of workspace B", async () => {
     const a = garage("Alice");

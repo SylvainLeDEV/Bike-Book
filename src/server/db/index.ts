@@ -79,6 +79,7 @@ export {
 } from "./rules";
 export {
   createTask,
+  deleteTask,
   listDoneTasks,
   listOpenTasks,
   setTaskStatus,

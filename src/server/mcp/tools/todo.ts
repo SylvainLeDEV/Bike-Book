@@ -7,10 +7,13 @@ import { taskSchema } from "@/server/actions/task-input";
 import {
   atomically,
   createTask,
+  deleteTask,
   getBike,
+  listAttachments,
   listDoneTasks,
   listOpenTasks,
   listProcedures,
+  listRunsOfTasks,
   previewWrite,
   setTaskStatus,
   updateTask,
@@ -410,4 +413,83 @@ const updateTaskTool = defineTool({
   },
 });
 
-export const todoTools = [listDueWorkTool, addTaskTool, updateTaskTool, setTaskDoneTool];
+// --- delete_task (D-110) -------------------------------------------------------------------------
+
+const deleteTaskTool = defineTool({
+  name: "delete_task",
+  title: "Supprimer une tâche",
+  kind: "delete",
+  description:
+    'Deletes an open task not needed after all, as "Supprimer la tâche": for good, with its attachments (files included) and its run in progress. Not for work done (set_task_done) and not for a done task, which is history (reopen it first with set_task_done done false). The dry run says what would go and writes nothing; delete only once the owner has confirmed.',
+  input: z.strictObject({
+    task_id: z.number().describe("The task (list_due_work)."),
+    dry_run: dryRunInput,
+  }),
+  run: (ctx, { task_id: taskId, dry_run: dryRun }) => {
+    const task = listOpenTasks(ctx).find((t) => t.id === taskId);
+    if (!task) {
+      const done = listDoneTasks(ctx).some((t) => t.id === taskId);
+      return refused(
+        [
+          {
+            field: "task_id",
+            message: done ? "Une tâche faite ne peut pas être supprimée." : "Tâche introuvable.",
+          },
+        ],
+        done ? "A done task is history; nothing was deleted." : "Unknown task.",
+      );
+    }
+    const attachmentCount = listAttachments(ctx, { kind: "task", id: taskId })?.length ?? 0;
+    const runInProgress = listRunsOfTasks(ctx, [taskId]).find((r) => r.status === "in_progress");
+    const warnings = [
+      ...(attachmentCount
+        ? [`Its ${attachmentCount} attachment(s) would be deleted with it, files included.`]
+        : []),
+      ...(runInProgress
+        ? [
+            `Its run in progress (run ${runInProgress.id}) would be deleted with it, photos included.`,
+          ]
+        : []),
+    ];
+    const described = {
+      id: task.id,
+      title: task.title,
+      bike: task.bikeId == null ? null : bikeOf(getBike(ctx, task.bikeId)),
+      due_on: task.dueOn,
+    };
+    // Never through previewWrite: deleting a task removes its files once the delete is done,
+    // so a dry run only describes it (as delete_ride).
+    if (dryRun) {
+      return answer(`Dry run: would delete the task "${task.title}". Nothing was deleted.`, {
+        dry_run: true,
+        task: described,
+        attachment_count: attachmentCount,
+        run_in_progress_id: runInProgress?.id ?? null,
+        warnings,
+      });
+    }
+    if (!deleteTask(ctx, taskId).ok) {
+      return refused(
+        [{ field: "task_id", message: "Cette tâche ne peut pas être supprimée." }],
+        "Nothing was deleted.",
+      );
+    }
+    logWrite(ctx, "delete_task", { task_id: taskId });
+    return answer(`Deleted the task "${task.title}" (task ${taskId}).`, {
+      dry_run: false,
+      task: described,
+      attachment_count: attachmentCount,
+      run_in_progress_id: runInProgress?.id ?? null,
+      warnings: [],
+      url: task.bikeId == null ? `${getEnv().publicUrl}/` : bikeUrl(task.bikeId),
+    });
+  },
+});
+
+export const todoTools = [
+  listDueWorkTool,
+  addTaskTool,
+  updateTaskTool,
+  setTaskDoneTool,
+  deleteTaskTool,
+];

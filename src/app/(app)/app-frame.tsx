@@ -28,7 +28,12 @@ import {
   updateRideAction,
 } from "@/server/actions/rides";
 import { startRunAction } from "@/server/actions/runs";
-import { createTaskAction, setTaskDoneAction, updateTaskAction } from "@/server/actions/tasks";
+import {
+  createTaskAction,
+  deleteTaskAction,
+  setTaskDoneAction,
+  updateTaskAction,
+} from "@/server/actions/tasks";
 import { signOutAction } from "@/server/actions/session";
 import type { AppFrameVM } from "@/server/views/shell";
 
@@ -129,6 +134,12 @@ export function AppFrame({
               const result = await updateTaskAction(taskId, input);
               if (!result.ok) return result.error;
               toast(result.message);
+              return null;
+            }}
+            onDelete={async (task) => {
+              const result = await deleteTaskAction(task.id);
+              if (!result.ok) return result.error;
+              toast(`Tâche supprimée : ${task.title}`);
               return null;
             }}
             onReopen={async (task) => {

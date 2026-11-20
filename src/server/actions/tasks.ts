@@ -3,7 +3,7 @@
 import { refresh } from "next/cache";
 import { z } from "zod";
 import { requireAccessContext } from "@/server/auth/context";
-import { createTask, setTaskStatus, updateTask } from "@/server/db";
+import { createTask, deleteTask, setTaskStatus, updateTask } from "@/server/db";
 import { taskSchema } from "./task-input";
 
 /** "Nouvelle tâche" (D-34). */
@@ -39,6 +39,19 @@ export async function updateTaskAction(
   }
   refresh();
   return { ok: true, message: "Tâche modifiée" };
+}
+
+/** "Supprimer la tâche" (D-110), confirmed in the sheet: an open task, for good. */
+export async function deleteTaskAction(
+  taskId: unknown,
+): Promise<{ ok: true; message: string } | { ok: false; error: string }> {
+  const ctx = await requireAccessContext();
+  const parsedId = id.safeParse(taskId);
+  if (!parsedId.success || !deleteTask(ctx, parsedId.data).ok) {
+    return { ok: false, error: "Cette tâche ne peut pas être supprimée." };
+  }
+  refresh();
+  return { ok: true, message: "Tâche supprimée" };
 }
 
 /**

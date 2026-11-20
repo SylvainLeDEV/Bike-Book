@@ -26,7 +26,8 @@ to a day the owner picks, and "Réactiver" (D-105). On 2026-11-13, purchase link
 deleted, and a page linked again takes the new price (D-106). On 2026-11-17, the bike's counters
 (km, hours, rides) on each maintenance event and done task of the history, and the parts each event touched (D-107); the same day, dated tasks ranked with the rules
 under "À prévoir", late or due within 7 days (D-108). On 2026-11-18, a ride's title typed and
-edited in the ride sheet, a Garmin ride's name kept unless changed (D-109).
+edited in the ride sheet, a Garmin ride's name kept unless changed (D-109). On 2026-11-20, an open
+task deleted from "Modifier la tâche", and through the MCP (`delete_task`, D-110).
 
 ## Read first
 
@@ -82,7 +83,7 @@ edited in the ride sheet, a Garmin ride's name kept unless changed (D-109).
   Tools `verb_noun`, one file per domain plus a registry, raw units, `{ field, message }` errors in
   French, a required `dry_run` (a rolled-back transaction), paginated lists, one log line per
   write, never the frame number; deletes only to fix a mistake, as the app's sheets (D-98:
-  rides, maintenance events, setups, an abandoned run; never a file removed by a dry run). V1: bikes and parts. A new part's rules can take the day each
+  rides, maintenance events, setups, an abandoned run, an open task since D-110; never a file removed by a dry run). V1: bikes and parts. A new part's rules can take the day each
   was last done (`rules[].last_done_on`, as the "Règles" sheet), so an old bike's day-based
   rules do not start overdue. Since 0.3.1 (D-91), `list_rules` and `add_rule` (the "Règles"
   sheet's schema and slots) add any rule to a bike or a fitted part type. Since D-92: rides
@@ -108,6 +109,7 @@ edited in the ride sheet, a Garmin ride's name kept unless changed (D-109).
   `create_rides`' `after` shaped as `before`); `update_run_steps` answers the steps only.
   Since D-107: `list_maintenance` answers each event's `odometer` (the bike's counters then).
   Since D-109: `create_ride`, `update_ride` and `create_rides` take a ride's `title`.
+  Since D-110: `delete_task` (an open task not needed, with its attachments and run in progress).
   Since D-106: `purchase_links` carry `link_id`; `update_workshop_item` takes `update_link` and
   `remove_link`, and `add_link` on a page already linked gives it the new price.
   Summaries and warnings are in English for the assistant (said in the server instructions),

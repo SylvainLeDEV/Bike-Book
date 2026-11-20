@@ -5,9 +5,12 @@ import { getDb } from "./client";
 import {
   createBike,
   createTask,
+  deleteTask,
+  getRun,
   listDoneTasks,
   listOpenTasks,
   setTaskStatus,
+  startRun,
   updateTask,
   type BikeData,
 } from "./index";
@@ -158,5 +161,38 @@ describe("updateTask", () => {
       ok: false,
       reason: "not_found",
     });
+  });
+});
+
+describe("deleteTask (D-110)", () => {
+  it("deletes an open task with its run in progress, and refuses a done or foreign one", () => {
+    const { ctx, bikeId } = setup("Delete");
+    const add = (title: string) => {
+      const created = createTask(ctx, { bikeId, title, dueOn: null, notes: null });
+      if (!created.ok) throw new Error(created.reason);
+      return created.taskId;
+    };
+    const grease = add("Graissage chaîne");
+    const done = add("Pivots");
+    setTaskStatus(ctx, done, "done", Date.now());
+    const run = startRun(ctx, { from: "task", taskId: grease }, Date.now());
+    if (!run.ok) throw new Error(run.reason);
+
+    expect(deleteTask(setup("Intruder").ctx, grease)).toEqual({ ok: false, reason: "not_found" });
+    expect(deleteTask(ctx, done)).toEqual({ ok: false, reason: "not_found" });
+    expect(deleteTask(ctx, grease)).toEqual({ ok: true });
+    expect(listOpenTasks(ctx)).toEqual([]);
+    expect(getRun(ctx, run.runId)).toBeNull();
+    expect(listDoneTasks(ctx)).toHaveLength(1);
+  });
+
+  it("deletes a general task with its run in progress (a run needs a bike or a task)", () => {
+    const { ctx } = setup("General");
+    const created = createTask(ctx, { bikeId: null, title: "Pompe", dueOn: null, notes: null });
+    if (!created.ok) throw new Error(created.reason);
+    const run = startRun(ctx, { from: "task", taskId: created.taskId }, Date.now());
+    if (!run.ok) throw new Error(run.reason);
+    expect(deleteTask(ctx, created.taskId)).toEqual({ ok: true });
+    expect(getRun(ctx, run.runId)).toBeNull();
   });
 });

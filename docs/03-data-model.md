@@ -478,6 +478,8 @@ and "Fait" with undo. Parts to buy live in the workshop
 (D-33). A done task moves to the history, placed at `done_at` (D-77): the bike page's history
 (its bike's tasks), Activité and the dashboard's recent activity (all of them, general ones
 included); it opens "Modifier la tâche", which can reopen it. Cancelled tasks are not shown.
+An open task not needed after all is deleted for good from "Modifier la tâche" (D-110), with its
+attachments and its run in progress.
 
 | Field | Type | Notes |
 |-------|------|-------|

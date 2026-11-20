@@ -2,8 +2,9 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Check, ClipboardCheck, Play, RotateCcw } from "lucide-react";
+import { Check, ClipboardCheck, Play, RotateCcw, Trash2 } from "lucide-react";
 import { AttachmentsBlock, AttachmentsLater } from "@/components/attachments/attachments-block";
+import { DeleteConfirm } from "@/components/delete-confirm";
 import { Button } from "@/components/ui/button";
 import { Field, FieldError, Input, NativeSelect, Textarea } from "@/components/ui/field";
 import { Sheet, SheetBody, SheetContent, SheetFooter, SheetForm } from "@/components/ui/sheet";
@@ -14,7 +15,8 @@ import type { BikeRef, ProcedureOption, TaskInput, TaskRowVM } from "@/lib/view-
  * "Nouvelle tâche" (feature 7, D-34): a one-off to-do, for a bike or general, with an optional
  * due date. Opened from "Ajouter une tâche" anywhere through useTaskSheet(). "Modifier la tâche"
  * (feature 10) reopens it filled, with the task's attachments (a photo of the problem, a quote).
- * A done task, opened from the history, also offers "Rouvrir la tâche" (D-77).
+ * A done task, opened from the history, also offers "Rouvrir la tâche" (D-77); an open one,
+ * "Supprimer la tâche" once confirmed (D-110).
  */
 
 type TaskSheetContextValue = {
@@ -36,6 +38,7 @@ export function TaskSheetProvider({
   onSubmit,
   onUpdate,
   onReopen,
+  onDelete,
   children,
 }: {
   bikes: BikeRef[];
@@ -48,6 +51,8 @@ export function TaskSheetProvider({
   onUpdate?: (taskId: number, input: TaskInput) => Promise<string | null>;
   /** "Rouvrir la tâche" on a done task: back to open. Resolves like `onSubmit`. */
   onReopen?: (task: TaskRowVM) => Promise<string | null>;
+  /** "Supprimer la tâche" on an open task, once confirmed. Resolves like `onSubmit`. */
+  onDelete?: (task: TaskRowVM) => Promise<string | null>;
   children: React.ReactNode;
 }) {
   const [state, setState] = React.useState({
@@ -110,6 +115,15 @@ export function TaskSheetProvider({
                   }
                 : undefined
             }
+            onDelete={
+              task && !task.doneOn && onDelete
+                ? async () => {
+                    const error = await onDelete(task);
+                    if (!error) setState((s) => ({ ...s, open: false }));
+                    return error;
+                  }
+                : undefined
+            }
           />
         </SheetContent>
       </Sheet>
@@ -125,6 +139,7 @@ function TaskForm({
   onSubmit,
   onStartRun,
   onReopen,
+  onDelete,
 }: {
   bikes: BikeRef[];
   procedures: ProcedureOption[];
@@ -134,6 +149,7 @@ function TaskForm({
   onSubmit: (input: TaskInput) => Promise<string | null>;
   onStartRun?: () => Promise<string | null>;
   onReopen?: () => Promise<string | null>;
+  onDelete?: () => Promise<string | null>;
 }) {
   const [title, setTitle] = React.useState(task?.title ?? "");
   const [bikeId, setBikeId] = React.useState(initialBikeId == null ? "" : String(initialBikeId));
@@ -153,6 +169,7 @@ function TaskForm({
   const [titleError, setTitleError] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [pending, setPending] = React.useState(false);
+  const [confirmDelete, setConfirmDelete] = React.useState(false);
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -230,6 +247,40 @@ function TaskForm({
         {task ? <AttachmentsBlock owner={{ kind: "task", id: task.id }} /> : <AttachmentsLater />}
       </SheetBody>
       <SheetFooter className="grid gap-2">
+        {confirmDelete && onDelete ? (
+          <DeleteConfirm
+            question={
+              task?.run?.status === "in_progress"
+                ? "Supprimer cette tâche ? Son suivi en cours et ses pièces jointes partent avec elle."
+                : "Supprimer cette tâche ? Ses pièces jointes partent avec elle."
+            }
+            confirmLabel="Supprimer la tâche"
+            pending={pending}
+            onCancel={() => setConfirmDelete(false)}
+            onConfirm={async () => {
+              setError(null);
+              setPending(true);
+              try {
+                setError(await onDelete());
+              } catch {
+                setError("Suppression impossible. Vérifie la connexion et réessaie.");
+              } finally {
+                setPending(false);
+                setConfirmDelete(false);
+              }
+            }}
+          />
+        ) : (
+          taskActions()
+        )}
+      </SheetFooter>
+    </SheetForm>
+  );
+
+  // The footer's buttons, replaced by the confirmation while it is asked.
+  function taskActions() {
+    return (
+      <>
         <Button type="submit" size="lg" className="w-full" disabled={pending}>
           <Check />
           {task ? "Enregistrer la tâche" : "Ajouter la tâche"}
@@ -286,7 +337,19 @@ function TaskForm({
             Rouvrir la tâche
           </Button>
         ) : null}
-      </SheetFooter>
-    </SheetForm>
-  );
+        {onDelete ? (
+          <Button
+            type="button"
+            variant="ghost"
+            className="w-full text-late-ink hover:text-late-ink"
+            disabled={pending}
+            onClick={() => setConfirmDelete(true)}
+          >
+            <Trash2 />
+            Supprimer la tâche
+          </Button>
+        ) : null}
+      </>
+    );
+  }
 }
