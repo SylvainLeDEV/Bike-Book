@@ -169,6 +169,7 @@ export function WorkshopScreen({
   initial,
   initialHistory,
   focusProcedure,
+  focusItem,
 }: {
   vm: WorkshopVM;
   actions: WorkshopActions;
@@ -189,6 +190,8 @@ export function WorkshopScreen({
    * changes for each signal).
    */
   focusProcedure?: { id: number | null; n: number } | null;
+  /** "Voir la fiche" from the history (D-111): that item, in its own tab (`n` changes each time). */
+  focusItem?: { id: number; n: number } | null;
 }) {
   const { user } = useShell();
   const procedures = React.useMemo(() => vm.procedures ?? [], [vm.procedures]);
@@ -225,6 +228,22 @@ export function WorkshopScreen({
     initialHistory ?? NO_WORKSHOP_HISTORY_FILTER,
   );
   const [focusReceive, setFocusReceive] = React.useState(Boolean(initial?.receive));
+  // "Voir la fiche" from the history: the item, in its kind's tab (state adjusted while rendering).
+  const [seenItemFocus, setSeenItemFocus] = React.useState(focusItem ?? null);
+  if (focusItem && focusItem !== seenItemFocus) {
+    setSeenItemFocus(focusItem);
+    const target = vm.items.find((item) => item.id === focusItem.id);
+    if (target) {
+      setTabState(kindTab(target.kind));
+      setSelectedId(target.id);
+      setView("item");
+      setFocusReceive(false);
+    }
+  }
+  // Phone: the item replaces the list, so it starts at the top (the sheet then focuses its title).
+  React.useEffect(() => {
+    if (focusItem) window.scrollTo({ top: 0 });
+  }, [focusItem]);
   const listRef = React.useRef<HTMLDivElement>(null);
   const tabsRef = React.useRef<HTMLDivElement>(null);
   // Phone: the tabs scroll sideways; the chosen one is brought into view, as on the bike page.
@@ -504,7 +523,7 @@ export function WorkshopScreen({
         }}
         outerFiltered={Boolean(query.trim()) || bikeId != null}
         today={vm.today}
-        onOpen={(entry) => actions.onEditMovement?.(entry.itemId, entry.id)}
+        onOpen={(entry) => actions.onEditMovement?.(entry.itemId, entry.id, "history")}
       />
     );
   } else if (isProcedures) {

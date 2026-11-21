@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Check, Trash2, Wrench } from "lucide-react";
+import { Check, ChevronRight, Trash2, Wrench } from "lucide-react";
 import { DeleteConfirm } from "@/components/delete-confirm";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -17,7 +17,8 @@ import { DayField, PurchaseFields, purchaseDraft, readPurchaseDraft } from "./pu
  * "Modifier le mouvement" (D-111), from the workshop's history or an item's page: the day, the
  * note; a purchase's unit price and shop; an addition ("Stock initial") marked as bought. A
  * movement made by maintenance changes with its event. "Supprimer le mouvement" for a mistake,
- * confirmed in the footer (D-70).
+ * confirmed in the footer (D-70). "Voir la fiche" opens the item's page in the Atelier (not for
+ * an archived item, which has none).
  */
 
 type Submit<T> = (input: T) => Promise<string | null>;
@@ -37,6 +38,7 @@ export function MovementSheet({
   onSubmit,
   onDelete,
   eventHref,
+  onOpenItem,
 }: {
   /** The movement; null closes the sheet. */
   entry: WorkshopHistoryEntryVM | null;
@@ -47,6 +49,8 @@ export function MovementSheet({
   /** Resolves to an error message, or null once deleted. */
   onDelete: () => Promise<string | null>;
   eventHref: (bikeId: number, eventId: number) => string;
+  /** "Voir la fiche": the item's page in the Atelier. */
+  onOpenItem?: (itemId: number) => void;
 }) {
   const open = entry != null && item != null;
   // The last movement stays shown while the sheet closes (state adjusted while rendering).
@@ -58,9 +62,24 @@ export function MovementSheet({
     setShown({ entry, item });
   }
   const current = entry && item ? { entry, item } : shown;
+  // "Voir la fiche": once the sheet has closed, focus goes to the item's title, not back to the
+  // history row (gone with its tab).
+  const openingItem = React.useRef(false);
+  const openItem = onOpenItem
+    ? (itemId: number) => {
+        openingItem.current = true;
+        onOpenItem(itemId);
+      }
+    : undefined;
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
+        onCloseAutoFocus={(event) => {
+          if (!openingItem.current) return;
+          openingItem.current = false;
+          event.preventDefault();
+          document.getElementById("item-title")?.focus({ preventScroll: true });
+        }}
         title={current ? titleOf(current.entry) : "Mouvement"}
         description={
           current
@@ -70,7 +89,12 @@ export function MovementSheet({
       >
         {current ? (
           current.entry.maintenance ? (
-            <FromMaintenance entry={current.entry} item={current.item} eventHref={eventHref} />
+            <FromMaintenance
+              entry={current.entry}
+              item={current.item}
+              eventHref={eventHref}
+              onOpenItem={openItem}
+            />
           ) : (
             <MovementForm
               key={current.entry.id}
@@ -79,6 +103,7 @@ export function MovementSheet({
               today={today}
               onSubmit={onSubmit}
               onDelete={onDelete}
+              onOpenItem={openItem}
             />
           )
         ) : null}
@@ -87,19 +112,44 @@ export function MovementSheet({
   );
 }
 
+/** What the movement did, and "Voir la fiche" when the item still has a page. */
+function SummaryLine({
+  entry,
+  item,
+  onOpenItem,
+}: {
+  entry: WorkshopHistoryEntryVM;
+  item: HistoryItemVM;
+  onOpenItem?: (itemId: number) => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
+      <p className="text-[15px] font-medium">{movementSummary(item, entry)}</p>
+      {onOpenItem && !item.archived ? (
+        <Button type="button" variant="secondary" size="sm" onClick={() => onOpenItem(item.id)}>
+          Voir la fiche
+          <ChevronRight />
+        </Button>
+      ) : null}
+    </div>
+  );
+}
+
 function FromMaintenance({
   entry,
   item,
   eventHref,
+  onOpenItem,
 }: {
   entry: WorkshopHistoryEntryVM;
   item: HistoryItemVM;
   eventHref: (bikeId: number, eventId: number) => string;
+  onOpenItem?: (itemId: number) => void;
 }) {
   const maintenance = entry.maintenance!;
   return (
     <SheetBody>
-      <p className="text-[15px] font-medium">{movementSummary(item, entry)}</p>
+      <SummaryLine entry={entry} item={item} onOpenItem={onOpenItem} />
       <Card padded className="grid gap-2">
         <p className="flex items-start gap-2 text-sm">
           <Wrench className="mt-0.5 size-4 shrink-0 text-fg-muted" aria-hidden />
@@ -128,12 +178,14 @@ function MovementForm({
   today,
   onSubmit,
   onDelete,
+  onOpenItem,
 }: {
   entry: WorkshopHistoryEntryVM;
   item: HistoryItemVM;
   today: LocalDate;
   onSubmit: Submit<MovementEditInput>;
   onDelete: () => Promise<string | null>;
+  onOpenItem?: (itemId: number) => void;
 }) {
   const canBuy = entry.kind === "initial" && entry.quantityDelta > 0;
   const [asPurchase, setAsPurchase] = React.useState(false);
@@ -185,7 +237,7 @@ function MovementForm({
     >
       <SheetBody>
         {error ? <FieldError>{error}</FieldError> : null}
-        <p className="text-[15px] font-medium">{movementSummary(item, entry)}</p>
+        <SummaryLine entry={entry} item={item} onOpenItem={onOpenItem} />
         {canBuy ? (
           <label className="flex min-h-11 items-center gap-2.5 text-[14px]">
             <input

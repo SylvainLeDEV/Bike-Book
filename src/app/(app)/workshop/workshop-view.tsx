@@ -112,8 +112,16 @@ export function WorkshopView({
     item: InventoryItemVM;
     link: PurchaseLinkVM | null;
   } | null>(null);
-  /** "Modifier le mouvement" (D-111): the movement's id, read in the current history. */
-  const [editingMovement, setEditingMovement] = React.useState<number | null>(null);
+  /**
+   * "Modifier le mouvement" (D-111): the movement's id, read in the current history, and where it
+   * was opened from ("Voir la fiche" only from the history).
+   */
+  const [editing, setEditing] = React.useState<{ id: number; from: "history" | "item" } | null>(
+    null,
+  );
+  const editingMovement = editing?.id ?? null;
+  /** "Voir la fiche" (D-111): the item to show in the Atelier, `n` changing each time. */
+  const [focusItem, setFocusItem] = React.useState<{ id: number; n: number } | null>(null);
   const movementEntry = vm.history?.entries.find((entry) => entry.id === editingMovement) ?? null;
   const movementItem = vm.history?.items.find((item) => item.id === movementEntry?.itemId) ?? null;
 
@@ -137,7 +145,7 @@ export function WorkshopView({
     onSetOwned: async (item, owned) => withUndo(await setOwnedAction(item.id, owned)),
     onRestock: async (item, to, quantity, receipt) =>
       withUndo(await restockAction(item.id, to, quantity, receipt)),
-    onEditMovement: (_itemId, movementId) => setEditingMovement(movementId),
+    onEditMovement: (_itemId, movementId, from) => setEditing({ id: movementId, from }),
     // The replace sheet lives on the bike page: open it there with this item chosen.
     onMount: (item, bike) => router.push(`/bikes/${bike.id}?replace=${item.id}`),
     onAddItem: (prefill) => setSheet({ open: true, prefill: prefill ?? null, editing: null }),
@@ -186,18 +194,27 @@ export function WorkshopView({
         initial={initial}
         initialHistory={initialHistory}
         focusProcedure={focusProcedure}
+        focusItem={focusItem}
       />
       <MovementSheet
         entry={movementEntry}
         item={movementItem}
         today={vm.today}
-        onOpenChange={(open) => !open && setEditingMovement(null)}
+        onOpenChange={(open) => !open && setEditing(null)}
         eventHref={(bikeId, eventId) => `/bikes/${bikeId}?event=${eventId}`}
+        onOpenItem={
+          editing?.from === "history"
+            ? (itemId) => {
+                setEditing(null);
+                setFocusItem((f) => ({ id: itemId, n: (f?.n ?? 0) + 1 }));
+              }
+            : undefined
+        }
         onSubmit={async (input) => {
           if (editingMovement == null) return null;
           const result = await updateMovementAction(editingMovement, input);
           if (!result.ok) return result.error;
-          setEditingMovement(null);
+          setEditing(null);
           toast(result.message);
           return null;
         }}
@@ -205,7 +222,7 @@ export function WorkshopView({
           if (editingMovement == null) return null;
           const result = await deleteMovementAction(editingMovement);
           if (!result.ok) return result.error;
-          setEditingMovement(null);
+          setEditing(null);
           toast(result.message);
           return null;
         }}

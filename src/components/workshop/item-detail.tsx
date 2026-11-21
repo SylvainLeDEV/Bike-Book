@@ -100,8 +100,11 @@ export type ItemActions = {
   /** "Modifier le lien d'achat": its shop, price and page, or "Supprimer le lien" (D-106). */
   onEditLink?: (item: InventoryItemVM, link: PurchaseLinkVM) => void;
   onArchive?: (item: InventoryItemVM) => void;
-  /** "Modifier le mouvement" (D-111). */
-  onEditMovement?: (itemId: number, movementId: number) => void;
+  /**
+   * "Modifier le mouvement" (D-111); `from` "item" on the item's page, where "Voir la fiche"
+   * would lead back to the same page.
+   */
+  onEditMovement?: (itemId: number, movementId: number, from: "history" | "item") => void;
   /** "Tout voir": the workshop's history of this item alone (D-111). */
   onShowHistory?: (item: InventoryItemVM) => void;
 };
@@ -923,7 +926,7 @@ export function ItemDetail({
                         // The whole row is the hit area; the title names it (D-111).
                         <button
                           type="button"
-                          onClick={() => actions.onEditMovement?.(item.id, move.id)}
+                          onClick={() => actions.onEditMovement?.(item.id, move.id, "item")}
                           className="text-left outline-none after:absolute after:inset-0 hover:underline hover:underline-offset-3 focus-visible:after:rounded-md focus-visible:after:ring-2 focus-visible:after:ring-ring"
                         >
                           {movementTitle(
