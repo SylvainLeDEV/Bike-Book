@@ -32,6 +32,7 @@ export function getActivityPage(ctx: AccessContext): { vm: ActivityVM; edits: Ti
         counters: new Map(bikes.map((bike) => [bike.id, bike])),
         components: bikes.flatMap((bike) => listComponents(ctx, bike.id)),
       }),
+      bikes: bikes.map((bike) => ({ id: bike.id, name: bike.name })),
       rideCount: rides.length,
       maintenanceCount: events.length,
       doneTaskCount: tasks.length,

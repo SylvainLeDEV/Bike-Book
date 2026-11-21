@@ -1,10 +1,14 @@
+import { maintenanceFigures } from "./display";
 import type { LocalDate } from "./format";
+import { MAINTENANCE_ACTION_LABELS, RIDE_TYPE_LABELS } from "./labels";
+import { matchesWords, searchWords } from "./search";
 import type { TimelineItemVM } from "./view-models";
 
 /*
- * Filters of a history (D-78): a year, a month of that year, kinds of entry. Pure: the server
- * reads them from the page's query, the browser applies them and writes them back. Entries carry
- * local dates (`YYYY-MM-DD`, already in TZ): nothing here uses the device's time zone.
+ * Filters of a history (D-78): a year, a month of that year, kinds of entry; a search and, on
+ * Activité, a bike (D-112). Pure: the server reads them from the page's query, the browser applies
+ * them and writes them back. Entries carry local dates (`YYYY-MM-DD`, already in TZ): nothing here
+ * uses the device's time zone.
  */
 
 export type HistoryKind = TimelineItemVM["kind"];
@@ -18,9 +22,22 @@ export type HistoryFilter = {
   month: number | null;
   /** In `HISTORY_KINDS` order, no duplicates; empty means every kind. */
   kinds: HistoryKind[];
+  /** The search as typed (D-112); "" when none. */
+  query: string;
+  /** Activité's bike list (D-112); null: every bike. */
+  bikeId: number | null;
 };
 
-export const NO_HISTORY_FILTER: HistoryFilter = { year: null, month: null, kinds: [] };
+export const NO_HISTORY_FILTER: HistoryFilter = {
+  year: null,
+  month: null,
+  kinds: [],
+  query: "",
+  bikeId: null,
+};
+
+/** The longest search kept, as the Atelier's. */
+const QUERY_MAX_LENGTH = 100;
 
 /** How many entries a history shows first, then adds with "Voir plus". */
 export const HISTORY_PAGE_SIZE = 50;
@@ -36,8 +53,9 @@ export function normalizeKinds(values: readonly string[]): HistoryKind[] {
 }
 
 /**
- * The filter in a page's query: `?year=2026&month=10&kind=maintenance&kind=task` (a comma list
- * is read too). Invalid values are ignored; a month without a year is dropped.
+ * The filter in a page's query: `?q=chaine&bike=2&year=2026&month=10&kind=maintenance&kind=task`
+ * (a comma list of kinds is read too). Invalid values are ignored; a month without a year is
+ * dropped.
  */
 export function parseHistoryFilter(query: Query): HistoryFilter {
   const yearText = first(query.year);
@@ -49,14 +67,25 @@ export function parseHistoryFilter(query: Query): HistoryFilter {
   const kinds = normalizeKinds(
     (Array.isArray(kind) ? kind : kind ? [kind] : []).flatMap((value) => value.split(",")),
   );
-  return { year, month, kinds };
+  const bikeText = first(query.bike);
+  const bikeId = bikeText && /^[1-9]\d{0,15}$/.test(bikeText) ? Number(bikeText) : null;
+  return {
+    year,
+    month,
+    kinds,
+    query: (first(query.q) ?? "").slice(0, QUERY_MAX_LENGTH),
+    bikeId: bikeId != null && Number.isSafeInteger(bikeId) ? bikeId : null,
+  };
 }
 
-/** Writes the filter into `params` (`year`, `month` as two digits, `kind` repeated); keeps the rest. */
+/**
+ * Writes the filter into `params` (`q`, `bike`, `year`, `month` as two digits, `kind` repeated);
+ * keeps the rest.
+ */
 export function writeHistoryFilter(params: URLSearchParams, filter: HistoryFilter): void {
-  params.delete("year");
-  params.delete("month");
-  params.delete("kind");
+  for (const key of ["q", "bike", "year", "month", "kind"]) params.delete(key);
+  if (filter.query.trim()) params.set("q", filter.query);
+  if (filter.bikeId != null) params.set("bike", String(filter.bikeId));
   if (filter.year != null) {
     params.set("year", String(filter.year));
     if (filter.month != null) params.set("month", String(filter.month).padStart(2, "0"));
@@ -65,7 +94,49 @@ export function writeHistoryFilter(params: URLSearchParams, filter: HistoryFilte
 }
 
 export function isHistoryFiltered(filter: HistoryFilter): boolean {
-  return filter.year != null || filter.kinds.length > 0;
+  return (
+    filter.year != null ||
+    filter.kinds.length > 0 ||
+    Boolean(filter.query.trim()) ||
+    filter.bikeId != null
+  );
+}
+
+/**
+ * What the search reads in an entry (D-112): its title and bike; a ride's type, place and notes;
+ * an event's note, shop or "fait maison", and the parts its lines touched; a task's note.
+ */
+export function historySearchText(item: TimelineItemVM): string {
+  const words: (string | null | undefined)[] = [item.title, item.bikeName];
+  if (item.kind === "ride") {
+    words.push(RIDE_TYPE_LABELS[item.rideType], item.location, item.notes);
+  } else if (item.kind === "maintenance") {
+    words.push(item.note, item.shopName, maintenanceFigures(null, item.performedBy));
+    for (const part of item.parts ?? []) {
+      words.push(`${MAINTENANCE_ACTION_LABELS[part.action]} ${part.slot}`);
+    }
+  } else {
+    words.push(item.note);
+  }
+  return words.filter(Boolean).join(" ");
+}
+
+/**
+ * The entries the search and the bike keep (D-112), in their order: every word of the search is
+ * in the entry's text (case and accents ignored, any order). The period and kinds come after
+ * (`filterHistory`), so the lists and chips count what the search found.
+ */
+export function searchHistory<T extends TimelineItemVM>(
+  items: readonly T[],
+  filter: Pick<HistoryFilter, "query" | "bikeId">,
+): T[] {
+  const words = searchWords(filter.query);
+  if (!words.length && filter.bikeId == null) return [...items];
+  return items.filter(
+    (item) =>
+      (filter.bikeId == null || item.bikeId === filter.bikeId) &&
+      matchesWords(historySearchText(item), words),
+  );
 }
 
 const yearOf = (date: LocalDate) => Number(date.slice(0, 4));
@@ -80,7 +151,7 @@ export type HistoryYear = { year: number; months: number[] };
  */
 export function historyPeriods(
   entries: readonly { on: LocalDate }[],
-  filter: HistoryFilter,
+  filter: Pick<HistoryFilter, "year" | "month">,
 ): HistoryYear[] {
   const months = new Map<number, Set<number>>();
   const add = (year: number, month: number | null) => {

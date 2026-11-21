@@ -6,6 +6,7 @@ import { PendingActivities } from "@/components/activity/pending-activities";
 import { useTaskSheet } from "@/components/plan/task-sheet";
 import { useQuickRide } from "@/components/rides/quick-ride";
 import { PageBody, Topbar } from "@/components/shell/topbar";
+import type { HistoryFilter } from "@/lib/history-filter";
 import type { ActivityVM, PendingActivitiesVM, TimelineEdits } from "@/lib/view-models";
 import {
   ignorePendingActivityAction,
@@ -18,10 +19,12 @@ export function ActivityView({
   vm,
   edits,
   pending,
+  historyFilter,
 }: {
   vm: ActivityVM;
   edits: TimelineEdits;
   pending: PendingActivitiesVM;
+  historyFilter: HistoryFilter;
 }) {
   const quickRide = useQuickRide();
   const taskSheet = useTaskSheet();
@@ -32,6 +35,7 @@ export function ActivityView({
       <PageBody>
         <ActivityScreen
           vm={vm}
+          initialFilter={historyFilter}
           onAddRide={() => quickRide.open()}
           inbox={
             <PendingActivities

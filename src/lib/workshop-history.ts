@@ -188,7 +188,7 @@ export function workshopHistoryPeriods(
   entries: readonly Entry[],
   filter: WorkshopHistoryFilter,
 ): HistoryYear[] {
-  return historyPeriods(entries, { year: filter.year, month: filter.month, kinds: [] });
+  return historyPeriods(entries, filter);
 }
 
 export type Spending = {

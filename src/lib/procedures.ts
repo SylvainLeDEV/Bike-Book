@@ -1,5 +1,6 @@
 import { formatItemStock, formatStock } from "./display";
 import type { InventoryCategory, InventoryKind } from "./enums";
+import { foldText } from "./search";
 import type {
   BikeRef,
   InventoryItemVM,
@@ -171,16 +172,13 @@ export function procedureServes(procedure: Pick<ProcedureVM, "bikes">, bikeId: n
   return procedure.bikes === "all" || procedure.bikes.some((bike) => bike.id === bikeId);
 }
 
-/** Accents and case ignored: "etrier" finds "Étrier". */
-const normalize = (text: string) => text.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
-
 /** Search (D-86): title, description, model, type, steps and material. */
 export function procedureMatches(
   procedure: ProcedureVM,
   query: string,
   items: Pick<InventoryItemVM, "id" | "name">[],
 ): boolean {
-  const q = normalize(query.trim());
+  const q = foldText(query.trim());
   if (!q) return true;
   const words = [
     procedure.title,
@@ -196,7 +194,7 @@ export function procedureMatches(
           : line.label,
     ),
   ];
-  return normalize(words.filter(Boolean).join(" ")).includes(q);
+  return foldText(words.filter(Boolean).join(" ")).includes(q);
 }
 
 /**

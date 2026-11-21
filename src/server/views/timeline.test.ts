@@ -192,13 +192,28 @@ describe("timeline", () => {
       kind: "task",
       id: 1,
       on: "2026-10-24",
+      bikeId: 2,
       bikeName: "Spectral",
       title: "Pivots",
       note: "Serrés au couple",
       documents: [],
       photos: [],
     });
-    expect(items[3]).toMatchObject({ kind: "task", bikeName: null, on: "2026-10-23" });
+    expect(items[3]).toMatchObject({
+      kind: "task",
+      bikeId: null,
+      bikeName: null,
+      on: "2026-10-23",
+    });
+    // Each entry names its bike, and a ride keeps its place and notes for the search (D-112).
+    expect(items[1]).toMatchObject({
+      kind: "ride",
+      bikeId: 2,
+      title: "Massif des Bauges",
+      location: "Massif des Bauges",
+      notes: null,
+    });
+    expect(items[2]).toMatchObject({ kind: "maintenance", bikeId: 2 });
   });
 
   it("gives events and done tasks their bike's counters and parts when asked (D-107)", () => {

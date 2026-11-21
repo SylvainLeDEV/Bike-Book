@@ -19,6 +19,7 @@ import {
   type LocalDate,
 } from "@/lib/format";
 import { HISTORY_PAGE_SIZE, historyShownCount } from "@/lib/history-filter";
+import { foldText } from "@/lib/search";
 import type {
   HistoryItemVM,
   InventoryKind,
@@ -62,9 +63,6 @@ const GROUP_STYLES: Record<WorkshopHistoryGroup, string> = {
   added: "bg-ok-soft text-ok-ink",
 };
 
-/** Accents and case ignored, as the Atelier's search. */
-const normalize = (text: string) => text.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
-
 /**
  * The entries the Atelier's search and bike filter keep: the item's name and words match; the
  * item serves the bike, or the movement was a use on it.
@@ -74,7 +72,7 @@ export function historyEntriesFor(
   query: string,
   bikeId: number | null,
 ): WorkshopHistoryEntryVM[] {
-  const q = normalize(query.trim());
+  const q = foldText(query.trim());
   const items = new Map(history.items.map((item) => [item.id, item]));
   return history.entries.filter((entry) => {
     const item = items.get(entry.itemId);
@@ -87,7 +85,7 @@ export function historyEntriesFor(
     ) {
       return false;
     }
-    return !q || normalize(`${item.name} ${item.searchText}`).includes(q);
+    return !q || foldText(`${item.name} ${item.searchText}`).includes(q);
   });
 }
 

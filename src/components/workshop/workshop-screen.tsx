@@ -28,6 +28,7 @@ import { replaceQuery } from "@/lib/address";
 import { formatMoney } from "@/lib/format";
 import { INVENTORY_CATEGORY_LABELS } from "@/lib/labels";
 import { procedureMatches, procedureRow, procedureServes } from "@/lib/procedures";
+import { foldText } from "@/lib/search";
 import type {
   InventoryCategory,
   InventoryItemVM,
@@ -122,9 +123,6 @@ const SUGGESTIONS: (AddItemPrefill & { name: string })[] = [
   { kind: "product", name: "Huile de frein", category: "brakes" },
   { kind: "tool", name: "Clé dynamométrique", category: "other" },
 ];
-
-/** Accents and case ignored: "derailleur" finds "Dérailleur". */
-const normalize = (text: string) => text.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
 
 function cheapestLink(item: InventoryItemVM) {
   return item.purchaseLinks
@@ -257,7 +255,7 @@ export function WorkshopScreen({
   const passes = (item: InventoryItemVM) => {
     if (bikeId != null && item.bikes !== "all" && !item.bikes.some((b) => b.id === bikeId))
       return false;
-    const q = normalize(query.trim());
+    const q = foldText(query.trim());
     if (!q) return true;
     const haystack = [
       item.name,
@@ -268,7 +266,7 @@ export function WorkshopScreen({
     ]
       .filter(Boolean)
       .join(" ");
-    return normalize(haystack).includes(q);
+    return foldText(haystack).includes(q);
   };
   const inTab = (item: InventoryItemVM, t: WorkshopTab) =>
     t === "rebuy" ? item.state !== null : item.kind === TAB_KINDS[t];

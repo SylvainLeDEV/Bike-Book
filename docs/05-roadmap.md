@@ -90,7 +90,8 @@ weeks of real use.
 - [x] A ride's title typed and edited in the ride sheet ("Titre"), a Garmin ride's name kept unless changed; `title` on `create_ride`, `update_ride` and `create_rides` (D-109, found in real use) (done 2026-11-18, release 0.6.8)
 - [x] An open task deleted from "Modifier la tâche" after a confirmation, with its attachments and its run in progress; `delete_task` in the MCP (D-110, found in real use) (done 2026-11-20, release 0.6.9)
 - [x] The Atelier's "Historique" tab: every movement, archived items included, by month, with filters and the spending of the period; "Modifier le mouvement"; "Reçu" with its day, price and shop, "Acheté le" when adding an item; product levels read in recording order; `list_workshop_history` and `update_movement` in the MCP (D-111, found in real use) (done 2026-11-21, release 0.6.10)
-- [x] "Voir la fiche" in the history's movement sheet: the item's page in its tab (D-111, asked after 0.6.10) (done 2026-11-21)
+- [x] "Voir la fiche" in the history's movement sheet: the item's page in its tab (D-111, asked after 0.6.10) (done 2026-11-21, release 0.6.11)
+- [x] A search in the bike history and in Activité, which gets the history's filters and a bike list (D-112, asked after 0.6.11) (done 2026-11-21)
 - [ ] The gap since the previous time of the same rule ("+1 820 km depuis le dernier contrôle"), after D-107
 - [x] The Vélos page shows each bike's overdue and due-soon count like the dashboard, instead of "À jour" on every card (found in real use) (done 2026-11-15, release 0.6.5)
 - [x] Workshop: products (four levels plus containers, D-36) and tools (D-33), before the procedures so their material links to the stock (D-82); built directly in the app from the mockup, no `/design` screen and no demo data (done 2026-11-01, D-85: Pièces · Produits · Outils · À racheter, levels and possession recorded as movements, the view kept in the address; no migration)
@@ -110,7 +111,7 @@ weeks of real use.
 - [ ] The assistant on the phone: through Claude Code's remote control (no internet exposure, D-99); to try once deployed
 - [x] Rides imported through the MCP (D-97, answers Q-14 to Q-16): `create_rides` (up to 500, one transaction, source `manual`, duplicates and initial counters warned) and `delete_rides` as its undo (done 2026-11-03, release 0.4.0)
 - [ ] Statistics: km and hours per bike per month, cost per bike per year, cost per 100 km over time (D-23, D-44)
-- [ ] Search and filters beyond the workshop (the bike history's year, month and kind filters exist, D-78; next: the same in Activité with a bike filter, text search, place, ride type, conditions, totals per period)
+- [ ] Search and filters beyond the workshop (the histories' year, month and kind filters, D-78, and in Activité a bike list and a text search, D-112, exist; next: place, ride type, conditions, totals per period)
 - [x] CSV import: through the MCP's `create_rides` (D-97); the app itself reads no spreadsheet
 - [ ] HTTPS + PWA (only if a domain is bought, see [04](04-architecture.md#behind-a-reverse-proxy))
 - [ ] Delete `docs/design/mockups.html` once every 1.5 screen is rebuilt in `/design` (D-53)

@@ -30,7 +30,8 @@ edited in the ride sheet, a Garmin ride's name kept unless changed (D-109). On 2
 task deleted from "Modifier la tâche", and through the MCP (`delete_task`, D-110). On 2026-11-21,
 the Atelier's "Historique" tab (every movement, filters, spending), "Modifier le mouvement", and
 purchases recorded as they happened: "Reçu" with its day, price and shop, "Acheté le" when adding
-an item (D-111).
+an item (D-111); the same day, a search in the bike history and in Activité, which gets the
+history's filters and a bike list (D-112).
 
 ## Read first
 
@@ -175,7 +176,8 @@ src/
 │                   # api/uploads (POST, raw body streamed) and api/uploads/[id] (GET, D-76),
 │                   # api/mcp (POST, the MCP server, personal token, D-90).
 │                   # Activité has "À classer" (#a-classer) and Paramètres "Garmin Connect"
-│                   # (#garmin) since D-101; a notice tops every page (key expiry, to classify)
+│                   # (#garmin) since D-101; a notice tops every page (key expiry, to classify);
+│                   # Activité's ?q=, ?bike=, ?year=, ?month=, ?kind= stay in the address (D-112)
 │                   # Routes: /, /bikes, /bikes/[bikeId], /activity, /workshop (D-54), /settings,
 │                   # /runs/[runId] (a run, full screen, D-87);
 │                   # /workshop?tab=, ?bike=, ?q=, ?item=, ?procedure= stay in the address,
@@ -183,7 +185,7 @@ src/
 │                   # (D-85, D-86), ?new=1 opens "Nouvelle fiche";
 │                   # /bikes/[id]?done=<rule>, ?replace=<item> and ?event=<id> (edit,
 │                   # D-70) open a sheet on arrival; ?tab= (setup: "Réglages", D-79) and
-│                   # the history's ?year=, ?month=, ?kind= stay in the address (D-78)
+│                   # the history's ?q=, ?year=, ?month=, ?kind= stay in the address (D-78, D-112)
 │                   # globals.css = the design tokens (D-30, D-31)
 ├── server/         # server-only
 │   ├── db/         # schema, migrations/, seed, data-access layer (index.ts = public API),
@@ -220,7 +222,8 @@ src/
 ├── lib/            # client-safe: enums.ts (enum values, shared with the schema),
 │                   # format.ts / parse.ts (French formats), labels.ts (enum labels), names.ts,
 │                   # view-models.ts, display.ts, theme.ts, auth client, history-filter.ts and
-│                   # bike-tabs.ts (history filters and bike tab in the address, D-78),
+│                   # bike-tabs.ts (history filters and bike tab in the address, D-78; search and
+│                   # Activité's bike, D-112), search.ts (case and accents ignored, D-112),
 │                   # workshop-filter.ts (the workshop's view, D-85), workshop-history.ts (its
 │                   # history's filters, rows, spending and words, D-111), address.ts (replaceQuery),
 │                   # procedures.ts (a procedure's material read for a bike, search, D-86),

@@ -193,9 +193,13 @@ export type RideItemVM = {
   kind: "ride";
   id: number;
   on: LocalDate;
+  bikeId: number;
   bikeName: string;
   rideType: RideType;
   title: string;
+  /** Typed in the ride sheet, not shown in the timelines: found by the history's search (D-112). */
+  location: string | null;
+  notes: string | null;
   distanceM: number | null;
   /** Moving time, else total time. */
   durationS: number | null;
@@ -216,6 +220,7 @@ export type MaintenanceItemVM = {
   kind: "maintenance";
   id: number;
   on: LocalDate;
+  bikeId: number;
   bikeName: string;
   performedBy: MaintenancePerformer;
   shopName: string | null;
@@ -239,6 +244,7 @@ export type TaskItemVM = {
   /** Local date of `done_at`. */
   on: LocalDate;
   /** null: a general task. */
+  bikeId: number | null;
   bikeName: string | null;
   title: string;
   note: string | null;
@@ -562,6 +568,8 @@ export type ActivityVM = {
   today: LocalDate;
   /** Rides, maintenance and done tasks of every bike (general tasks included), newest first. */
   items: TimelineItemVM[];
+  /** Every bike, sold and stored ones included, for the history's bike list (D-112). */
+  bikes: { id: number; name: string }[];
   rideCount: number;
   maintenanceCount: number;
   doneTaskCount: number;
