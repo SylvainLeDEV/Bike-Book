@@ -225,7 +225,11 @@ function LinkForm({
       <SheetFooter className="grid gap-2">
         {link && confirmDelete ? (
           <DeleteConfirm
-            question="Supprimer ce lien d'achat ? Les achats déjà notés gardent leur prix."
+            question={
+              link.lastPurchasedOn
+                ? "Supprimer ce lien d'achat ? Les achats déjà notés gardent leur prix, mais l'historique ne dira plus où ils ont été faits."
+                : "Supprimer ce lien d'achat ? Les achats déjà notés gardent leur prix."
+            }
             confirmLabel="Supprimer le lien"
             pending={remove.pending}
             onCancel={() => setConfirmDelete(false)}

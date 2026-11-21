@@ -431,3 +431,166 @@ describe("workspace boundary (D-94 tools)", () => {
     expect(listRules(b.ctx, bobBike)[0]).toMatchObject({ title: "Bob", snoozeEndsOn: null });
   });
 });
+
+describe("the workshop's history (D-111)", () => {
+  it("receive_item takes the day and the shop; add_workshop_item takes purchased_on", async () => {
+    const { ctx, token } = garage("Achats");
+    const pads = await addItem(token, {
+      kind: "part",
+      name: "Plaquettes",
+      category: "brakes",
+      quantity: 0,
+      unit: "pair",
+      link: { shop_name: "Rayon Libre", price_cents: 2490 },
+    });
+    const yesterday = addDays(today(), -1);
+    const future = await callTool(token, "receive_item", {
+      item_id: pads,
+      received_on: addDays(today(), 1),
+      dry_run: false,
+    });
+    expect(future.structuredContent.errors[0]).toMatchObject({ field: "received_on" });
+
+    const got = await callTool(token, "receive_item", {
+      item_id: pads,
+      quantity: 2,
+      unit_price_cents: 2650,
+      received_on: yesterday,
+      shop_name: "Cycles du Lac",
+      dry_run: false,
+    });
+    expect(got.structuredContent.item.last_purchase).toEqual({
+      on: yesterday,
+      unit_price_cents: 2650,
+      shop_name: "Cycles du Lac",
+    });
+    expect(listInventory(ctx)[0]?.links.map((link) => link.shop?.name)).toEqual([
+      "Rayon Libre",
+      "Cycles du Lac",
+    ]);
+
+    const wrench = await callTool(token, "add_workshop_item", {
+      kind: "tool",
+      name: "Clé dynamométrique",
+      category: "other",
+      link: { shop_name: "Decathlon", price_cents: 8900 },
+      purchased_on: "2026-03-12",
+      dry_run: false,
+    });
+    expect(wrench.structuredContent.item.last_purchase).toEqual({
+      on: "2026-03-12",
+      unit_price_cents: 8900,
+      shop_name: "Decathlon",
+    });
+  });
+
+  it("list_workshop_history answers every movement, filtered, with what the purchases cost", async () => {
+    const { token } = garage("Historique");
+    const pads = await addItem(token, {
+      kind: "part",
+      name: "Plaquettes",
+      category: "brakes",
+      quantity: 2,
+      unit: "pair",
+      link: { shop_name: "Rayon Libre", price_cents: 2490 },
+    });
+    await callTool(token, "update_stock", {
+      item_id: pads,
+      action: "use",
+      dry_run: false,
+    });
+    await callTool(token, "receive_item", { item_id: pads, quantity: 3, dry_run: false });
+
+    const all = await callTool(token, "list_workshop_history", {});
+    expect(all.structuredContent.entries.map((e: { group: string }) => e.group)).toEqual([
+      "purchase",
+      "use",
+      "added",
+    ]);
+    expect(all.structuredContent.entries[0]).toMatchObject({
+      item: { id: pads, name: "Plaquettes", kind: "part", archived: false },
+      quantity_delta: 3,
+      unit_price_cents: 2490,
+      total_cents: 7470,
+      shop_name: "Rayon Libre",
+      summary_text: fr("Achat · 3~paires à 24,90~€ · Rayon Libre"),
+      editable: true,
+    });
+    expect(all.structuredContent.spending).toEqual({
+      purchases: 1,
+      total_cents: 7470,
+      unpriced: 0,
+    });
+    const uses = await callTool(token, "list_workshop_history", { groups: ["use"] });
+    expect(uses.structuredContent.entries).toHaveLength(1);
+    const bad = await callTool(token, "list_workshop_history", { from: "mars" });
+    expect(bad.structuredContent.errors[0]).toMatchObject({ field: "from" });
+  });
+
+  it("update_movement makes an addition a purchase, changes a day, and refuses the rest", async () => {
+    const { ctx, token } = garage("Corriger");
+    const pads = await addItem(token, {
+      kind: "part",
+      name: "Plaquettes",
+      category: "brakes",
+      quantity: 2,
+      unit: "pair",
+      link: { shop_name: "Rayon Libre", price_cents: 2490 },
+    });
+    const [added] = (await callTool(token, "list_workshop_history", {})).structuredContent.entries;
+    const linkId = listInventory(ctx)[0]!.links[0]!.id;
+
+    const preview = await callTool(token, "update_movement", {
+      movement_id: added.movement_id,
+      as_purchase: true,
+      occurred_on: "2026-03-12",
+      unit_price_cents: 1990,
+      link_id: linkId,
+      dry_run: true,
+    });
+    expect(preview.structuredContent.movement).toMatchObject({
+      group: "purchase",
+      on: "2026-03-12",
+      unit_price_cents: 1990,
+    });
+    expect(listInventory(ctx)[0]?.movements[0]?.kind).toBe("initial");
+
+    await callTool(token, "update_movement", {
+      movement_id: added.movement_id,
+      as_purchase: true,
+      occurred_on: "2026-03-12",
+      unit_price_cents: 1990,
+      link_id: linkId,
+      dry_run: false,
+    });
+    expect(listInventory(ctx)[0]?.movements[0]).toMatchObject({
+      kind: "purchase",
+      unitCostCents: 1990,
+      purchaseLinkId: linkId,
+    });
+    expect(quantityOf(ctx, pads)).toBe(2);
+
+    const use = await callTool(token, "update_stock", {
+      item_id: pads,
+      action: "use",
+      dry_run: false,
+    });
+    expect(use.isError).toBeFalsy();
+    const [used] = (await callTool(token, "list_workshop_history", { groups: ["use"] }))
+      .structuredContent.entries;
+    const priced = await callTool(token, "update_movement", {
+      movement_id: used.movement_id,
+      unit_price_cents: 100,
+      dry_run: false,
+    });
+    expect(priced.structuredContent.errors[0]).toMatchObject({ field: "unit_price_cents" });
+
+    const other = garage("Autre");
+    const foreign = await callTool(other.token, "update_movement", {
+      movement_id: used.movement_id,
+      note: "x",
+      dry_run: false,
+    });
+    expect(foreign.structuredContent.errors[0]).toMatchObject({ field: "movement_id" });
+  });
+});

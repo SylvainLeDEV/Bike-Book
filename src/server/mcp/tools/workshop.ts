@@ -8,12 +8,20 @@ import {
   INVENTORY_UNITS,
   PRODUCT_LEVELS,
 } from "@/lib/enums";
+import { isLocalDate } from "@/lib/format";
 import { COMPONENT_TYPE_LABELS, INVENTORY_CATEGORY_LABELS, REBUY_STATE_LABELS } from "@/lib/labels";
-import { nameKey } from "@/lib/names";
-import type { InventoryItemVM, RebuyRowVM } from "@/lib/view-models";
+import { cleanName, nameKey } from "@/lib/names";
+import type {
+  HistoryItemVM,
+  InventoryItemVM,
+  RebuyRowVM,
+  WorkshopHistoryEntryVM,
+} from "@/lib/view-models";
+import { defaultPurchaseLink, movementSummary, spendingOf } from "@/lib/workshop-history";
 import {
   itemData,
   itemInputSchema,
+  itemOpening,
   newItem,
   purchaseLinkSchema,
   toPurchaseLink,
@@ -32,8 +40,10 @@ import {
   setRestock,
   setToolOwned,
   updateItem,
+  updateMovement,
   updatePurchaseLink,
   type AccessContext,
+  type PurchaseSource,
 } from "@/server/db";
 import {
   containersChange,
@@ -42,9 +52,10 @@ import {
   stockQuantity,
   type StockChange,
 } from "@/server/domain/inventory";
+import { eventInstant } from "@/server/domain/time";
 import { getEnv } from "@/server/env";
 import { today } from "@/server/time";
-import { archivedItems, loadGarage, rebuyRows } from "@/server/views/workshop";
+import { archivedItems, loadGarage, rebuyRows, workshopHistory } from "@/server/views/workshop";
 import type { Ids } from "../describe";
 import {
   answer,
@@ -131,6 +142,14 @@ export function describeItem(item: InventoryItemVM, ids: Ids = "real") {
     rebuy_state: item.state,
     rebuy_label: item.state ? REBUY_STATE_LABELS[item.state] : null,
     last_unit_cost_cents: item.lastUnitCostCents,
+    /** The latest purchase by its day (D-111): list_workshop_history gives them all. */
+    last_purchase: item.lastPurchase
+      ? {
+          on: item.lastPurchase.on,
+          unit_price_cents: item.lastPurchase.unitCostCents,
+          shop_name: item.lastPurchase.shopName,
+        }
+      : null,
     /** link_id: update_workshop_item's update_link and remove_link (D-106). */
     purchase_links: item.purchaseLinks.map((link) => ({
       link_id: link.id,
@@ -311,6 +330,13 @@ const addWorkshopItemTool = defineTool({
       .describe("Product: the open container's level."),
     container_label: z.string().nullable().optional().describe('Product: "flacon", "bidon"…'),
     owned: z.boolean().optional().describe("Tool: whether the owner has it."),
+    purchased_on: z
+      .string()
+      .nullable()
+      .optional()
+      .describe(
+        "YYYY-MM-DD, today or before: the stock given was bought that day, at link.price_cents and through the link (a purchase in the workshop's history); omitted: an addition today.",
+      ),
     dry_run: dryRunInput,
   }),
   run: (ctx, { dry_run: dryRun, ...args }) => {
@@ -341,6 +367,7 @@ const addWorkshopItemTool = defineTool({
           }
         : null,
       notes: args.notes ?? null,
+      purchasedOn: args.purchased_on ?? null,
     };
     const input =
       args.kind === "part"
@@ -390,10 +417,15 @@ const addWorkshopItemTool = defineTool({
       {
         dry_run: dryRun,
         item: result.item,
-        warnings: namesakes.map(
-          (item) =>
-            `The workshop already has an item named "${item.name}" (id ${item.id}, ${item.kind}${item.archivedAt != null ? ", archived" : ""}): to change its stock, use update_stock on it rather than adding a second one.`,
-        ),
+        warnings: [
+          ...namesakes.map(
+            (item) =>
+              `The workshop already has an item named "${item.name}" (id ${item.id}, ${item.kind}${item.archivedAt != null ? ", archived" : ""}): to change its stock, use update_stock on it rather than adding a second one.`,
+          ),
+          ...(parsed.data.purchasedOn && itemOpening(parsed.data).initialQuantity === 0
+            ? ["purchased_on was ignored: the item starts with no stock, so nothing was bought."]
+            : []),
+        ],
       },
     );
   },
@@ -804,7 +836,7 @@ const receiveItemTool = defineTool({
   title: "Reçu",
   kind: "write",
   description:
-    "Records what arrived, as the workshop's \"Reçu\": a purchase of quantity (default: the quantity ordered, else 1; a tool: 1) at unit_price_cents (default: the cheapest link's price, when known), and the restocking ends. Works whether or not it was marked to order. Call with dry_run true first.",
+    "Records what arrived, as the workshop's \"Reçu\": a purchase of quantity (default: the quantity ordered, else 1; a tool: 1) on received_on (default today; a past day puts it at its date in the workshop's history), at unit_price_cents, bought through link_id (one of the item's purchase_links) or at shop_name (the item's link to that shop, else a new link without a page priced with what was paid); and the restocking ends. Neither price nor shop given: the cheapest priced link (else the first), at its price. Works whether or not it was marked to order. Call with dry_run true first.",
   input: z.strictObject({
     item_id: z.number().describe("The workshop item (list_workshop_items)."),
     quantity: z.number().optional().describe("Units or containers received (integer ≥ 1)."),
@@ -812,10 +844,24 @@ const receiveItemTool = defineTool({
       .number()
       .nullable()
       .optional()
-      .describe("Price of one unit or container, euro cents."),
+      .describe("Price paid for one unit or container, euro cents."),
+    received_on: z.string().optional().describe("YYYY-MM-DD, today or before (default today)."),
+    link_id: z.number().optional().describe("purchase_links[].link_id of this item."),
+    shop_name: z.string().optional().describe('Where it was bought: "Decathlon".'),
     dry_run: dryRunInput,
   }),
-  run: (ctx, { item_id: itemId, quantity, unit_price_cents: price, dry_run: dryRun }) => {
+  run: (
+    ctx,
+    {
+      item_id: itemId,
+      quantity,
+      unit_price_cents: price,
+      received_on: receivedOn,
+      link_id: linkId,
+      shop_name: shopName,
+      dry_run: dryRun,
+    },
+  ) => {
     const REFUSED = "The reception was refused; nothing was written.";
     const item = findItem(ctx, itemId);
     if (!item)
@@ -833,23 +879,37 @@ const receiveItemTool = defineTool({
         REFUSED,
       );
     }
-    // The price of the cheapest link, when one is known, as the app does.
-    const link = item.purchaseLinks
-      .filter((l) => l.priceCents != null)
-      .sort((a, b) => a.priceCents! - b.priceCents!)[0];
+    const day = receivedOn ?? today();
+    const errors = sourceErrors(item, { day, linkId, shopName });
+    if (errors.length) return refused(errors, REFUSED);
+    // Nothing said: the cheapest priced link (else the first), at its price, as the app does.
+    const link = defaultPurchaseLink(item.purchaseLinks);
+    const source: PurchaseSource =
+      linkId != null
+        ? { linkId }
+        : shopName != null
+          ? { shopName: cleanName(shopName) }
+          : price === undefined && link
+            ? { linkId: link.id }
+            : null;
     const change =
       item.kind === "product"
         ? containersChange(item.containers, wanted, "purchase")
         : ({ kind: "purchase", quantityDelta: wanted, levelAfter: null } as const);
     if (!change) return refused([{ field: "quantity", message: "Quantité invalide." }], REFUSED);
+    const chosen =
+      source && "linkId" in source ? item.purchaseLinks.find((l) => l.id === source.linkId) : null;
+    // No price given: the price of the link it went through, when known.
+    const unitCostCents = price !== undefined ? price : (chosen?.priceCents ?? null);
     const before = formatItemStock(item);
     const write = () => {
       const outcome = receiveItem(ctx, item.id, {
         quantity: wanted,
         levelAfter: change.levelAfter,
-        unitCostCents: price === undefined ? (link?.priceCents ?? null) : price,
-        purchaseLinkId: price === undefined ? (link?.id ?? null) : null,
-        at: Date.now(),
+        unitCostCents,
+        source,
+        at: eventInstant(day, Date.now(), getEnv().timeZone),
+        on: day,
       });
       if (!outcome.ok) throw new ToolRefusal([{ field: "item_id", message: "Objet introuvable." }]);
       return { movementId: outcome.movementId, item: describeItem(findItem(ctx, item.id)!) };
@@ -863,6 +923,273 @@ const receiveItemTool = defineTool({
       dry_run: dryRun,
       stock_before: before,
       item: result.item,
+      warnings: [],
+    });
+  },
+});
+
+/** A purchase's day and shop as the tools take them (D-111): refusals name the field. */
+function sourceErrors(
+  item: { purchaseLinks: { id: number }[] },
+  args: { day: string; linkId?: number; shopName?: string },
+): FieldError[] {
+  const errors: FieldError[] = [];
+  if (!isLocalDate(args.day)) {
+    errors.push({ field: "received_on", message: "Date invalide : AAAA-MM-JJ." });
+  } else if (args.day > today()) {
+    errors.push({ field: "received_on", message: "La date ne peut pas être dans le futur." });
+  }
+  if (args.linkId != null && args.shopName != null) {
+    errors.push({ field: "shop_name", message: "Indique link_id ou shop_name, pas les deux." });
+  }
+  if (args.linkId != null && !item.purchaseLinks.some((link) => link.id === args.linkId)) {
+    errors.push({ field: "link_id", message: "Ce lien n'appartient pas à cet objet." });
+  }
+  if (args.shopName != null && !cleanName(args.shopName)) {
+    errors.push({ field: "shop_name", message: "Indique la boutique." });
+  } else if (args.shopName != null && cleanName(args.shopName).length > 100) {
+    errors.push({ field: "shop_name", message: "100 caractères au maximum." });
+  }
+  return errors;
+}
+
+// --- list_workshop_history (D-111) ---------------------------------------------------------------
+
+/** One movement of the workshop's history as the tools answer it (D-111). */
+function describeEntry(entry: WorkshopHistoryEntryVM, item: HistoryItemVM) {
+  return {
+    movement_id: entry.id,
+    on: entry.on,
+    /** purchase, use, correction or added (the app's Achats, Utilisations, Corrections, Ajouts). */
+    group: entry.group,
+    movement_kind: entry.kind,
+    item: { id: item.id, name: item.name, kind: item.kind, archived: item.archived },
+    quantity_delta: entry.quantityDelta,
+    /** In French, as the history shows it. */
+    summary_text: movementSummary(item, entry),
+    unit_price_cents: entry.kind === "purchase" ? (entry.unitCostCents ?? null) : null,
+    total_cents:
+      entry.kind === "purchase" && entry.unitCostCents != null
+        ? entry.unitCostCents * entry.quantityDelta
+        : null,
+    shop_name: entry.kind === "purchase" ? entry.source : null,
+    link_id: entry.kind === "purchase" ? (entry.purchaseLinkId ?? null) : null,
+    level_before: entry.levelBefore ?? null,
+    level_after: entry.levelAfter ?? null,
+    maintenance: entry.maintenance
+      ? {
+          bike_id: entry.maintenance.bikeId,
+          event_id: entry.maintenance.eventId ?? null,
+          title: entry.maintenance.title,
+        }
+      : null,
+    note: entry.detail,
+    /** false: made by maintenance, changed through its event (update_maintenance). */
+    editable: entry.maintenance == null,
+  };
+}
+
+function loadHistory(ctx: AccessContext) {
+  const garage = loadGarage(ctx);
+  const history = workshopHistory(garage.items, archivedItems(ctx, garage));
+  return { history, items: new Map(history.items.map((item) => [item.id, item])) };
+}
+
+const listWorkshopHistoryTool = defineTool({
+  name: "list_workshop_history",
+  title: "Historique de l'atelier",
+  kind: "read",
+  description:
+    'The workshop\'s history, as its "Historique" tab: every movement of every item, archived ones included, newest first (by day). group: purchase (with unit_price_cents, total_cents, shop_name), use (a part fitted, a product\'s level going down, a container finished, with maintenance when an event made it), correction (a count, a level raised, a tool\'s possession), added (the stock typed when the item was added). Filters combine: item_id, groups, item_kind, from and to (days, inclusive), bike_id (items serving that bike, or a use on it), query (name, brand, reference, category or place). spending: what the purchases matched cost (those without a price counted apart). Answers "when did I buy…", "how fast does this oil go". A wrong day, price or shop, or an addition that was a purchase: update_movement.',
+  input: z.strictObject({
+    item_id: z.number().optional().describe("One item (list_workshop_items, include_archived)."),
+    groups: z
+      .array(z.enum(["purchase", "use", "correction", "added"]))
+      .optional()
+      .describe("Only these groups (default all)."),
+    item_kind: z.enum(INVENTORY_KINDS).optional().describe("part, product or tool."),
+    from: z.string().optional().describe("YYYY-MM-DD: from this day."),
+    to: z.string().optional().describe("YYYY-MM-DD: up to this day."),
+    bike_id: z.number().optional().describe("Items serving this bike, or used on it."),
+    query: z.string().optional().describe("Words in the item's name, brand, reference or place."),
+    ...pageInput,
+  }),
+  run: (
+    ctx,
+    { item_id: itemId, groups, item_kind: itemKind, from, to, bike_id: bikeId, query, ...page },
+  ) => {
+    const errors: FieldError[] = [];
+    if (from != null && !isLocalDate(from))
+      errors.push({ field: "from", message: "Date invalide : AAAA-MM-JJ." });
+    if (to != null && !isLocalDate(to))
+      errors.push({ field: "to", message: "Date invalide : AAAA-MM-JJ." });
+    if (bikeId != null && !getBike(ctx, bikeId)) {
+      errors.push({ field: "bike_id", message: "Vélo introuvable." });
+    }
+    const { history, items } = loadHistory(ctx);
+    if (itemId != null && !items.has(itemId)) {
+      errors.push({ field: "item_id", message: "Objet introuvable." });
+    }
+    if (errors.length) return refused(errors, "The history could not be read.");
+    const words = query ? nameKey(query) : "";
+    const matching = history.entries.filter((entry) => {
+      const item = items.get(entry.itemId)!;
+      return (
+        (itemId == null || entry.itemId === itemId) &&
+        (!groups?.length || groups.includes(entry.group)) &&
+        (itemKind == null || item.kind === itemKind) &&
+        (from == null || entry.on >= from) &&
+        (to == null || entry.on <= to) &&
+        (bikeId == null ||
+          item.bikes === "all" ||
+          item.bikes.includes(bikeId) ||
+          entry.maintenance?.bikeId === bikeId) &&
+        (!words || nameKey(`${item.name} ${item.searchText}`).includes(words))
+      );
+    });
+    const spending = spendingOf(matching);
+    const { items: slice, next_cursor } = paginate(matching, (entry) => String(entry.id), page);
+    return answer(`${slice.length} of ${matching.length} workshop movements.`, {
+      entries: slice.map((entry) => describeEntry(entry, items.get(entry.itemId)!)),
+      spending: {
+        purchases: spending.count,
+        total_cents: spending.totalCents,
+        unpriced: spending.unpriced,
+      },
+      next_cursor,
+      history_url: `${workshopUrl()}?tab=history${itemId != null ? `&of=${itemId}` : ""}`,
+    });
+  },
+});
+
+// --- update_movement (D-111) ---------------------------------------------------------------------
+
+const MOVEMENT_REFUSED = "The movement was refused; nothing was written.";
+
+const updateMovementTool = defineTool({
+  name: "update_movement",
+  title: "Modifier le mouvement",
+  kind: "write",
+  description:
+    "Corrects a movement of the workshop's history, as \"Modifier le mouvement\": occurred_on (its day, today or before; the stock and a product's level never change with it), note, and for a purchase unit_price_cents and where it was bought (link_id: one of the item's purchase_links, null: not said; or shop_name: the item's link to that shop, else a new link without a page priced with what was paid). as_purchase true makes an addition (group added, the stock typed when the item was added) a purchase of the same quantity, on occurred_on: ask the owner when, where and at what price. Only the fields given change. A movement made by maintenance (editable false) changes through its event. Call with dry_run true first.",
+  input: z.strictObject({
+    movement_id: z.number().describe("list_workshop_history's movement_id."),
+    occurred_on: z.string().optional().describe("YYYY-MM-DD, today or before."),
+    note: z.string().nullable().optional(),
+    unit_price_cents: z.number().nullable().optional().describe("Purchase: price of one unit."),
+    link_id: z.number().nullable().optional().describe("Purchase: purchase_links[].link_id."),
+    shop_name: z.string().optional().describe('Purchase: where it was bought, "Decathlon".'),
+    as_purchase: z.boolean().optional().describe("An addition becomes a purchase."),
+    dry_run: dryRunInput,
+  }),
+  run: (
+    ctx,
+    {
+      movement_id: movementId,
+      occurred_on: occurredOn,
+      note,
+      unit_price_cents: price,
+      link_id: linkId,
+      shop_name: shopName,
+      as_purchase: asPurchase = false,
+      dry_run: dryRun,
+    },
+  ) => {
+    const { history, items } = loadHistory(ctx);
+    const entry = history.entries.find((e) => e.id === movementId);
+    if (!entry) {
+      return refused(
+        [{ field: "movement_id", message: "Mouvement introuvable." }],
+        "Unknown movement.",
+      );
+    }
+    const item = items.get(entry.itemId)!;
+    if (entry.maintenance) {
+      return refused(
+        [
+          {
+            field: "movement_id",
+            message: "Ce mouvement vient d'un entretien : il se modifie depuis l'entretien.",
+          },
+        ],
+        MOVEMENT_REFUSED,
+      );
+    }
+    const buying = asPurchase && entry.kind === "initial";
+    const isPurchase = entry.kind === "purchase" || buying;
+    const errors: FieldError[] = [];
+    if (asPurchase && !(entry.kind === "initial" && entry.quantityDelta > 0)) {
+      errors.push({
+        field: "as_purchase",
+        message: "Seul un ajout avec du stock devient un achat.",
+      });
+    }
+    if (!isPurchase) {
+      for (const [field, value] of [
+        ["unit_price_cents", price],
+        ["link_id", linkId],
+        ["shop_name", shopName],
+      ] as const) {
+        if (value !== undefined)
+          errors.push({ field, message: "Seul un achat a un prix et une boutique." });
+      }
+    }
+    if (price != null && (!Number.isInteger(price) || price < 0 || price > 100_000_000)) {
+      errors.push({
+        field: "unit_price_cents",
+        message: "Prix invalide : en centimes, entier positif.",
+      });
+    }
+    if (note != null && note.trim().length > 500) {
+      errors.push({ field: "note", message: "500 caractères au maximum." });
+    }
+    const day = occurredOn ?? entry.on;
+    errors.push(
+      ...sourceErrors(
+        { purchaseLinks: item.links },
+        { day, linkId: linkId ?? undefined, shopName },
+      ).map((error) =>
+        error.field === "received_on" ? { ...error, field: "occurred_on" } : error,
+      ),
+    );
+    if (errors.length) return refused(errors, MOVEMENT_REFUSED);
+
+    const source: PurchaseSource =
+      linkId !== undefined
+        ? linkId == null
+          ? null
+          : { linkId }
+        : shopName != null
+          ? { shopName: cleanName(shopName) }
+          : entry.purchaseLinkId != null
+            ? { linkId: entry.purchaseLinkId }
+            : null;
+    const { timeZone } = getEnv();
+    const write = () => {
+      const outcome = updateMovement(ctx, entry.id, {
+        at: day === entry.on ? null : eventInstant(day, Date.now(), timeZone),
+        note: note !== undefined ? note?.trim() || null : entry.detail,
+        asPurchase: buying,
+        unitCostCents: price !== undefined ? price : (entry.unitCostCents ?? null),
+        source,
+        on: day,
+      });
+      if (!outcome.ok) {
+        throw new ToolRefusal(
+          [{ field: "movement_id", message: "Mouvement introuvable." }],
+          MOVEMENT_REFUSED,
+        );
+      }
+      const after = loadHistory(ctx);
+      const updated = after.history.entries.find((e) => e.id === entry.id)!;
+      return describeEntry(updated, after.items.get(updated.itemId)!);
+    };
+    const result = dryRun ? previewWrite(write) : atomically(write);
+    if (!dryRun) logWrite(ctx, "update_movement", { movement_id: entry.id });
+    const summary = `${item.name}: ${result.summary_text} on ${result.on}`;
+    return answer(dryRun ? `Dry run: ${summary}. Nothing was written.` : `${summary}.`, {
+      dry_run: dryRun,
+      movement: result,
       warnings: [],
     });
   },
@@ -933,4 +1260,6 @@ export const workshopTools = [
   setRestockTool,
   receiveItemTool,
   archiveWorkshopItemTool,
+  listWorkshopHistoryTool,
+  updateMovementTool,
 ];

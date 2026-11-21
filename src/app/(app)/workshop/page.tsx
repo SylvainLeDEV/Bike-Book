@@ -5,16 +5,17 @@ import { requireAccessContext } from "@/server/auth/context";
 import { today } from "@/server/time";
 import { bikeRef } from "@/server/views/refs";
 import { parseWorkshopView } from "@/lib/workshop-filter";
+import { parseWorkshopHistoryFilter } from "@/lib/workshop-history";
 import { listOpenTasks } from "@/server/db";
 import { procedureVMs } from "@/server/views/procedures";
-import { loadGarage } from "@/server/views/workshop";
+import { archivedItems, loadGarage, workshopHistory } from "@/server/views/workshop";
 import { WorkshopView } from "./workshop-view";
 
 export const metadata: Metadata = { title: "Atelier · Bike-Book" };
 
 /**
  * Atelier (feature 8, D-85): parts, products, tools and restocking. `?tab=`, `?bike=`, `?q=` and
- * `?item=` keep the view, rewritten in place by the screen.
+ * `?item=` keep the view, rewritten in place by the screen; the history's filters too (D-111).
  */
 export default async function WorkshopPage({ searchParams }: PageProps<"/workshop">) {
   const ctx = await requireAccessContext();
@@ -33,12 +34,14 @@ export default async function WorkshopPage({ searchParams }: PageProps<"/worksho
           listOpenTasks(ctx),
           garage.runs,
         ),
+        history: workshopHistory(garage.items, archivedItems(ctx, garage)),
       }}
       componentTypes={COMPONENT_TYPE_CODES.map((code) => ({
         code,
         label: COMPONENT_TYPE_LABELS[code],
       }))}
       initial={parseWorkshopView(params)}
+      initialHistory={parseWorkshopHistoryFilter(params)}
     />
   );
 }

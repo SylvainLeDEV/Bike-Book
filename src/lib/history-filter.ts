@@ -78,7 +78,10 @@ export type HistoryYear = { year: number; months: number[] };
  * filter's own year and month are kept even without entries (a link to an emptied period), so
  * the lists always show what is applied.
  */
-export function historyPeriods(entries: readonly Entry[], filter: HistoryFilter): HistoryYear[] {
+export function historyPeriods(
+  entries: readonly { on: LocalDate }[],
+  filter: HistoryFilter,
+): HistoryYear[] {
   const months = new Map<number, Set<number>>();
   const add = (year: number, month: number | null) => {
     const set = months.get(year) ?? new Set<number>();
@@ -120,7 +123,7 @@ export function historyKindCounts(
  * How many entries of a newest-first list to show: at least `min`, extended to the end of the
  * last month shown, so a month is never cut.
  */
-export function historyShownCount(entries: readonly Entry[], min: number): number {
+export function historyShownCount(entries: readonly { on: LocalDate }[], min: number): number {
   if (entries.length <= min) return entries.length;
   const lastMonth = entries[Math.max(min, 1) - 1].on.slice(0, 7);
   let count = Math.max(min, 1);

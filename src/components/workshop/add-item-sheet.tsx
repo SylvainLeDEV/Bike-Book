@@ -16,6 +16,7 @@ import {
   PRODUCT_LEVEL_LABELS,
   UNIT_LABELS,
 } from "@/lib/labels";
+import type { LocalDate } from "@/lib/format";
 import { parseMoneyInput } from "@/lib/parse";
 import type {
   AddItemInput,
@@ -95,11 +96,14 @@ export function AddItemSheet({
   prefill,
   editing,
   onSubmit,
+  today,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   bikes: BikeRef[];
   componentTypes: ComponentTypeOption[];
+  /** The latest day "Acheté le" accepts (D-111). */
+  today?: LocalDate;
   prefill?: AddItemPrefill | null;
   /** "Modifier l'objet": its current values; stock and links change through their own actions. */
   editing?: AddItemInput | null;
@@ -120,6 +124,7 @@ export function AddItemSheet({
           <AddItemForm
             bikes={bikes}
             componentTypes={componentTypes}
+            today={today}
             prefill={prefill ?? null}
             editing={editing ?? null}
             onSubmit={async (input) => {
@@ -138,12 +143,14 @@ export function AddItemSheet({
 function AddItemForm({
   bikes,
   componentTypes,
+  today,
   prefill,
   editing,
   onSubmit,
 }: {
   bikes: BikeRef[];
   componentTypes: ComponentTypeOption[];
+  today?: LocalDate;
   prefill: AddItemPrefill | null;
   editing: AddItemInput | null;
   /** Resolves with an error message, or null once saved. */
@@ -210,6 +217,8 @@ function AddItemForm({
           ? { shopName, url, priceCents: price != null && !Number.isNaN(price) ? price : null }
           : null,
       notes: text("notes"),
+      // "Acheté le" (D-111): only with a stock, at the link's price and shop.
+      purchasedOn: editing ? null : text("purchasedOn"),
     };
     const input: AddItemInput =
       kind === "part"
@@ -484,6 +493,15 @@ function AddItemForm({
                 </ChipRow>
               </Fieldset>
             ) : null}
+
+            {editing || (kind === "tool" && !owned) ? null : (
+              <Field
+                label="Acheté le"
+                hint="Facultatif. Avec une date, ce stock est noté comme un achat dans l'historique, au prix et à la boutique du lien d'achat."
+              >
+                <Input name="purchasedOn" type="date" max={today} />
+              </Field>
+            )}
 
             <details className="group border-t border-border pt-1">
               <summary className="flex min-h-11 list-none items-center gap-2 text-[14.5px] font-semibold [&::-webkit-details-marker]:hidden">

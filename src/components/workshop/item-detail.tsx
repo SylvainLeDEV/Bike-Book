@@ -52,9 +52,18 @@ import type {
   InventoryKind,
   ProductLevel,
   PurchaseLinkVM,
+  ReceiptInput,
 } from "@/lib/view-models";
+import { defaultPurchaseLink } from "@/lib/workshop-history";
 import { LevelGauge } from "./inventory-row";
 import { FramedImage } from "@/components/photos/framed-image";
+import {
+  DayField,
+  draftShopName,
+  PurchaseFields,
+  purchaseDraft,
+  readPurchaseDraft,
+} from "./purchase-fields";
 
 export type RestockStep = "to_order" | "ordered" | "received" | "none";
 
@@ -71,8 +80,16 @@ export type ItemActions = {
   onSetLevel?: (item: InventoryItemVM, level: ProductLevel) => void | Promise<void>;
   /** A tool: "Je l'ai" / "Je ne l'ai pas" (D-85). */
   onSetOwned?: (item: InventoryItemVM, owned: boolean) => void | Promise<void>;
-  /** Restocking: to order → ordered → received (quantity confirmed, D-42), or cancelled. */
-  onRestock?: (item: InventoryItemVM, to: RestockStep, quantity: number) => void | Promise<void>;
+  /**
+   * Restocking: to order → ordered → received (quantity confirmed, D-42; with what was paid,
+   * D-111), or cancelled.
+   */
+  onRestock?: (
+    item: InventoryItemVM,
+    to: RestockStep,
+    quantity: number,
+    receipt?: ReceiptInput,
+  ) => void | Promise<void>;
   /** "Monter sur …": the replace sheet, this item chosen. */
   onMount?: (item: InventoryItemVM, bike: BikeRef) => void;
   onEdit?: (item: InventoryItemVM) => void;
@@ -83,6 +100,10 @@ export type ItemActions = {
   /** "Modifier le lien d'achat": its shop, price and page, or "Supprimer le lien" (D-106). */
   onEditLink?: (item: InventoryItemVM, link: PurchaseLinkVM) => void;
   onArchive?: (item: InventoryItemVM) => void;
+  /** "Modifier le mouvement" (D-111). */
+  onEditMovement?: (itemId: number, movementId: number) => void;
+  /** "Tout voir": the workshop's history of this item alone (D-111). */
+  onShowHistory?: (item: InventoryItemVM) => void;
 };
 
 function Section({
@@ -410,6 +431,16 @@ function StockCard({
         ) : (
           <ToolStock item={item} actions={actions} />
         )}
+        {item.lastPurchase ? (
+          <p className="mt-2 border-t border-border pt-2.5 text-[13.5px] text-fg-muted">
+            <span className="font-semibold text-fg">Dernier achat</span> le{" "}
+            {formatDate(item.lastPurchase.on, { year: "auto", today })}
+            {item.lastPurchase.unitCostCents != null
+              ? ` · ${formatMoney(item.lastPurchase.unitCostCents)}${item.kind === "tool" ? "" : " l'unité"}`
+              : ""}
+            {item.lastPurchase.shopName ? ` · ${item.lastPurchase.shopName}` : ""}
+          </p>
+        ) : null}
         <RestockSection item={item} today={today} actions={actions} receiveRef={receiveRef} />
       </section>
     </Card>
@@ -434,6 +465,41 @@ function RestockSection({
   const [quantity, setQuantity] = React.useState(item.restock.quantity ?? 1);
   const ordered = item.restock.status === "ordered";
   const restocking = item.restock.status !== "none";
+  // What was paid (D-111): today, the usual link and its price unless changed.
+  const [receivedOn, setReceivedOn] = React.useState<LocalDate>(today);
+  const [draft, setDraft] = React.useState(() => {
+    const link = defaultPurchaseLink(item.purchaseLinks);
+    return purchaseDraft(link?.priceCents, link?.id);
+  });
+  const [editingReceipt, setEditingReceipt] = React.useState(false);
+  const [receiptError, setReceiptError] = React.useState<string | null>(null);
+  const receive = () => {
+    const purchase = readPurchaseDraft(draft);
+    if (!purchase.ok) {
+      setEditingReceipt(true);
+      setReceiptError(purchase.error);
+      return;
+    }
+    if (!receivedOn || receivedOn > today) {
+      setEditingReceipt(true);
+      setReceiptError("Indique une date passée ou aujourd'hui.");
+      return;
+    }
+    setReceiptError(null);
+    void actions.onRestock?.(item, "received", words ? quantity : 1, {
+      on: receivedOn,
+      unitCostCents: purchase.unitCostCents,
+      source: purchase.source,
+    });
+  };
+  const receiptPrice = readPurchaseDraft(draft);
+  const receiptLine = [
+    receivedOn === today ? "Aujourd'hui" : `Le ${formatDate(receivedOn, { year: "auto", today })}`,
+    receiptPrice.ok && receiptPrice.unitCostCents != null
+      ? `${formatMoney(receiptPrice.unitCostCents)}${words ? " l'unité" : ""}`
+      : "prix non noté",
+    draftShopName(draft, item.purchaseLinks) ?? "boutique non précisée",
+  ].join(" · ");
 
   if (restocking) {
     return (
@@ -467,13 +533,42 @@ function RestockSection({
             ) : null}
           </>
         ) : null}
+        {ordered ? (
+          <div className="grid gap-3 rounded-xl bg-surface-2 px-3.5 py-3">
+            <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+              <p className="text-[13.5px]">
+                <span className="font-semibold">Achat noté :</span> {receiptLine}
+              </p>
+              <Button
+                variant="link"
+                className="text-[13.5px]"
+                aria-expanded={editingReceipt}
+                onClick={() => setEditingReceipt((on) => !on)}
+              >
+                {editingReceipt ? "Fermer" : "Modifier"}
+              </Button>
+            </div>
+            {editingReceipt ? (
+              <div className="grid gap-3">
+                <DayField
+                  label="Reçu le"
+                  value={receivedOn}
+                  today={today}
+                  onChange={setReceivedOn}
+                />
+                <PurchaseFields draft={draft} onChange={setDraft} links={item.purchaseLinks} />
+              </div>
+            ) : null}
+            {receiptError ? (
+              <p role="alert" className="text-[13.5px] font-medium text-late-ink">
+                {receiptError}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
         <div className="flex flex-wrap gap-2">
           {ordered ? (
-            <Button
-              ref={receiveRef}
-              size="sm"
-              onClick={() => actions.onRestock?.(item, "received", words ? quantity : 1)}
-            >
+            <Button ref={receiveRef} size="sm" onClick={receive}>
               <PackageCheck />
               Marquer reçu{words ? ` · +${formatCount(quantity, words[0], words[1])}` : ""}
             </Button>
@@ -785,12 +880,25 @@ export function ItemDetail({
         </Section>
       ) : null}
 
-      <Section id="item-moves" title="Historique des mouvements">
+      <Section
+        id="item-moves"
+        title="Historique des mouvements"
+        side={
+          item.movements.length && actions.onShowHistory ? (
+            <Button variant="link" onClick={() => actions.onShowHistory?.(item)}>
+              Tout voir ({formatInteger(item.movements.length)})
+            </Button>
+          ) : null
+        }
+      >
         {item.movements.length ? (
           <Card asChild className="overflow-hidden">
             <ol className="m-0 list-none divide-y divide-border p-0">
               {item.movements.slice(0, 5).map((move) => (
-                <li key={move.id} className="flex min-h-[60px] items-center gap-3 px-4 py-2.5">
+                <li
+                  key={move.id}
+                  className="relative flex min-h-[60px] items-center gap-3 px-4 py-2.5"
+                >
                   <span
                     className={cn(
                       "grid w-10 shrink-0 place-items-center num text-lg leading-none font-semibold",
@@ -811,21 +919,44 @@ export function ItemDetail({
                   </span>
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-semibold">
-                      {movementTitle(
-                        item.kind,
-                        move,
-                        item.kind === "product" ? item.container : undefined,
+                      {actions.onEditMovement ? (
+                        // The whole row is the hit area; the title names it (D-111).
+                        <button
+                          type="button"
+                          onClick={() => actions.onEditMovement?.(item.id, move.id)}
+                          className="text-left outline-none after:absolute after:inset-0 hover:underline hover:underline-offset-3 focus-visible:after:rounded-md focus-visible:after:ring-2 focus-visible:after:ring-ring"
+                        >
+                          {movementTitle(
+                            item.kind,
+                            move,
+                            item.kind === "product" ? item.container : undefined,
+                          )}
+                          <span className="sr-only">, modifier</span>
+                        </button>
+                      ) : (
+                        movementTitle(
+                          item.kind,
+                          move,
+                          item.kind === "product" ? item.container : undefined,
+                        )
                       )}
                     </p>
-                    {move.source || move.detail ? (
+                    {move.kind === "purchase" || move.source || move.detail ? (
                       <p className="text-[13px] text-fg-muted">
-                        {[move.source, move.maintenance ? null : move.detail]
+                        {[
+                          // The quantity is in the left column: the unit price only (D-111).
+                          move.kind === "purchase" && move.unitCostCents != null
+                            ? `${formatMoney(move.unitCostCents)}${item.kind === "tool" ? "" : " l'unité"}`
+                            : null,
+                          move.source,
+                          move.maintenance ? null : move.detail,
+                        ]
                           .filter(Boolean)
                           .join(" · ")}
                       </p>
                     ) : null}
                     {move.maintenance ? (
-                      <Button variant="link" asChild className="text-[13px]">
+                      <Button variant="link" asChild className="relative z-10 text-[13px]">
                         <Link href={bikeHref(move.maintenance.bikeId)}>
                           {move.maintenance.title}
                         </Link>

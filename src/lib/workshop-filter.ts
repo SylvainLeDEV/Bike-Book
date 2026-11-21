@@ -1,13 +1,22 @@
 import type { InventoryKind } from "./enums";
+import { writeWorkshopHistoryFilter } from "./workshop-history";
 
 /*
- * The workshop's view kept in the address (D-85, D-86): the tab (Pièces, Produits, Outils,
- * À racheter, Fiches), the bike, the search, the item or procedure open. Pure: the server reads
+ * The workshop's view kept in the address (D-85, D-86, D-111): the tab (Pièces, Produits,
+ * Outils, À racheter, Fiches, Historique), the bike, the search, the item or procedure open; the
+ * history's own filters are in `workshop-history.ts` and leave the address with their tab. Pure: the server reads
  * them from the page's query, the browser writes them back in place (`replaceQuery`), so a reload
  * or a shared link shows the same. `?new=1` opens "Nouvelle fiche" once, then leaves the address.
  */
 
-export const WORKSHOP_TABS = ["parts", "products", "tools", "rebuy", "procedures"] as const;
+export const WORKSHOP_TABS = [
+  "parts",
+  "products",
+  "tools",
+  "rebuy",
+  "procedures",
+  "history",
+] as const;
 
 export type WorkshopTab = (typeof WORKSHOP_TABS)[number];
 
@@ -52,6 +61,8 @@ export function parseWorkshopView(query: Query): WorkshopView {
 /** Writes the view into `params`; "Pièces", no bike, no search and nothing open are left out. */
 export function writeWorkshopView(params: URLSearchParams, view: WorkshopView): void {
   for (const key of ["tab", "bike", "q", "item", "procedure", "new"]) params.delete(key);
+  // The history's filters go with their tab (D-111).
+  if (view.tab !== "history") writeWorkshopHistoryFilter(params, null);
   if (view.tab && view.tab !== "parts") params.set("tab", view.tab);
   if (view.bikeId != null) params.set("bike", String(view.bikeId));
   if (view.query.trim()) params.set("q", view.query);

@@ -650,9 +650,72 @@ export type MovementVM = {
   /** Shop for a purchase, bike for a use during maintenance, else a short origin. */
   source: string | null;
   detail: string | null;
-  maintenance: { bikeId: number; title: string } | null;
+  /** A movement made by maintenance: its event (`eventId` opens it, D-111). */
+  maintenance: { bikeId: number; eventId?: number; title: string } | null;
   /** Products: the open container's level after this movement, when it set one (D-85). */
   levelAfter?: ProductLevel | null;
+  /** Products: the open container's level before it, in recording order (D-111). */
+  levelBefore?: ProductLevel | null;
+  /** Purchases: the unit price paid (D-111). */
+  unitCostCents?: number | null;
+  /** Purchases: the link it was bought through, when one is known (D-111). */
+  purchaseLinkId?: number | null;
+};
+
+/** The workshop's history groups the movements (D-111): Achats, Utilisations, Corrections, Ajouts. */
+export type WorkshopHistoryGroup = "purchase" | "use" | "correction" | "added";
+
+/** An item as the workshop's history names it (D-111), archived ones included. */
+export type HistoryItemVM = {
+  id: number;
+  kind: InventoryKind;
+  name: string;
+  category: InventoryCategory;
+  archived: boolean;
+  /** "all", or the ids of the bikes it serves: the Atelier's bike filter. */
+  bikes: "all" | number[];
+  /** What the Atelier's search reads besides the name: brand, reference, category, place. */
+  searchText: string;
+  /** Parts: the unit counted. */
+  unit: InventoryUnit | null;
+  /** Products: the container's words. */
+  container: ContainerWords | null;
+  /** Its links, for "Modifier le mouvement"'s shop. */
+  links: { id: number; shopName: string; priceCents: number | null }[];
+};
+
+/** One movement of the workshop's history (D-111), newest first. */
+export type WorkshopHistoryEntryVM = MovementVM & {
+  itemId: number;
+  itemKind: InventoryKind;
+  /** The movement's day (`occurredOn`), as every history entry carries it. */
+  on: LocalDate;
+  group: WorkshopHistoryGroup;
+};
+
+export type WorkshopHistoryVM = {
+  items: HistoryItemVM[];
+  entries: WorkshopHistoryEntryVM[];
+};
+
+/** Where a purchase was made, as the sheets send it (D-111). */
+export type PurchaseSourceInput = { linkId: number } | { shopName: string } | null;
+
+/** "Reçu" with what was paid (D-111). */
+export type ReceiptInput = {
+  on: LocalDate;
+  unitCostCents: number | null;
+  source: PurchaseSourceInput;
+};
+
+/** "Modifier le mouvement" (D-111). */
+export type MovementEditInput = {
+  on: LocalDate;
+  note: string | null;
+  /** An addition ("Stock initial") becomes a purchase of the same quantity. */
+  asPurchase: boolean;
+  unitCostCents: number | null;
+  source: PurchaseSourceInput;
 };
 
 export type InventoryItemVM = InventoryRowVM & {
@@ -665,6 +728,8 @@ export type InventoryItemVM = InventoryRowVM & {
   containerLabel?: string | null;
   /** Unit cost of the latest purchase movement: the cost of a part taken from stock (D-38). */
   lastUnitCostCents: number | null;
+  /** The latest purchase (D-111): its day, unit price and shop. */
+  lastPurchase?: { on: LocalDate; unitCostCents: number | null; shopName: string | null } | null;
   restock: {
     status: RestockStatus;
     quantity: number | null;
@@ -696,6 +761,8 @@ export type WorkshopVM = {
   items: InventoryItemVM[];
   /** The "Fiches" tab (D-86), archived ones included. */
   procedures?: ProcedureVM[];
+  /** The "Historique" tab (D-111): every item's movements, archived items included. */
+  history?: WorkshopHistoryVM;
 };
 
 // --- Maintenance procedures ("fiches", D-47, D-82, D-86) ---------------------------------------------
@@ -866,6 +933,8 @@ export type AddItemInput = {
   location: string | null;
   link: { shopName: string | null; url: string | null; priceCents: number | null } | null;
   notes: string | null;
+  /** "Acheté le" (D-111): the first stock was bought that day, at the link's price. */
+  purchasedOn?: LocalDate | null;
 } & (
   | { kind: "part"; quantity: number; unit: InventoryUnit; lowStockThreshold: number | null }
   | {

@@ -44,6 +44,16 @@ describe("workshop view in the address (D-85)", () => {
     expect(params.toString()).toBe("other=1&tab=procedures&procedure=4");
   });
 
+  it("keeps the history's filters only on its tab (D-111)", () => {
+    const params = new URLSearchParams("tab=history&year=2026&kind=purchase&of=4");
+    const none = { bikeId: null, query: "", itemId: null, procedureId: null };
+    writeWorkshopView(params, { ...none, tab: "history" });
+    expect(params.toString()).toBe("year=2026&kind=purchase&of=4&tab=history");
+    writeWorkshopView(params, { ...none, tab: "tools" });
+    expect(params.toString()).toBe("tab=tools");
+    expect(parseWorkshopView({ tab: "history" }).tab).toBe("history");
+  });
+
   it("names the tab of each kind", () => {
     expect(kindTab("part")).toBe("parts");
     expect(kindTab("product")).toBe("products");

@@ -39,17 +39,20 @@ export function stockQuantity(movements: Pick<Movement, "quantityDelta">[]): num
 
 /**
  * A product's stock (D-36): the containers are the sum of the movements, the open one
- * included; its level is the `level_after` of the latest movement that sets one. No container
- * left is "empty"; containers without a level yet (or bought after the last one ran out) are full.
+ * included; its level is the `level_after` of the latest movement **recorded** that sets one
+ * (D-111: each level was noted against the stock of that moment, so a back-dated purchase or a
+ * day changed afterwards never changes today's level). No container left is "empty"; containers
+ * without a level yet (or bought after the last one ran out) are full.
  */
-export function productStock(
-  movements: Pick<Movement, "id" | "occurredAt" | "quantityDelta" | "levelAfter">[],
-): { containers: number; level: ProductLevel } {
+export function productStock(movements: Pick<Movement, "id" | "quantityDelta" | "levelAfter">[]): {
+  containers: number;
+  level: ProductLevel;
+} {
   const containers = Math.max(0, stockQuantity(movements));
   if (containers === 0) return { containers, level: "empty" };
   const latest = movements
     .filter((movement) => movement.levelAfter != null)
-    .sort((a, b) => b.occurredAt - a.occurredAt || b.id - a.id)[0];
+    .sort((a, b) => b.id - a.id)[0];
   const level = latest?.levelAfter ?? "full";
   return { containers, level: level === "empty" ? "full" : level };
 }
@@ -57,7 +60,7 @@ export function productStock(
 /** What an item holds, from its kind and movements. */
 export function itemStock(
   kind: InventoryKind,
-  movements: Pick<Movement, "id" | "occurredAt" | "quantityDelta" | "levelAfter">[],
+  movements: Pick<Movement, "id" | "quantityDelta" | "levelAfter">[],
 ): ItemStock {
   switch (kind) {
     case "part":

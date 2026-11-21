@@ -610,7 +610,8 @@ erDiagram
 
 No quantity is stored (D-39): the quantity of a part or tool, and the container count of a
 product, are the sum of its movements; a product's level is the `level_after` of its latest
-movement that sets one (none left: `empty`; containers but no level yet: `full`); a tool is owned
+movement **recorded** (by `id`, D-111) that sets one (none left: `empty`; containers but no level
+yet: `full`); a tool is owned
 when its sum is above zero. An item's `kind` never changes once created (D-85); the fields of the
 other kinds stay null (`unit` by CHECK, `low_stock_threshold` and `container_label` by the
 data-access layer).
@@ -628,12 +629,12 @@ data-access layer).
 |-------|------|-------|
 | `id` | integer PK | |
 | `item_id` | FK `inventory_items`, required | |
-| `occurred_at` | timestamp | |
-| `kind` | enum: `initial`, `purchase`, `use`, `adjustment` | CHECK: `purchase` > 0, `use` ≤ 0, `initial` ≥ 0 |
+| `occurred_at` | timestamp | When it happened: a reception or an item "Acheté le" a past day sits at D-61's instant of that day; "Modifier le mouvement" changes it (D-111), never a product's level, which is read in recording order |
+| `kind` | enum: `initial`, `purchase`, `use`, `adjustment` | CHECK: `purchase` > 0, `use` ≤ 0, `initial` ≥ 0. An `initial` with a stock can become a `purchase` of the same quantity ("Je l'ai acheté", D-111) |
 | `quantity_delta` | integer, signed | Parts: units. Products: containers (0 when only the level changes). Tools: +1 or −1 |
 | `level_after` | enum: `full`, `started`, `low`, `empty`, nullable | Products only: the level of the **open container after** this movement, when the movement sets one (D-85). After a container is finished it is the next one's (`full`), or `empty` when none is left |
-| `unit_cost_cents` | integer, nullable | Purchases |
-| `purchase_link_id` | FK `purchase_links`, nullable | Where it was bought |
+| `unit_cost_cents` | integer, nullable | Purchases: the unit price paid, typed at reception or corrected (D-111) |
+| `purchase_link_id` | FK `purchase_links`, nullable | Where it was bought: one of the item's links; a shop typed by name reuses the item's link to it, else gets a link without a page priced with what was paid (D-111) |
 | `maintenance_item_id` | FK `maintenance_items`, nullable | The intervention that used it |
 | `created_by` | FK `users` | Who recorded it (D-25) |
 | `note` | text | |
@@ -642,6 +643,14 @@ data-access layer).
 Stock moves by movements, never by a typed total: "−" records a use, "+" a purchase, and
 "Corriger le stock" after a count records the difference as an `adjustment`. Tools are not
 recorded per job (D-40).
+
+**The workshop's history (D-111)** reads these movements as they are, archived items included:
+the Atelier's "Historique" tab groups them as Achats (`purchase`), Utilisations (`use`),
+Corrections (`adjustment`) and Ajouts (`initial`). A movement written by hand is corrected from
+its sheet ("Modifier le mouvement": its day, note, a purchase's unit price and link) or deleted
+for a mistake when the stock stays at or above zero; one linked to maintenance
+(`maintenance_item_id`) changes with its event only. Nothing records the restocking steps
+(`restock_changed_on` is the current step's day) nor the changes to an item's fields.
 
 <a id="movements-by-kind"></a>**Movements by kind (D-85).** No movement kind was added for
 products or tools, so the CHECK of `inventory_movements` stays as built:
@@ -692,9 +701,10 @@ items needed by a late or due-soon rule, then `to_order`, `ordered`, and low sto
 **Flows**
 
 1. *Replace a part from stock*: see [`maintenance_items`](#maintenance_items).
-2. *Received*: the quantity received is confirmed (prefilled with `restock_quantity`), then a
-   `purchase` movement of that quantity (cost from the link or typed), then `restock_status`
-   back to `none`.
+2. *Received*: the quantity received is confirmed (prefilled with `restock_quantity`), with
+   the day, the unit price paid and the shop (prefilled: today, the cheapest priced link, else
+   the first, at its price, D-111), then a `purchase` movement of that quantity on that day,
+   then `restock_status` back to `none`.
 3. *Bleed with mineral oil* (1.5): a `bled` maintenance item plus a movement on the product, with
    `level_after` (delta 0, or −1 when the container is finished).
 

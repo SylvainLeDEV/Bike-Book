@@ -91,6 +91,7 @@ export {
   addMovement,
   addPurchaseLink,
   createItem,
+  deleteMovement,
   deletePurchaseLink,
   listInventory,
   receiveItem,
@@ -100,12 +101,15 @@ export {
   undoMovement,
   undoReceive,
   updateItem,
+  updateMovement,
   updatePurchaseLink,
   type InventoryItem,
   type InventoryLink,
   type InventoryMovement,
   type ItemData,
+  type MovementOutcome,
   type PurchaseLinkInput,
+  type PurchaseSource,
   type RestockFields,
 } from "./inventory";
 export {

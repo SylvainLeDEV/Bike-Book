@@ -4,6 +4,7 @@ import * as React from "react";
 import { cn } from "cn";
 import {
   ChevronRight,
+  History,
   ListOrdered,
   PackageCheck,
   PackageMinus,
@@ -35,9 +36,15 @@ import type {
   WorkshopVM,
 } from "@/lib/view-models";
 import { kindTab, writeWorkshopView, type WorkshopTab } from "@/lib/workshop-filter";
+import {
+  NO_WORKSHOP_HISTORY_FILTER,
+  writeWorkshopHistoryFilter,
+  type WorkshopHistoryFilter,
+} from "@/lib/workshop-history";
 import type { AddItemPrefill } from "./add-item-sheet";
 import { InventoryRowContent, inventoryRowClasses } from "./inventory-row";
 import { ItemDetail, type ItemActions } from "./item-detail";
+import { historyEntriesFor, WorkshopHistory } from "./workshop-history";
 
 export type { WorkshopTab };
 
@@ -152,13 +159,15 @@ const SHELF_ART = (
  * The workshop (D-33, D-85): a summary line that leads to "À racheter", the Pièces · Produits ·
  * Outils · À racheter filters, search and a bike filter, rows grouped by category (by state in
  * "À racheter"). Under 1024 px an item replaces the list; from 1024 px they sit side by side.
- * The tab, bike, search and open item are kept in the address.
+ * "Fiches" (D-86) and "Historique" (D-111, full width) are tabs too. The tab, bike, search, open
+ * item and the history's filters are kept in the address.
  */
 export function WorkshopScreen({
   vm,
   actions,
   bikeHref,
   initial,
+  initialHistory,
   focusProcedure,
 }: {
   vm: WorkshopVM;
@@ -173,6 +182,8 @@ export function WorkshopScreen({
     procedureId?: number | null;
     receive?: boolean;
   };
+  /** The history's filters on arrival (D-111). */
+  initialHistory?: WorkshopHistoryFilter;
   /**
    * A procedure just saved: shown at once; `id` null after a delete: back to the list (`n`
    * changes for each signal).
@@ -208,8 +219,21 @@ export function WorkshopScreen({
     setView(focusProcedure.id == null ? "list" : "item");
   }
   const isProcedures = tab === "procedures";
+  const isHistory = tab === "history";
+  // Kept across tabs, so coming back shows the same filters (D-111).
+  const [historyFilter, setHistoryFilter] = React.useState<WorkshopHistoryFilter>(
+    initialHistory ?? NO_WORKSHOP_HISTORY_FILTER,
+  );
   const [focusReceive, setFocusReceive] = React.useState(Boolean(initial?.receive));
   const listRef = React.useRef<HTMLDivElement>(null);
+  const tabsRef = React.useRef<HTMLDivElement>(null);
+  // Phone: the tabs scroll sideways; the chosen one is brought into view, as on the bike page.
+  React.useEffect(() => {
+    tabsRef.current
+      ?.querySelector("input:checked")
+      ?.closest("label")
+      ?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [tab]);
 
   const passes = (item: InventoryItemVM) => {
     if (bikeId != null && item.bikes !== "all" && !item.bikes.some((b) => b.id === bikeId))
@@ -276,18 +300,29 @@ export function WorkshopScreen({
       ? procedures.find((p) => p.id === selectedProcedureId)
       : (procedureList.find((p) => p.id === selectedProcedureId) ?? procedureList[0])) ?? null;
 
-  // The view lives in the address, rewritten in place (D-85, D-86): a reload shows the same.
+  // The view lives in the address, rewritten in place (D-85, D-86, D-111): a reload shows the same.
   React.useEffect(() => {
-    replaceQuery((params) =>
+    replaceQuery((params) => {
       writeWorkshopView(params, {
         tab,
         bikeId,
         query,
-        itemId: !isProcedures && view === "item" ? selectedId : null,
+        itemId: !isProcedures && !isHistory && view === "item" ? selectedId : null,
         procedureId: isProcedures && view === "item" ? selectedProcedureId : null,
-      }),
-    );
-  }, [tab, isProcedures, bikeId, query, view, selectedId, selectedProcedureId]);
+      });
+      if (isHistory) writeWorkshopHistoryFilter(params, historyFilter);
+    });
+  }, [
+    tab,
+    isProcedures,
+    isHistory,
+    bikeId,
+    query,
+    view,
+    selectedId,
+    selectedProcedureId,
+    historyFilter,
+  ]);
 
   /** A filter changed: back to the list, whose first item shows beside it from 1024 px. */
   function setTab(next: WorkshopTab) {
@@ -353,6 +388,18 @@ export function WorkshopScreen({
     setTypeFilter("");
     setView("list");
   }
+
+  /** "Tout voir" on an item's page: the history of that item alone (D-111). */
+  function showItemHistory(item: InventoryItemVM) {
+    setHistoryFilter({ ...NO_WORKSHOP_HISTORY_FILTER, itemId: item.id });
+    setQuery("");
+    setBikeId(null);
+    setTab("history");
+    window.scrollTo({ top: 0 });
+  }
+
+  const history = vm.history ?? { items: [], entries: [] };
+  const historyEntries = historyEntriesFor(history, query, bikeId);
 
   const noItems = vm.items.length === 0;
   const empty = noItems && procedures.length === 0;
@@ -444,7 +491,23 @@ export function WorkshopScreen({
   }
 
   let body: React.ReactNode;
-  if (isProcedures) {
+  if (isHistory) {
+    body = (
+      <WorkshopHistory
+        history={history}
+        entries={historyEntries}
+        filter={historyFilter}
+        onFilterChange={setHistoryFilter}
+        onClearAll={() => {
+          setHistoryFilter(NO_WORKSHOP_HISTORY_FILTER);
+          clearFilters();
+        }}
+        outerFiltered={Boolean(query.trim()) || bikeId != null}
+        today={vm.today}
+        onOpen={(entry) => actions.onEditMovement?.(entry.itemId, entry.id)}
+      />
+    );
+  } else if (isProcedures) {
     body = !procedures.length ? (
       <EmptyState
         art={PROCEDURE_ART}
@@ -616,7 +679,8 @@ export function WorkshopScreen({
     );
   }
 
-  const showDetail = (isProcedures ? Boolean(selectedProcedure) : Boolean(selected)) && !empty;
+  const showDetail =
+    !isHistory && (isProcedures ? Boolean(selectedProcedure) : Boolean(selected)) && !empty;
   const currentName = isProcedures ? selectedProcedure?.title : selected?.name;
 
   return (
@@ -692,7 +756,7 @@ export function WorkshopScreen({
               <div className="mb-4 grid gap-3">
                 <fieldset className="m-0 min-w-0 border-0 p-0">
                   <legend className="sr-only">Afficher</legend>
-                  <ChipRow scroll className="-mx-4 px-4 md:mx-0 md:flex-wrap md:px-0">
+                  <ChipRow ref={tabsRef} scroll className="-mx-4 px-4 md:mx-0 md:flex-wrap md:px-0">
                     {(
                       [
                         ["parts", "Pièces"],
@@ -730,6 +794,15 @@ export function WorkshopScreen({
                       <ChipCount>
                         {procedures.filter((p) => !p.archived && procedurePasses(p)).length}
                       </ChipCount>
+                    </Chip>
+                    <Chip
+                      name="workshop-tab"
+                      value="history"
+                      checked={isHistory}
+                      onChange={() => setTab("history")}
+                    >
+                      <History aria-hidden />
+                      Historique <ChipCount>{historyEntries.length}</ChipCount>
                     </Chip>
                   </ChipRow>
                 </fieldset>
@@ -783,11 +856,13 @@ export function WorkshopScreen({
                 </div>
               </div>
             )}
-            <p className="sr-only" role="status">
-              {isProcedures
-                ? `${procedureList.length} fiche${procedureList.length > 1 ? "s" : ""}`
-                : `${list.length} objet${list.length > 1 ? "s" : ""}`}
-            </p>
+            {isHistory ? null : (
+              <p className="sr-only" role="status">
+                {isProcedures
+                  ? `${procedureList.length} fiche${procedureList.length > 1 ? "s" : ""}`
+                  : `${list.length} objet${list.length > 1 ? "s" : ""}`}
+              </p>
+            )}
             {body}
           </div>
 
@@ -820,7 +895,7 @@ export function WorkshopScreen({
                 item={selected}
                 today={vm.today}
                 allBikes={vm.bikes}
-                actions={actions}
+                actions={{ ...actions, onShowHistory: vm.history ? showItemHistory : undefined }}
                 bikeHref={bikeHref}
                 focusReceive={focusReceive}
               />

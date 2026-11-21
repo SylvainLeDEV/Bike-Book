@@ -2,15 +2,17 @@
 
 import { refresh } from "next/cache";
 import { z } from "zod";
-import { formatCount } from "@/lib/format";
+import { formatCount, localDateOf } from "@/lib/format";
 import { formatItemStock, movementTitle } from "@/lib/display";
 import { PRODUCT_LEVELS } from "@/lib/enums";
 import { PRODUCT_LEVEL_LABELS } from "@/lib/labels";
+import { defaultPurchaseLink } from "@/lib/workshop-history";
 import { requireAccessContext } from "@/server/auth/context";
 import {
   addMovement,
   addPurchaseLink,
   createItem,
+  deleteMovement,
   deletePurchaseLink,
   listInventory,
   receiveItem,
@@ -20,8 +22,10 @@ import {
   undoMovement,
   undoReceive,
   updateItem,
+  updateMovement,
   updatePurchaseLink,
   type InventoryItem,
+  type MovementOutcome,
   type RestockFields,
 } from "@/server/db";
 import {
@@ -33,6 +37,8 @@ import {
   type ItemStock,
   type StockChange,
 } from "@/server/domain/inventory";
+import { eventInstant } from "@/server/domain/time";
+import { getEnv } from "@/server/env";
 import { today } from "@/server/time";
 import { stockVM } from "@/server/views/workshop";
 import {
@@ -40,8 +46,10 @@ import {
   itemData,
   itemId as id,
   itemInputSchema,
+  movementEditSchema,
   newItem,
   purchaseLinkSchema,
+  receiptSchema,
   toPurchaseLink,
 } from "./workshop-input";
 
@@ -261,12 +269,14 @@ export async function correctStockAction(
 
 /**
  * Restocking (D-33, D-42): to order, ordered, received (a purchase), or cancelled. A tool is
- * bought one at a time, and only when it is not owned (D-85).
+ * bought one at a time, and only when it is not owned (D-85). "Reçu" takes what was paid
+ * (D-111): the day, the unit price, the shop; without it, today at the cheapest link's price.
  */
 export async function restockAction(
   itemId: unknown,
   to: unknown,
   quantity: unknown,
+  receipt?: unknown,
 ): Promise<Change> {
   const ctx = await requireAccessContext();
   const parsed = z
@@ -277,6 +287,10 @@ export async function restockAction(
     })
     .safeParse({ itemId, to, quantity });
   if (!parsed.success) return { ok: false, error: "Quantité invalide." };
+  const paid = receiptSchema.optional().safeParse(receipt ?? undefined);
+  if (!paid.success) {
+    return { ok: false, error: paid.error.issues[0]?.message ?? "Saisie invalide." };
+  }
   const item = currentItem(ctx, parsed.data.itemId);
   if (!item) return NOT_FOUND;
   const stock = itemStock(item.kind, item.movements);
@@ -287,21 +301,26 @@ export async function restockAction(
   const day = today();
 
   if (parsed.data.to === "received") {
-    // The price of the cheapest link, when one is known.
-    const link = item.links
-      .filter((l) => l.priceCents != null)
-      .sort((a, b) => a.priceCents! - b.priceCents!)[0];
     const change =
       stock.kind === "product"
         ? containersChange(stock.containers, wanted, "purchase")
         : ({ kind: "purchase", quantityDelta: wanted, levelAfter: null } as const);
     if (!change) return { ok: false, error: "Quantité invalide." };
+    // Without what was paid: today, at the cheapest link's price (D-42).
+    const link = defaultPurchaseLink(item.links);
+    const now = Date.now();
+    const receipt = paid.data ?? {
+      on: day,
+      unitCostCents: link?.priceCents ?? null,
+      source: link ? { linkId: link.id } : null,
+    };
     const outcome = receiveItem(ctx, item.id, {
       quantity: wanted,
       levelAfter: change.levelAfter,
-      unitCostCents: link?.priceCents ?? null,
-      purchaseLinkId: link?.id ?? null,
-      at: Date.now(),
+      unitCostCents: receipt.unitCostCents,
+      source: receipt.source,
+      at: eventInstant(receipt.on, now, getEnv().timeZone),
+      on: receipt.on,
     });
     if (!outcome.ok) return NOT_FOUND;
     refresh();
@@ -331,6 +350,69 @@ export async function restockAction(
     message: `${label} : ${item.name}`,
     undo: { kind: "restock", itemId: item.id, previous: outcome.previous },
   };
+}
+
+const MOVEMENT_ERRORS: Record<Exclude<MovementOutcome, { ok: true }>["reason"], string> = {
+  not_found: "Mouvement introuvable.",
+  from_maintenance:
+    "Ce mouvement vient d'un entretien : il se modifie ou se supprime depuis l'entretien.",
+  below_zero: "Le stock passerait sous zéro : corrige plutôt le stock après un comptage.",
+};
+
+/** The movement and its item, read again on the server. */
+function findMovement(ctx: Parameters<typeof listInventory>[0], movementId: number) {
+  for (const item of listInventory(ctx)) {
+    const movement = item.movements.find((m) => m.id === movementId);
+    if (movement) return { item, movement };
+  }
+  return null;
+}
+
+/**
+ * "Modifier le mouvement" (D-111): its day (the instant kept when the day is), its note; a
+ * purchase's unit price and shop; an addition made a purchase of the same quantity.
+ */
+export async function updateMovementAction(movementId: unknown, input: unknown): Promise<Result> {
+  const ctx = await requireAccessContext();
+  const movement = id.safeParse(movementId);
+  if (!movement.success) return { ok: false, error: MOVEMENT_ERRORS.not_found };
+  const parsed = movementEditSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Saisie invalide." };
+  }
+  const found = findMovement(ctx, movement.data);
+  if (!found) return { ok: false, error: MOVEMENT_ERRORS.not_found };
+  const { timeZone } = getEnv();
+  const data = parsed.data;
+  const sameDay = localDateOf(found.movement.occurredAt, timeZone) === data.on;
+  const outcome = updateMovement(ctx, movement.data, {
+    at: sameDay ? null : eventInstant(data.on, Date.now(), timeZone),
+    note: data.note,
+    asPurchase: data.asPurchase,
+    unitCostCents: data.unitCostCents,
+    source: data.source,
+    on: data.on,
+  });
+  if (!outcome.ok) return { ok: false, error: MOVEMENT_ERRORS[outcome.reason] };
+  refresh();
+  const bought = found.movement.kind === "initial" && data.asPurchase;
+  return {
+    ok: true,
+    message: `${bought ? "Achat noté" : "Mouvement modifié"} · ${found.item.name}`,
+  };
+}
+
+/** "Supprimer le mouvement" (D-111), confirmed in the sheet (D-70): for a mistake. */
+export async function deleteMovementAction(movementId: unknown): Promise<Result> {
+  const ctx = await requireAccessContext();
+  const movement = id.safeParse(movementId);
+  if (!movement.success) return { ok: false, error: MOVEMENT_ERRORS.not_found };
+  const found = findMovement(ctx, movement.data);
+  if (!found) return { ok: false, error: MOVEMENT_ERRORS.not_found };
+  const outcome = deleteMovement(ctx, movement.data);
+  if (!outcome.ok) return { ok: false, error: MOVEMENT_ERRORS[outcome.reason] };
+  refresh();
+  return { ok: true, message: `Mouvement supprimé · ${found.item.name}` };
 }
 
 const LINK_NOT_FOUND = { ok: false, error: "Lien d'achat introuvable." } as const;

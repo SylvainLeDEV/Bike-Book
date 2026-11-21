@@ -6,6 +6,7 @@ import { ProcedureSheet } from "@/components/procedures/procedure-sheet";
 import { useToast } from "@/components/ui/toast";
 import { AddItemSheet, type AddItemPrefill } from "@/components/workshop/add-item-sheet";
 import { CorrectStockSheet, LinkSheet } from "@/components/workshop/item-sheets";
+import { MovementSheet } from "@/components/workshop/movement-sheet";
 import { WorkshopScreen, type WorkshopActions } from "@/components/workshop/workshop-screen";
 import type {
   AddItemInput,
@@ -16,11 +17,13 @@ import type {
   WorkshopVM,
 } from "@/lib/view-models";
 import type { WorkshopView as WorkshopAddress } from "@/lib/workshop-filter";
+import type { WorkshopHistoryFilter } from "@/lib/workshop-history";
 import {
   addLinkAction,
   archiveItemAction,
   correctStockAction,
   deleteLinkAction,
+  deleteMovementAction,
   moveItemAction,
   restockAction,
   saveItemAction,
@@ -28,6 +31,7 @@ import {
   setOwnedAction,
   undoWorkshopAction,
   updateLinkAction,
+  updateMovementAction,
   type UndoToken,
 } from "@/server/actions/workshop";
 import { startRunAction } from "@/server/actions/runs";
@@ -77,10 +81,12 @@ export function WorkshopView({
   vm,
   componentTypes,
   initial,
+  initialHistory,
 }: {
   vm: WorkshopVM;
   componentTypes: ComponentTypeOption[];
   initial: WorkshopAddress;
+  initialHistory?: WorkshopHistoryFilter;
 }) {
   const toast = useToast();
   const router = useRouter();
@@ -106,6 +112,10 @@ export function WorkshopView({
     item: InventoryItemVM;
     link: PurchaseLinkVM | null;
   } | null>(null);
+  /** "Modifier le mouvement" (D-111): the movement's id, read in the current history. */
+  const [editingMovement, setEditingMovement] = React.useState<number | null>(null);
+  const movementEntry = vm.history?.entries.find((entry) => entry.id === editingMovement) ?? null;
+  const movementItem = vm.history?.items.find((item) => item.id === movementEntry?.itemId) ?? null;
 
   /** A change with "Annuler" (D-60). */
   const withUndo = (
@@ -125,7 +135,9 @@ export function WorkshopView({
     onMove: async (item, delta) => withUndo(await moveItemAction(item.id, delta)),
     onSetLevel: async (item, level) => withUndo(await setLevelAction(item.id, level)),
     onSetOwned: async (item, owned) => withUndo(await setOwnedAction(item.id, owned)),
-    onRestock: async (item, to, quantity) => withUndo(await restockAction(item.id, to, quantity)),
+    onRestock: async (item, to, quantity, receipt) =>
+      withUndo(await restockAction(item.id, to, quantity, receipt)),
+    onEditMovement: (_itemId, movementId) => setEditingMovement(movementId),
     // The replace sheet lives on the bike page: open it there with this item chosen.
     onMount: (item, bike) => router.push(`/bikes/${bike.id}?replace=${item.id}`),
     onAddItem: (prefill) => setSheet({ open: true, prefill: prefill ?? null, editing: null }),
@@ -172,7 +184,31 @@ export function WorkshopView({
         actions={actions}
         bikeHref={(bikeId) => `/bikes/${bikeId}`}
         initial={initial}
+        initialHistory={initialHistory}
         focusProcedure={focusProcedure}
+      />
+      <MovementSheet
+        entry={movementEntry}
+        item={movementItem}
+        today={vm.today}
+        onOpenChange={(open) => !open && setEditingMovement(null)}
+        eventHref={(bikeId, eventId) => `/bikes/${bikeId}?event=${eventId}`}
+        onSubmit={async (input) => {
+          if (editingMovement == null) return null;
+          const result = await updateMovementAction(editingMovement, input);
+          if (!result.ok) return result.error;
+          setEditingMovement(null);
+          toast(result.message);
+          return null;
+        }}
+        onDelete={async () => {
+          if (editingMovement == null) return null;
+          const result = await deleteMovementAction(editingMovement);
+          if (!result.ok) return result.error;
+          setEditingMovement(null);
+          toast(result.message);
+          return null;
+        }}
       />
       <ProcedureSheet
         open={procedureSheet.open}
@@ -201,6 +237,7 @@ export function WorkshopView({
         open={sheet.open}
         onOpenChange={(open) => setSheet((state) => ({ ...state, open }))}
         bikes={vm.bikes}
+        today={vm.today}
         componentTypes={componentTypes}
         prefill={sheet.prefill}
         editing={sheet.editing?.values ?? null}

@@ -42,10 +42,16 @@ export type InventoryMovement = {
   unitCostCents: number | null;
   purchaseLinkId: number | null;
   maintenanceItemId: number | null;
-  /** For a use during maintenance: where and what. */
-  maintenance: { bikeId: number; eventTitle: string; on: LocalDate } | null;
+  /** For a use during maintenance: where and what (the event opens from the history, D-111). */
+  maintenance: { bikeId: number; eventId: number; eventTitle: string; on: LocalDate } | null;
   note: string | null;
 };
+
+/**
+ * Where a purchase was made (D-111): one of the item's links, a shop typed by name (the item's
+ * link to it, else a new link without a page), or nowhere said.
+ */
+export type PurchaseSource = { linkId: number } | { shopName: string } | null;
 
 export type InventoryLink = {
   id: number;
@@ -192,6 +198,7 @@ export function listInventory(ctx: AccessContext): InventoryItem[] {
       purchaseLinkId: inventoryMovements.purchaseLinkId,
       maintenanceItemId: inventoryMovements.maintenanceItemId,
       note: inventoryMovements.note,
+      eventId: maintenanceEvents.id,
       eventBikeId: maintenanceEvents.bikeId,
       eventTitle: maintenanceEvents.title,
       eventOn: maintenanceEvents.performedOn,
@@ -248,9 +255,13 @@ export function listInventory(ctx: AccessContext): InventoryItem[] {
         purchaseLinkId: movement.purchaseLinkId,
         maintenanceItemId: movement.maintenanceItemId,
         maintenance:
-          movement.eventBikeId != null && movement.eventTitle != null && movement.eventOn != null
+          movement.eventId != null &&
+          movement.eventBikeId != null &&
+          movement.eventTitle != null &&
+          movement.eventOn != null
             ? {
                 bikeId: movement.eventBikeId,
+                eventId: movement.eventId,
                 eventTitle: movement.eventTitle,
                 on: movement.eventOn,
               }
@@ -263,7 +274,8 @@ export function listInventory(ctx: AccessContext): InventoryItem[] {
 /**
  * A new item: the item, its bikes, its first stock (an `initial` movement: a part's units, a
  * product's containers with the open one's level, an owned tool) and a purchase link. A tool not
- * owned goes straight to "À commander" (D-85).
+ * owned goes straight to "À commander" (D-85). With `purchasedAt`, the first stock is a purchase
+ * on that instant, at the link's price and through it (D-111).
  */
 export function createItem(
   ctx: AccessContext,
@@ -279,6 +291,8 @@ export function createItem(
       url: string | null;
       priceCents: number | null;
     } | null;
+    /** "Acheté le" (D-111): the first stock was bought then; null: an `initial` now. */
+    purchasedAt?: number | null;
     at: number;
     today: LocalDate;
   },
@@ -306,26 +320,32 @@ export function createItem(
       .returning({ id: inventoryItems.id })
       .get();
     if (!data.allBikes) setBikes(tx, id, data.bikeIds);
+    const linkId =
+      data.link && (data.link.shop || data.link.url)
+        ? tx
+            .insert(purchaseLinks)
+            .values({
+              itemId: id,
+              shopId: resolveShopId(tx, ctx, data.link.shop),
+              url: data.link.url,
+              priceCents: data.link.priceCents,
+              priceNotedOn: data.link.priceCents != null ? data.today : null,
+            })
+            .returning({ id: purchaseLinks.id })
+            .get().id
+        : null;
     if (data.initialQuantity > 0) {
+      const bought = data.purchasedAt != null;
       tx.insert(inventoryMovements)
         .values({
           itemId: id,
-          occurredAt: new Date(data.at),
-          kind: "initial",
+          occurredAt: new Date(bought ? data.purchasedAt! : data.at),
+          kind: bought ? "purchase" : "initial",
           quantityDelta: data.initialQuantity,
           levelAfter: data.kind === "product" ? (data.initialLevel ?? "full") : null,
+          unitCostCents: bought ? (data.link?.priceCents ?? null) : null,
+          purchaseLinkId: bought ? linkId : null,
           createdBy: ctx.user.id,
-        })
-        .run();
-    }
-    if (data.link && (data.link.shop || data.link.url)) {
-      tx.insert(purchaseLinks)
-        .values({
-          itemId: id,
-          shopId: resolveShopId(tx, ctx, data.link.shop),
-          url: data.link.url,
-          priceCents: data.link.priceCents,
-          priceNotedOn: data.link.priceCents != null ? data.today : null,
         })
         .run();
     }
@@ -423,6 +443,142 @@ export function undoMovement(ctx: AccessContext, movementId: number): Outcome {
   });
 }
 
+/**
+ * The link a purchase goes through (D-111): one of the item's links; for a shop typed by name,
+ * the item's first link to that shop, else a new link without a page, priced with what was paid
+ * on that day. A link's price is never changed by a purchase. `undefined`: not a link of the item.
+ */
+function purchaseLinkFor(
+  tx: Tx,
+  ctx: AccessContext,
+  itemId: number,
+  source: PurchaseSource,
+  paid: { unitCostCents: number | null; on: LocalDate },
+): number | null | undefined {
+  if (source == null) return null;
+  if ("linkId" in source) {
+    const link = tx
+      .select({ id: purchaseLinks.id })
+      .from(purchaseLinks)
+      .where(and(eq(purchaseLinks.id, source.linkId), eq(purchaseLinks.itemId, itemId)))
+      .get();
+    return link?.id;
+  }
+  const shopId = resolveShopId(tx, ctx, { name: source.shopName, kind: "physical" });
+  const links = tx
+    .select({ id: purchaseLinks.id, shopId: purchaseLinks.shopId, url: purchaseLinks.url })
+    .from(purchaseLinks)
+    .where(eq(purchaseLinks.itemId, itemId))
+    .orderBy(asc(purchaseLinks.sortOrder), asc(purchaseLinks.id))
+    .all();
+  const same = links.find((link) => link.shopId === shopId);
+  if (same) return same.id;
+  return tx
+    .insert(purchaseLinks)
+    .values({
+      itemId,
+      shopId,
+      url: null,
+      priceCents: paid.unitCostCents,
+      priceNotedOn: paid.unitCostCents != null ? paid.on : null,
+      sortOrder: links.length,
+    })
+    .returning({ id: purchaseLinks.id })
+    .get().id;
+}
+
+/** A movement of the caller's workspace, with what deciding a change needs. */
+function ownedMovement(tx: Tx, ctx: AccessContext, movementId: number) {
+  return tx
+    .select({
+      id: inventoryMovements.id,
+      itemId: inventoryMovements.itemId,
+      kind: inventoryMovements.kind,
+      quantityDelta: inventoryMovements.quantityDelta,
+      maintenanceItemId: inventoryMovements.maintenanceItemId,
+    })
+    .from(inventoryMovements)
+    .innerJoin(inventoryItems, eq(inventoryItems.id, inventoryMovements.itemId))
+    .where(
+      and(eq(inventoryMovements.id, movementId), eq(inventoryItems.workspaceId, ctx.workspace.id)),
+    )
+    .get();
+}
+
+export type MovementOutcome =
+  | { ok: true; itemId: number }
+  | { ok: false; reason: "not_found" | "from_maintenance" | "below_zero" };
+
+/**
+ * "Modifier le mouvement" (D-111): its instant (`at` null keeps it), its note, and for a
+ * purchase its unit price and where it was bought. An addition (`initial`) with a stock can be
+ * made a purchase of the same quantity (`asPurchase`): the stock does not move. A movement made
+ * by maintenance changes with its event, never here.
+ */
+export function updateMovement(
+  ctx: AccessContext,
+  movementId: number,
+  data: {
+    at: number | null;
+    note: string | null;
+    asPurchase: boolean;
+    unitCostCents: number | null;
+    source: PurchaseSource;
+    /** The movement's day, for the price of a link made for it. */
+    on: LocalDate;
+  },
+): MovementOutcome {
+  return getDb().transaction((tx) => {
+    const movement = ownedMovement(tx, ctx, movementId);
+    if (!movement) return { ok: false, reason: "not_found" };
+    if (movement.maintenanceItemId != null) return { ok: false, reason: "from_maintenance" };
+    const kind =
+      movement.kind === "initial" && data.asPurchase && movement.quantityDelta > 0
+        ? "purchase"
+        : movement.kind;
+    let purchase = {};
+    if (kind === "purchase") {
+      const linkId = purchaseLinkFor(tx, ctx, movement.itemId, data.source, {
+        unitCostCents: data.unitCostCents,
+        on: data.on,
+      });
+      if (linkId === undefined) return { ok: false, reason: "not_found" };
+      purchase = { unitCostCents: data.unitCostCents, purchaseLinkId: linkId };
+    }
+    tx.update(inventoryMovements)
+      .set({
+        kind,
+        note: data.note,
+        ...purchase,
+        ...(data.at != null ? { occurredAt: new Date(data.at) } : {}),
+      })
+      .where(eq(inventoryMovements.id, movementId))
+      .run();
+    return { ok: true, itemId: movement.itemId };
+  });
+}
+
+/**
+ * "Supprimer le mouvement" (D-111), for a mistake: refused for a movement made by maintenance
+ * (deleting the event gives it back, D-87) and when the stock would fall below zero.
+ */
+export function deleteMovement(ctx: AccessContext, movementId: number): MovementOutcome {
+  return getDb().transaction((tx) => {
+    const movement = ownedMovement(tx, ctx, movementId);
+    if (!movement) return { ok: false, reason: "not_found" };
+    if (movement.maintenanceItemId != null) return { ok: false, reason: "from_maintenance" };
+    const others = tx
+      .select({ id: inventoryMovements.id, quantityDelta: inventoryMovements.quantityDelta })
+      .from(inventoryMovements)
+      .where(eq(inventoryMovements.itemId, movement.itemId))
+      .all()
+      .filter((row) => row.id !== movementId);
+    if (stockQuantity(others) < 0) return { ok: false, reason: "below_zero" };
+    tx.delete(inventoryMovements).where(eq(inventoryMovements.id, movementId)).run();
+    return { ok: true, itemId: movement.itemId };
+  });
+}
+
 export type RestockFields = {
   status: RestockStatus;
   quantity: number | null;
@@ -461,8 +617,9 @@ export function setRestock(
 }
 
 /**
- * "Reçu" (D-42): a purchase movement of the quantity received, at the price of the cheapest link
- * when known, and the restocking back to none, in one transaction.
+ * "Reçu" (D-42): a purchase movement of the quantity received, at the unit price paid and
+ * through the link it was bought at (D-111: a shop typed by name gets a link without a page),
+ * and the restocking back to none, in one transaction.
  */
 export function receiveItem(
   ctx: AccessContext,
@@ -472,13 +629,20 @@ export function receiveItem(
     /** Products: the level the reception sets (a first container opens full, D-85). */
     levelAfter?: ProductLevel | null;
     unitCostCents: number | null;
-    purchaseLinkId: number | null;
+    source: PurchaseSource;
     at: number;
+    /** The reception's day, for the price of a link made for it. */
+    on: LocalDate;
   },
 ): Outcome<{ movementId: number; previous: RestockFields }> {
   return getDb().transaction((tx) => {
     const item = ownedItem(tx, ctx, itemId);
     if (!item) return { ok: false, reason: "not_found" };
+    const purchaseLinkId = purchaseLinkFor(tx, ctx, itemId, input.source, {
+      unitCostCents: input.unitCostCents,
+      on: input.on,
+    });
+    if (purchaseLinkId === undefined) return { ok: false, reason: "not_found" };
     const { id } = tx
       .insert(inventoryMovements)
       .values({
@@ -488,7 +652,7 @@ export function receiveItem(
         quantityDelta: input.quantity,
         levelAfter: input.levelAfter ?? null,
         unitCostCents: input.unitCostCents,
-        purchaseLinkId: input.purchaseLinkId,
+        purchaseLinkId,
         createdBy: ctx.user.id,
       })
       .returning({ id: inventoryMovements.id })

@@ -7,6 +7,7 @@ import {
   createBike,
   createComponent,
   createItem,
+  deleteMovement,
   deletePurchaseLink,
   getComponent,
   listInventory,
@@ -19,6 +20,7 @@ import {
   undoReceive,
   undoReplacement,
   updateItem,
+  updateMovement,
   updatePurchaseLink,
   type AccessContext,
   type BikeData,
@@ -149,8 +151,9 @@ describe("workshop", () => {
     const received = receiveItem(ctx, id, {
       quantity: 2,
       unitCostCents: 2100,
-      purchaseLinkId: null,
+      source: null,
       at: NOW,
+      on: "2026-10-21",
     });
     if (!received.ok) throw new Error(received.reason);
     expect(item(ctx, id)).toMatchObject({ restockStatus: "none", restockQuantity: null });
@@ -238,8 +241,9 @@ describe("workshop", () => {
     const bought = receiveItem(ctx, id, {
       quantity: 1,
       unitCostCents: 1990,
-      purchaseLinkId: first.id,
+      source: { linkId: first.id },
       at: NOW,
+      on: "2026-11-20",
     });
     if (!bought.ok) throw new Error(bought.reason);
     const link = { shop: null, url: "https://other.example/pads", notedOn: "2026-11-20" };
@@ -354,8 +358,9 @@ describe("workshop", () => {
       receiveItem(intruder, id, {
         quantity: 1,
         unitCostCents: null,
-        purchaseLinkId: null,
+        source: null,
         at: NOW,
+        on: "2026-10-21",
       }),
     ).toEqual({ ok: false, reason: "not_found" });
     expect(setItemArchived(intruder, id, NOW)).toEqual({ ok: false, reason: "not_found" });
@@ -434,6 +439,223 @@ describe("workshop", () => {
       }),
     ).toEqual({ ok: false, reason: "item_not_found" });
     expect(stockQuantity(item(owner, id).movements)).toBe(1);
+  });
+
+  describe("the history's movements (D-111)", () => {
+    const edit = {
+      at: null,
+      note: null,
+      asPurchase: false,
+      unitCostCents: null,
+      source: null,
+      on: "2026-10-25",
+    };
+
+    it("records a reception's day, price and shop, a new shop as a link without a page", () => {
+      const { ctx, bikeId } = setup("Reçu");
+      const id = pads(ctx, bikeId, 0);
+      const day = Date.parse("2026-10-20T21:59:59.999Z");
+      const got = receiveItem(ctx, id, {
+        quantity: 2,
+        unitCostCents: 2650,
+        source: { shopName: "  Cycles  du Lac " },
+        at: day,
+        on: "2026-10-20",
+      });
+      if (!got.ok) throw new Error(got.reason);
+      const after = item(ctx, id);
+      const link = after.links.find((l) => l.shop?.name === "Cycles du Lac")!;
+      expect(link).toMatchObject({ url: null, priceCents: 2650, priceNotedOn: "2026-10-20" });
+      expect(after.movements.at(-1)).toMatchObject({
+        kind: "purchase",
+        quantityDelta: 2,
+        unitCostCents: 2650,
+        purchaseLinkId: link.id,
+        occurredAt: day,
+      });
+      // The same shop again: its link is reused, its price left as noted.
+      receiveItem(ctx, id, {
+        quantity: 1,
+        unitCostCents: 2900,
+        source: { shopName: "cycles du lac" },
+        at: NOW,
+        on: "2026-10-25",
+      });
+      const again = item(ctx, id);
+      expect(again.links).toHaveLength(2);
+      expect(again.links.find((l) => l.id === link.id)?.priceCents).toBe(2650);
+      expect(again.movements.at(-1)?.purchaseLinkId).toBe(link.id);
+      // Another item's link is refused.
+      const other = pads(ctx, bikeId, 0);
+      const otherLink = item(ctx, other).links[0]!;
+      expect(
+        receiveItem(ctx, id, {
+          quantity: 1,
+          unitCostCents: null,
+          source: { linkId: otherLink.id },
+          at: NOW,
+          on: "2026-10-25",
+        }),
+      ).toEqual({ ok: false, reason: "not_found" });
+    });
+
+    it("adds an item bought on a past day as a purchase at its link's price", () => {
+      const { ctx, bikeId } = setup("Acheté");
+      const bought = Date.parse("2026-03-12T22:59:59.999Z");
+      const created = createItem(ctx, {
+        kind: "tool",
+        name: "Clé dynamométrique",
+        brand: null,
+        reference: null,
+        category: "other",
+        componentTypeCode: null,
+        allBikes: true,
+        bikeIds: [],
+        unit: null,
+        lowStockThreshold: null,
+        containerLabel: null,
+        location: null,
+        notes: null,
+        initialQuantity: 1,
+        link: { shop: { name: "Decathlon", kind: "physical" }, url: null, priceCents: 8900 },
+        purchasedAt: bought,
+        at: NOW,
+        today: "2026-10-25",
+      });
+      if (!created.ok) throw new Error(created.reason);
+      const tool = item(ctx, created.itemId);
+      expect(tool.movements).toEqual([
+        expect.objectContaining({
+          kind: "purchase",
+          quantityDelta: 1,
+          unitCostCents: 8900,
+          purchaseLinkId: tool.links[0]!.id,
+          occurredAt: bought,
+        }),
+      ]);
+      expect(bikeId).toBeGreaterThan(0);
+    });
+
+    it("changes a movement's day, note, price and shop; makes an addition a purchase", () => {
+      const { ctx, bikeId } = setup("Modifier");
+      const id = pads(ctx, bikeId, 2);
+      const initial = item(ctx, id).movements[0]!;
+      const link = item(ctx, id).links[0]!;
+      const march = Date.parse("2026-03-12T22:59:59.999Z");
+      expect(
+        updateMovement(ctx, initial.id, {
+          ...edit,
+          at: march,
+          note: "Commande groupée",
+          asPurchase: true,
+          unitCostCents: 1990,
+          source: { linkId: link.id },
+          on: "2026-03-12",
+        }),
+      ).toEqual({ ok: true, itemId: id });
+      const after = item(ctx, id);
+      expect(after.movements[0]).toMatchObject({
+        id: initial.id,
+        kind: "purchase",
+        quantityDelta: 2,
+        occurredAt: march,
+        unitCostCents: 1990,
+        purchaseLinkId: link.id,
+        note: "Commande groupée",
+      });
+      expect(stockQuantity(after.movements)).toBe(2);
+
+      // A use keeps its kind and gets no price; `at` null keeps its instant.
+      const used = addMovement(ctx, id, {
+        kind: "use",
+        quantityDelta: -1,
+        unitCostCents: null,
+        note: null,
+        at: NOW,
+      });
+      if (!used.ok) throw new Error(used.reason);
+      updateMovement(ctx, used.movementId, {
+        ...edit,
+        note: "Sortie boueuse",
+        asPurchase: true,
+        unitCostCents: 999,
+        source: { linkId: link.id },
+      });
+      expect(item(ctx, id).movements.find((m) => m.id === used.movementId)).toMatchObject({
+        kind: "use",
+        unitCostCents: null,
+        purchaseLinkId: null,
+        occurredAt: NOW,
+        note: "Sortie boueuse",
+      });
+    });
+
+    it("deletes a movement for a mistake, never below zero nor one made by maintenance", () => {
+      const { ctx, bikeId } = setup("Supprimer");
+      const id = pads(ctx, bikeId, 1);
+      const initial = item(ctx, id).movements[0]!;
+      const used = addMovement(ctx, id, {
+        kind: "use",
+        quantityDelta: -1,
+        unitCostCents: null,
+        note: null,
+        at: NOW,
+      });
+      if (!used.ok) throw new Error(used.reason);
+      // Without the addition, the stock would be −1.
+      expect(deleteMovement(ctx, initial.id)).toEqual({ ok: false, reason: "below_zero" });
+      expect(deleteMovement(ctx, used.movementId)).toEqual({ ok: true, itemId: id });
+      expect(stockQuantity(item(ctx, id).movements)).toBe(1);
+
+      // A part fitted from stock: its movement goes with the replacement, never alone.
+      const fitted = createComponent(
+        ctx,
+        bikeId,
+        { typeCode: "brake_pads", position: "front" },
+        {
+          brand: null,
+          model: null,
+          reference: null,
+          origin: "stock",
+          installedAt: Date.parse("2024-03-13T23:00:00Z"),
+          initialDistanceM: 0,
+          initialWearS: 0,
+          purchasedOn: null,
+          purchasePriceCents: null,
+          shop: null,
+          warrantyEndsOn: null,
+          notes: null,
+        },
+      );
+      if (!fitted.ok) throw new Error(fitted.reason);
+      const done = replaceComponent(ctx, {
+        removedComponentId: fitted.componentId,
+        on: "2026-10-25",
+        recordedAt: NOW,
+        at: NOW,
+        reason: "worn",
+        removalNote: null,
+        newPart: { brand: null, model: "Plaquettes", priceCents: null },
+        fromItemId: id,
+        eventTitle: "Plaquettes avant remplacées",
+      });
+      if (!done.ok) throw new Error(done.reason);
+      const fromMaintenance = item(ctx, id).movements.at(-1)!;
+      expect(deleteMovement(ctx, fromMaintenance.id)).toEqual({
+        ok: false,
+        reason: "from_maintenance",
+      });
+      expect(updateMovement(ctx, fromMaintenance.id, edit)).toEqual({
+        ok: false,
+        reason: "from_maintenance",
+      });
+      const intruder = createTestContext("Intrus");
+      expect(deleteMovement(intruder, initial.id)).toEqual({ ok: false, reason: "not_found" });
+      expect(updateMovement(intruder, initial.id, edit)).toEqual({
+        ok: false,
+        reason: "not_found",
+      });
+    });
   });
 
   describe("products and tools (D-85)", () => {

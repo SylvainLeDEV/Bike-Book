@@ -116,6 +116,25 @@ describe("workshop", () => {
       ).toEqual({ containers: 1, level: "full" });
     });
 
+    it("reads the level in recording order, whatever the days (D-111)", () => {
+      // A level noted today, then a purchase recorded later but dated last week: the open
+      // container keeps today's level.
+      expect(
+        productStock([
+          movement({ id: 1, kind: "initial", quantityDelta: 1, levelAfter: "full" }),
+          movement({ id: 2, kind: "use", quantityDelta: 0, levelAfter: "low", occurredAt: 9000 }),
+          movement({ id: 3, kind: "purchase", quantityDelta: 1, occurredAt: 1500 }),
+        ]),
+      ).toEqual({ containers: 2, level: "low" });
+      // A level recorded later but dated earlier still wins: it was noted against the stock then.
+      expect(
+        productStock([
+          movement({ id: 1, kind: "initial", quantityDelta: 2, levelAfter: "started" }),
+          movement({ id: 2, kind: "use", quantityDelta: 0, levelAfter: "low", occurredAt: 500 }),
+        ]),
+      ).toEqual({ containers: 2, level: "low" });
+    });
+
     it("reads a tool's possession from its movements", () => {
       expect(itemStock("tool", [])).toEqual({ kind: "tool", owned: false });
       expect(itemStock("tool", [movement({ id: 1, kind: "initial", quantityDelta: 1 })])).toEqual({

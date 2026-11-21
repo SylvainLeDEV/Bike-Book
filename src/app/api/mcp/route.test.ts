@@ -60,6 +60,8 @@ const TOOLS = [
   "delete_attachment",
   "list_procedures",
   "get_procedure",
+  "list_workshop_history",
+  "update_movement",
 ];
 
 describe("POST /api/mcp (D-90)", () => {

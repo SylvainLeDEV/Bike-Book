@@ -2,17 +2,23 @@ import "server-only";
 import { containerWords } from "@/lib/display";
 import { localDateOf, startOfLocalDay } from "@/lib/format";
 import { photoFrame } from "@/lib/framing";
+import { INVENTORY_CATEGORY_LABELS } from "@/lib/labels";
 import type {
   BikeRef,
+  HistoryItemVM,
   InventoryItemVM,
   InventoryRowVM,
   ItemStockVM,
   MovementVM,
   PartItemVM,
+  ProductLevel,
   PurchaseLinkVM,
   RebuyRowVM,
   RuleRowVM,
+  WorkshopHistoryEntryVM,
+  WorkshopHistoryVM,
 } from "@/lib/view-models";
+import { historyGroupOf } from "@/lib/workshop-history";
 import {
   listBikes,
   listComponents,
@@ -34,6 +40,7 @@ import { canBeRidden, trackingStartOn } from "@/server/domain/bikes";
 import {
   itemStock,
   lastUnitCostCents,
+  productStock,
   rebuyOrder,
   rebuyState,
   servesBike,
@@ -228,8 +235,19 @@ function itemVM(
   const lastUse = [...item.movements]
     .reverse()
     .find((movement) => movement.kind === "use" && movement.maintenance);
+  // A product's level before each movement, in recording order as its stock reads it (D-111).
+  const levelsBefore = new Map<number, ProductLevel>();
+  if (item.kind === "product") {
+    const recorded = [...item.movements].sort((a, b) => a.id - b.id);
+    recorded.forEach((movement, index) =>
+      levelsBefore.set(movement.id, productStock(recorded.slice(0, index)).level),
+    );
+  }
+  const shopOf = (linkId: number | null) => {
+    const link = item.links.find((l) => l.id === linkId);
+    return link ? (link.shop?.name ?? (link.url ? urlHost(link.url) : null)) : null;
+  };
   const movements: MovementVM[] = [...item.movements].reverse().map((movement) => {
-    const link = item.links.find((l) => l.id === movement.purchaseLinkId);
     const bikeName = movement.maintenance
       ? (bikes.find((b) => b.id === movement.maintenance!.bikeId)?.name ?? null)
       : null;
@@ -238,17 +256,23 @@ function itemVM(
       kind: movement.kind,
       quantityDelta: movement.quantityDelta,
       occurredOn: localDateOf(movement.occurredAt, timeZone),
-      source:
-        movement.kind === "purchase"
-          ? (link?.shop?.name ?? (link?.url ? urlHost(link.url) : null))
-          : bikeName,
+      source: movement.kind === "purchase" ? shopOf(movement.purchaseLinkId) : bikeName,
       detail: movement.note,
       maintenance: movement.maintenance
-        ? { bikeId: movement.maintenance.bikeId, title: movement.maintenance.eventTitle }
+        ? {
+            bikeId: movement.maintenance.bikeId,
+            eventId: movement.maintenance.eventId,
+            title: movement.maintenance.eventTitle,
+          }
         : null,
       levelAfter: movement.levelAfter,
+      levelBefore: levelsBefore.get(movement.id) ?? null,
+      unitCostCents: movement.unitCostCents,
+      purchaseLinkId: movement.purchaseLinkId,
     };
   });
+  // The latest purchase by its day (D-111), as "Dernier achat" says it.
+  const lastPurchase = [...item.movements].reverse().find((m) => m.kind === "purchase");
   const best = cheapest(links);
   return {
     id: item.id,
@@ -269,6 +293,13 @@ function itemVM(
     lowStockThreshold: item.lowStockThreshold,
     containerLabel: item.containerLabel,
     lastUnitCostCents: lastUnitCostCents(item.movements),
+    lastPurchase: lastPurchase
+      ? {
+          on: localDateOf(lastPurchase.occurredAt, timeZone),
+          unitCostCents: lastPurchase.unitCostCents,
+          shopName: shopOf(lastPurchase.purchaseLinkId),
+        }
+      : null,
     restock: {
       status: item.restockStatus,
       quantity: item.restockQuantity,
@@ -288,6 +319,55 @@ function itemVM(
         : null,
     movements,
     notes: item.notes,
+  };
+}
+
+/**
+ * The workshop's history (D-111): every movement of the items, archived ones included, newest
+ * first (by day, then in recording order), each with its item's kind and group; the items with
+ * what the history needs of them (search, bike filter, words, links for the movement sheet).
+ */
+export function workshopHistory(
+  items: InventoryItemVM[],
+  archived: InventoryItemVM[],
+): WorkshopHistoryVM {
+  const archivedIds = new Set(archived.map((item) => item.id));
+  const all = [...items, ...archived];
+  return {
+    items: all.map((item): HistoryItemVM => ({
+      id: item.id,
+      kind: item.kind,
+      name: item.name,
+      category: item.category,
+      archived: archivedIds.has(item.id),
+      bikes: item.bikes === "all" ? "all" : item.bikes.map((bike) => bike.id),
+      searchText: [
+        item.brand,
+        item.reference,
+        INVENTORY_CATEGORY_LABELS[item.category],
+        item.location,
+      ]
+        .filter(Boolean)
+        .join(" "),
+      unit: item.kind === "part" ? item.unit : null,
+      container: item.kind === "product" ? item.container : null,
+      links: item.purchaseLinks.map((link) => ({
+        id: link.id,
+        shopName: link.shopName,
+        priceCents: link.priceCents,
+      })),
+    })),
+    entries: all
+      .flatMap((item) =>
+        item.movements.map((movement): WorkshopHistoryEntryVM => ({
+          ...movement,
+          itemId: item.id,
+          itemKind: item.kind,
+          on: movement.occurredOn,
+          group: historyGroupOf(movement.kind),
+        })),
+      )
+      .sort((a, b) => b.on.localeCompare(a.on) || b.id - a.id),
   };
 }
 

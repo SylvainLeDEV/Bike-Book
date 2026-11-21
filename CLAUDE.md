@@ -27,7 +27,10 @@ deleted, and a page linked again takes the new price (D-106). On 2026-11-17, the
 (km, hours, rides) on each maintenance event and done task of the history, and the parts each event touched (D-107); the same day, dated tasks ranked with the rules
 under "À prévoir", late or due within 7 days (D-108). On 2026-11-18, a ride's title typed and
 edited in the ride sheet, a Garmin ride's name kept unless changed (D-109). On 2026-11-20, an open
-task deleted from "Modifier la tâche", and through the MCP (`delete_task`, D-110).
+task deleted from "Modifier la tâche", and through the MCP (`delete_task`, D-110). On 2026-11-21,
+the Atelier's "Historique" tab (every movement, filters, spending), "Modifier le mouvement", and
+purchases recorded as they happened: "Reçu" with its day, price and shop, "Acheté le" when adding
+an item (D-111).
 
 ## Read first
 
@@ -110,6 +113,10 @@ task deleted from "Modifier la tâche", and through the MCP (`delete_task`, D-11
   Since D-107: `list_maintenance` answers each event's `odometer` (the bike's counters then).
   Since D-109: `create_ride`, `update_ride` and `create_rides` take a ride's `title`.
   Since D-110: `delete_task` (an open task not needed, with its attachments and run in progress).
+  Since D-111: `list_workshop_history` (the Atelier's "Historique", with the period's spending),
+  `update_movement` (day, note, a purchase's price and shop, an addition made a purchase),
+  `receive_item`'s `received_on`, `link_id`, `shop_name`, `add_workshop_item`'s `purchased_on`,
+  each item's `last_purchase`. No `delete_movement`: a mistaken movement is deleted in the app.
   Since D-106: `purchase_links` carry `link_id`; `update_workshop_item` takes `update_link` and
   `remove_link`, and `add_link` on a page already linked gives it the new price.
   Summaries and warnings are in English for the assistant (said in the server instructions),
@@ -171,7 +178,8 @@ src/
 │                   # (#garmin) since D-101; a notice tops every page (key expiry, to classify)
 │                   # Routes: /, /bikes, /bikes/[bikeId], /activity, /workshop (D-54), /settings,
 │                   # /runs/[runId] (a run, full screen, D-87);
-│                   # /workshop?tab=, ?bike=, ?q=, ?item=, ?procedure= stay in the address
+│                   # /workshop?tab=, ?bike=, ?q=, ?item=, ?procedure= stay in the address,
+│                   # and the history's ?year=, ?month=, ?kind=, ?type=, ?of= (D-111)
 │                   # (D-85, D-86), ?new=1 opens "Nouvelle fiche";
 │                   # /bikes/[id]?done=<rule>, ?replace=<item> and ?event=<id> (edit,
 │                   # D-70) open a sheet on arrival; ?tab= (setup: "Réglages", D-79) and
@@ -213,7 +221,8 @@ src/
 │                   # format.ts / parse.ts (French formats), labels.ts (enum labels), names.ts,
 │                   # view-models.ts, display.ts, theme.ts, auth client, history-filter.ts and
 │                   # bike-tabs.ts (history filters and bike tab in the address, D-78),
-│                   # workshop-filter.ts (the workshop's view, D-85), address.ts (replaceQuery),
+│                   # workshop-filter.ts (the workshop's view, D-85), workshop-history.ts (its
+│                   # history's filters, rows, spending and words, D-111), address.ts (replaceQuery),
 │                   # procedures.ts (a procedure's material read for a bike, search, D-86),
 │                   # runs.ts (product level after a run, parts' cost, unchecked steps, D-87),
 │                   # setup.ts and setup-advice.ts (sag %, setup checks, sourced advice, D-79)
